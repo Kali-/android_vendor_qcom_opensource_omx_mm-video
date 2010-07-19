@@ -243,8 +243,8 @@ int init_decoder ( struct video_decoder_context *init_decode )
 
 
   /*Initialize Decoder with codec type and resolution*/
-  ioctl_msg.inputparam = &init_decode->decoder_format;
-  ioctl_msg.outputparam = NULL;
+  ioctl_msg.in = &init_decode->decoder_format;
+  ioctl_msg.out = NULL;
 
   if (ioctl (init_decode->video_driver_fd,VDEC_IOCTL_SET_CODEC,
          (void*)&ioctl_msg) < 0)
@@ -254,8 +254,8 @@ int init_decoder ( struct video_decoder_context *init_decode )
   }
 
   /*Set the output format*/
-  ioctl_msg.inputparam = &output_format;
-  ioctl_msg.outputparam = NULL;
+  ioctl_msg.in = &output_format;
+  ioctl_msg.out = NULL;
 
   if (ioctl (init_decode->video_driver_fd,VDEC_IOCTL_SET_OUTPUT_FORMAT,
          (void*)&ioctl_msg) < 0)
@@ -264,8 +264,8 @@ int init_decoder ( struct video_decoder_context *init_decode )
     return -1;
   }
 
-  ioctl_msg.inputparam = &init_decode->video_resoultion;
-  ioctl_msg.outputparam = NULL;
+  ioctl_msg.in = &init_decode->video_resoultion;
+  ioctl_msg.out = NULL;
 
   if (ioctl (init_decode->video_driver_fd,VDEC_IOCTL_SET_PICRES,
          (void*)&ioctl_msg) < 0)
@@ -279,8 +279,8 @@ int init_decoder ( struct video_decoder_context *init_decode )
   /*Get the Buffer requirements for input and output ports*/
 
   init_decode->input_buffer.buffer_type = VDEC_BUFFER_TYPE_INPUT;
-  ioctl_msg.inputparam = NULL;
-  ioctl_msg.outputparam = &init_decode->input_buffer;
+  ioctl_msg.in = NULL;
+  ioctl_msg.out = &init_decode->input_buffer;
 
   if (ioctl (init_decode->video_driver_fd,VDEC_IOCTL_GET_BUFFER_REQ,
          (void*)&ioctl_msg) < 0)
@@ -296,8 +296,8 @@ int init_decoder ( struct video_decoder_context *init_decode )
 
 
   init_decode->input_buffer.buffer_type = VDEC_BUFFER_TYPE_INPUT;
-  ioctl_msg.inputparam = &init_decode->input_buffer;
-  ioctl_msg.outputparam = NULL;
+  ioctl_msg.in = &init_decode->input_buffer;
+  ioctl_msg.out = NULL;
   init_decode->input_buffer.actualcount = init_decode->input_buffer.mincount + 2;
 
   if (ioctl (init_decode->video_driver_fd,VDEC_IOCTL_SET_BUFFER_REQ,
@@ -310,8 +310,8 @@ int init_decoder ( struct video_decoder_context *init_decode )
 
   DEBUG_PRINT("\n Query output bufffer requirements");
   init_decode->output_buffer.buffer_type = VDEC_BUFFER_TYPE_OUTPUT;
-  ioctl_msg.inputparam = NULL;
-  ioctl_msg.outputparam = &init_decode->output_buffer;
+  ioctl_msg.in = NULL;
+  ioctl_msg.out = &init_decode->output_buffer;
 
   if (ioctl (init_decode->video_driver_fd,VDEC_IOCTL_GET_BUFFER_REQ,
          (void*)&ioctl_msg) < 0)
@@ -581,8 +581,8 @@ int allocate_buffer ( enum vdec_buffer buffer_dir,
     setbuffers.buffer_type = buffer_dir;
     memcpy (&setbuffers.buffer,ptemp [i],sizeof (struct vdec_bufferpayload));
 
-    ioctl_msg.inputparam  = &setbuffers;
-    ioctl_msg.outputparam = NULL;
+    ioctl_msg.in  = &setbuffers;
+    ioctl_msg.out = NULL;
 
     if (ioctl (decode_context->video_driver_fd,VDEC_IOCTL_SET_BUFFER,
          &ioctl_msg) < 0)
@@ -639,8 +639,8 @@ int start_decoding (struct video_decoder_context *decode_context)
                                decode_context->ptr_outputbuffer [i]->pmem_fd;
     fillbuffer.client_data = (void *)decode_context->ptr_respbuffer [i];
     DEBUG_PRINT ("\n Client Data on output = %p",fillbuffer.client_data);
-    ioctl_msg.inputparam = &fillbuffer;
-    ioctl_msg.outputparam = NULL;
+    ioctl_msg.in = &fillbuffer;
+    ioctl_msg.out = NULL;
 
     if (ioctl (decode_context->video_driver_fd,
            VDEC_IOCTL_FILL_OUTPUT_BUFFER,&ioctl_msg) < 0)
@@ -675,8 +675,8 @@ int start_decoding (struct video_decoder_context *decode_context)
     frameinfo.client_data = (struct vdec_bufferpayload *)\
                            decode_context->ptr_inputbuffer [i];
     /*TODO: Time stamp needs to be updated*/
-    ioctl_msg.inputparam = &frameinfo;
-    ioctl_msg.outputparam = NULL;
+    ioctl_msg.in = &frameinfo;
+    ioctl_msg.out = NULL;
 
     if (ioctl (decode_context->video_driver_fd,VDEC_IOCTL_DECODE_FRAME,
          &ioctl_msg) < 0)
@@ -705,8 +705,8 @@ int stop_decoding  (struct video_decoder_context *decode_context)
     return -1;
   }
 
-  ioctl_msg.inputparam = &flush_dir;
-  ioctl_msg.outputparam = NULL;
+  ioctl_msg.in = &flush_dir;
+  ioctl_msg.out = NULL;
 
   if (ioctl(decode_context->video_driver_fd,VDEC_IOCTL_CMD_FLUSH,
          &ioctl_msg) < 0)
@@ -719,8 +719,8 @@ int stop_decoding  (struct video_decoder_context *decode_context)
   }
 
   flush_dir = VDEC_FLUSH_TYPE_OUTPUT;
-  ioctl_msg.inputparam = &flush_dir;
-  ioctl_msg.outputparam = NULL;
+  ioctl_msg.in = &flush_dir;
+  ioctl_msg.out = NULL;
 
   if (ioctl(decode_context->video_driver_fd,VDEC_IOCTL_CMD_FLUSH,
          &ioctl_msg) < 0)
@@ -856,8 +856,8 @@ static void* video_thread (void *context)
           frameinfo.client_data = (struct vdec_bufferpayload *)\
                        tempbuffer;
           /*TODO: Time stamp needs to be updated*/
-          ioctl_msg.inputparam = &frameinfo;
-          ioctl_msg.outputparam = NULL;
+          ioctl_msg.in = &frameinfo;
+          ioctl_msg.out = NULL;
           total_frames++;
           if (ioctl(decode_context->video_driver_fd,VDEC_IOCTL_DECODE_FRAME,
                &ioctl_msg) < 0)
@@ -916,8 +916,8 @@ static void* video_thread (void *context)
          fillbuffer.buffer.pmem_fd = tempbuffer->pmem_fd;
          fillbuffer.client_data = (void *)outputbuffer;
 
-         ioctl_msg.inputparam = &fillbuffer;
-         ioctl_msg.outputparam = NULL;
+         ioctl_msg.in = &fillbuffer;
+         ioctl_msg.out = NULL;
 
          if (ioctl (decode_context->video_driver_fd,
               VDEC_IOCTL_FILL_OUTPUT_BUFFER,&ioctl_msg) < 0)
@@ -971,12 +971,12 @@ static void* async_thread (void *context)
 
   while (1)
   {
-    ioctl_msg.inputparam = NULL;
+    ioctl_msg.in = NULL;
 
-    ioctl_msg.outputparam = (void*)&vdec_msg;
+    ioctl_msg.out = (void*)&vdec_msg;
     DEBUG_PRINT ("\n Sizeof vdec_msginfo = %d ",sizeof (vdec_msg));
     DEBUG_PRINT("\n Address of Vdec msg in async thread %p",\
-                ioctl_msg.outputparam);
+                ioctl_msg.out);
     if (ioctl (decode_context->video_driver_fd,VDEC_IOCTL_GET_NEXT_MSG,\
          (void*)&ioctl_msg) < 0)
     {
@@ -1015,14 +1015,14 @@ static void* async_thread (void *context)
         DEBUG_PRINT ("\n Client Data value in %p", \
                      vdec_msg.msgdata.output_frame.client_data);
         outputframe->bufferaddr = vdec_msg.msgdata.output_frame.bufferaddr;
-        outputframe->framesize.n_bottom = \
-        vdec_msg.msgdata.output_frame.framesize.n_bottom;
-        outputframe->framesize.n_left = \
-        vdec_msg.msgdata.output_frame.framesize.n_left;
-        outputframe->framesize.n_right = \
-        vdec_msg.msgdata.output_frame.framesize.n_right;
-        outputframe->framesize.n_top = \
-        vdec_msg.msgdata.output_frame.framesize.n_top;
+        outputframe->framesize.bottom = \
+        vdec_msg.msgdata.output_frame.framesize.bottom;
+        outputframe->framesize.left = \
+        vdec_msg.msgdata.output_frame.framesize.left;
+        outputframe->framesize.right = \
+        vdec_msg.msgdata.output_frame.framesize.right;
+        outputframe->framesize.top = \
+        vdec_msg.msgdata.output_frame.framesize.top;
         outputframe->framesize = vdec_msg.msgdata.output_frame.framesize;
         outputframe->len = vdec_msg.msgdata.output_frame.len;
         outputframe->time_stamp = vdec_msg.msgdata.output_frame.time_stamp;
