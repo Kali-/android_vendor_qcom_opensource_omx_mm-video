@@ -315,7 +315,8 @@ m_codec_format(0),
 m_codec_profile(0),
 m_bInvalidState(false),
 m_display_id(NULL),
-m_is_use_egl_buffer(false)
+m_is_use_egl_buffer(false),
+m_first_sync_frame_rcvd(false)
 {
    /* Assumption is that , to begin with , we have all the frames with client */
    memset(m_out_flags, 0x00, (OMX_CORE_NUM_OUTPUT_BUFFERS + 7) / 8);
@@ -9758,8 +9759,29 @@ void omx_vdec::fill_extradata(OMX_INOUT OMX_BUFFERHEADERTYPE * pBufHdr,
    pExtraFrameInfo = (OMX_QCOM_EXTRADATA_FRAMEINFO *) pExtraData->data;
    pBufHdr->nFlags &= (~OMX_BUFFERFLAG_SYNCFRAME);
    if (frameDetails->ePicType[0] == VDEC_PICTURE_TYPE_I) {
-      pBufHdr->nFlags |= OMX_BUFFERFLAG_SYNCFRAME;
+   /* assume that there is stream which starts with a non I frame, in such
+    * cases it makes sense to drop the decoded frame tills a I frame shows up
+    */
+
+   /* Q6 for H264 even for a P frame(if they come before the first I frame in the stream)
+    * sends it as a I frame with 100% concealment, then we should not set the sync frame
+    * flag.
+    */
+      if((false == m_first_sync_frame_rcvd)
+      && (strncmp(m_vdec_cfg.kind, "OMX.qcom.video.decoder.avc", 26) == 0)
+      && (100 == frameDetails->nPercentConcealedMacroblocks))
+      {
+         QTV_MSG_PRIO(QTVDIAG_GENERAL, QTVDIAG_PRIO_MED,"First I frame with 100% concealment.");
+      }
+      else
+      {
+         pBufHdr->nFlags |= OMX_BUFFERFLAG_SYNCFRAME;
+         QTV_MSG_PRIO(QTVDIAG_GENERAL, QTVDIAG_PRIO_MED,"First I frame received.");
+         m_first_sync_frame_rcvd = true;
+      }
    }
+
+
    if (frameDetails->ePicFormat == VDEC_PROGRESSIVE_FRAME)
       pExtraFrameInfo->interlaceType =
           OMX_QCOM_InterlaceFrameProgressive;

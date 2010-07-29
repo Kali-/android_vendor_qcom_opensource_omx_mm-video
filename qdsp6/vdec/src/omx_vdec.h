@@ -679,6 +679,7 @@ class omx_vdec:public qc_omx_component, public omx_vdec_inpbuf {
    bool m_is_use_buffer;
    bool m_is_input_use_buffer;
    bool m_is_use_egl_buffer;
+   bool m_first_sync_frame_rcvd;
    //bool                  m_is_use_pmem_buffer;
    // EOS notify pending to the IL client
    bool m_bEoSNotifyPending;
