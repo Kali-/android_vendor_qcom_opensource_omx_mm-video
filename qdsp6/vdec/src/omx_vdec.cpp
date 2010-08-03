@@ -1275,7 +1275,6 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
       m_out_buf_count = OMX_CORE_NUM_OUTPUT_BUFFERS_VC1;
       m_outstanding_frames = -OMX_CORE_NUM_OUTPUT_BUFFERS_VC1;
       m_bAccumulate_subframe = true;
-      m_bArbitraryBytes =  false;
       m_bAccumulate_subframe = (m_bAccumulate_subframe && m_default_accumulate_subframe);
    } else if (strncmp(m_vdec_cfg.kind, "OMX.qcom.video.decoder.vp", 25) ==
          0) {
