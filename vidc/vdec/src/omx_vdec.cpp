@@ -317,7 +317,8 @@ omx_vdec::omx_vdec(): m_state(OMX_StateInvalid),
                       valid_prev_ts(false),
                       prev_frame_ts(0),
                       frame_interval(~((unsigned int)0)),
-                      frame_rate(DEFAULT_FPS)
+                      frame_rate(DEFAULT_FPS),
+		      m_in_alloc_cnt(0)
 {
   /* Assumption is that , to begin with , we have all the frames with decoder */
   DEBUG_PRINT_HIGH("\n In OMX vdec Constuctor");
@@ -3614,7 +3615,7 @@ OMX_ERRORTYPE  omx_vdec::use_buffer(
     }
     if(port == OMX_CORE_INPUT_PORT_INDEX)
    {
-      error =  use_input_heap_buffers(hComp, bufferHdr,port, NULL, bytes, buffer);
+      error =  use_input_heap_buffers(hComp, bufferHdr,port, appData, bytes, buffer);
       if (error != OMX_ErrorNone)
       {
         DEBUG_PRINT_ERROR("Error returned in use_buffer (Pmem allocation failed)");
