@@ -57,14 +57,7 @@ extern "C"{
                          // the kind of frames packed per buffer and
                          // timestamps adjustments for divx.
 
-#ifdef __DEBUG_DIVX__
-#define DIVX_PRINTF LOGE
 #else
-#define DIVX_PRINTF
-#endif
-
-#else
-#define DIVX_PRINTF printf
 #define DEBUG_PRINT printf
 #define DEBUG_PRINT_ERROR printf
 #endif /* _ANDROID_ */
@@ -146,6 +139,7 @@ typedef enum {
 typedef enum {
   GOOD_STATE = 0,
   PORT_SETTING_CHANGE_STATE,
+  FLUSHING_STATE,
   ERROR_STATE,
   INVALID_STATE
 } test_status;
@@ -182,7 +176,7 @@ pthread_mutex_t lock;
 pthread_cond_t cond;
 pthread_mutex_t eos_lock;
 pthread_cond_t eos_cond;
-pthread_mutex_t rcfg_lock;
+pthread_mutex_t enable_lock;
 
 sem_t etb_sem;
 sem_t fbd_sem;
@@ -213,7 +207,10 @@ int overlay_fb(struct OMX_BUFFERHEADERTYPE *pBufHdr);
 void overlay_set();
 void overlay_unset();
 void render_fb(struct OMX_BUFFERHEADERTYPE *pBufHdr);
-
+int disable_output_port();
+int enable_output_port();
+int output_port_reconfig();
+void free_output_buffers();
 /************************************************************************/
 /*              GLOBAL INIT                 */
 /************************************************************************/
@@ -221,6 +218,7 @@ int input_buf_cnt = 0;
 int height =0, width =0;
 int sliceheight = 0, stride = 0;
 int used_ip_buf_cnt = 0;
+int free_op_buf_cnt = 0;
 volatile int event_is_done = 0;
 int ebd_cnt, fbd_cnt;
 int bInputEosReached = 0;
@@ -229,8 +227,7 @@ char in_filename[512];
 char seq_file_name[512];
 unsigned char seq_enabled = 0;
 unsigned char flush_input_progress = 0, flush_output_progress = 0;
-unsigned int cmd_data = 0, etb_count = 0;
-unsigned char out_reconfig_in_progress = 0;
+unsigned int cmd_data = ~(unsigned)0, etb_count = 0;
 
 char curr_seq_command[100];
 long int timeStampLfile = 0;
@@ -338,12 +335,11 @@ int get_next_command(FILE *seq_file)
     return 0;
 }
 
-void process_current_command(const char *seq_command)
+int process_current_command(const char *seq_command)
 {
     char *data_str = NULL;
     unsigned int data = 0, bufCnt = 0, i = 0;
     int frameSize;
-    OMX_ERRORTYPE ret;
 
     if(strstr(seq_command, "pause") == seq_command)
     {
@@ -353,10 +349,15 @@ void process_current_command(const char *seq_command)
         printf("\n After frame number %u", data);
         cmd_data = data;
         sem_wait(&seq_sem);
-        printf("\n Sending PAUSE cmd to OMX compt");
-        OMX_SendCommand(dec_handle, OMX_CommandStateSet, OMX_StatePause,0);
-        wait_for_event();
-        printf("\n EventHandler for PAUSE DONE");
+        if (!bOutputEosReached)
+        {
+            printf("\n Sending PAUSE cmd to OMX compt");
+            OMX_SendCommand(dec_handle, OMX_CommandStateSet, OMX_StatePause,0);
+            wait_for_event();
+            printf("\n EventHandler for PAUSE DONE");
+        }
+        else
+            seq_enabled = 0;
     }
     else if(strstr(seq_command, "sleep") == seq_command)
     {
@@ -369,8 +370,8 @@ void process_current_command(const char *seq_command)
     else if(strstr(seq_command, "resume") == seq_command)
     {
         printf("\n\n $$$$$   RESUME    $$$$$");
-        printf("\n Immediate effect", data);
-        printf("\n Sending PAUSE cmd to OMX compt");
+        printf("\n Immediate effect");
+        printf("\n Sending RESUME cmd to OMX compt");
         OMX_SendCommand(dec_handle, OMX_CommandStateSet, OMX_StateExecuting,0);
         wait_for_event();
         printf("\n EventHandler for RESUME DONE");
@@ -383,18 +384,53 @@ void process_current_command(const char *seq_command)
         printf("\n After frame number %u", data);
         cmd_data = data;
         sem_wait(&seq_sem);
-        printf("\n Sending FLUSH cmd to OMX compt");
-        flush_input_progress = 1;
-        flush_output_progress = 1;
-        OMX_SendCommand(dec_handle, OMX_CommandFlush, OMX_ALL, 0);
-        wait_for_event();
-        flush_input_progress = 0;
-        flush_output_progress = 0;
-        printf("\n EventHandler for FLUSH DONE");
-        printf("\n Post EBD_thread flush sem");
-        sem_post(&in_flush_sem);
-        printf("\n Post FBD_thread flush sem");
-        sem_post(&out_flush_sem);
+        if (!bOutputEosReached)
+        {
+            printf("\n Sending FLUSH cmd to OMX compt");
+            flush_input_progress = 1;
+            flush_output_progress = 1;
+            OMX_SendCommand(dec_handle, OMX_CommandFlush, OMX_ALL, 0);
+            wait_for_event();
+            printf("\n EventHandler for FLUSH DONE");
+            printf("\n Post EBD_thread flush sem");
+            sem_post(&in_flush_sem);
+            printf("\n Post FBD_thread flush sem");
+            sem_post(&out_flush_sem);
+        }
+        else
+            seq_enabled = 0;
+    }
+    else if(strstr(seq_command, "disable_op") == seq_command)
+    {
+        printf("\n\n $$$$$   DISABLE OP PORT    $$$$$");
+        data_str = (char*)seq_command + strlen("disable_op") + 1;
+        data = atoi(data_str);
+        printf("\n After frame number %u", data);
+        cmd_data = data;
+        sem_wait(&seq_sem);
+        printf("\n Sending DISABLE OP cmd to OMX compt");
+        if (disable_output_port() != 0)
+        {
+            printf("\n ERROR: While DISABLE OP...");
+            do_freeHandle_and_clean_up(true);
+            return -1;
+        }
+        else
+            printf("\n EventHandler for DISABLE OP");
+    }
+    else if(strstr(seq_command, "enable_op") == seq_command)
+    {
+        printf("\n\n $$$$$   ENABLE OP PORT    $$$$$");
+        data_str = (char*)seq_command + strlen("enable_op") + 1;
+        printf("\n Sending ENABLE OP cmd to OMX compt");
+        if (enable_output_port() != 0)
+        {
+            printf("\n ERROR: While ENABLE OP...");
+            do_freeHandle_and_clean_up(true);
+            return -1;
+        }
+        else
+            printf("\n EventHandler for ENABLE OP");
     }
     else
     {
@@ -402,6 +438,7 @@ void process_current_command(const char *seq_command)
         printf("\n seq_command[%s] is invalid", seq_command);
         seq_enabled = 0;
     }
+    return 0;
 }
 
 void* ebd_thread(void* pArg)
@@ -433,11 +470,6 @@ void* ebd_thread(void* pArg)
         pBuffer->nFilledLen = readBytes;
         OMX_EmptyThisBuffer(dec_handle,pBuffer);
         etb_count++;
-        if(cmd_data == etb_count)
-        {
-            sem_post(&seq_sem);
-            printf("\n Posted seq_sem");
-        }
     }
     else
     {
@@ -447,11 +479,6 @@ void* ebd_thread(void* pArg)
         OMX_EmptyThisBuffer(dec_handle,pBuffer);
         DEBUG_PRINT("EBD::Either EOS or Some Error while reading file\n");
         etb_count++;
-        if(cmd_data == etb_count)
-        {
-            sem_post(&seq_sem);
-            printf("\n Posted seq_sem");
-        }
         break;
     }
   }
@@ -471,6 +498,8 @@ void* fbd_thread(void* pArg)
     int bytes_written = 0;
     OMX_BUFFERHEADERTYPE *pBuffer;
 
+    DEBUG_PRINT("Inside %s\n", __FUNCTION__);
+
     if(flush_output_progress)
     {
         DEBUG_PRINT("\n FBD_thread flush wait start");
@@ -479,9 +508,19 @@ void* fbd_thread(void* pArg)
     }
 
     sem_wait(&fbd_sem);
-    DEBUG_PRINT("Inside %s fbd_cnt[%d] \n", __FUNCTION__, fbd_cnt);
 
-    fbd_cnt++;
+    pthread_mutex_lock(&enable_lock);
+    if (sent_disabled)
+    {
+      pthread_mutex_unlock(&enable_lock);
+      pthread_mutex_lock(&fbd_lock);
+      if (free_op_buf_cnt == portFmt.nBufferCountActual)
+        free_output_buffers();
+      pthread_mutex_unlock(&fbd_lock);
+      continue;
+    }
+    pthread_mutex_unlock(&enable_lock);
+
     pthread_mutex_lock(&fbd_lock);
     pBuffer = (OMX_BUFFERHEADERTYPE *) pop(fbd_queue);
     pthread_mutex_unlock(&fbd_lock);
@@ -490,92 +529,84 @@ void* fbd_thread(void* pArg)
       DEBUG_PRINT("Error - No pBuffer to dequeue\n");
       continue;
     }
-
-    /*********************************************
-    Write the output of the decoder to the file.
-    *********************************************/
-
-    if (sent_disabled)
+    else if (pBuffer->nFilledLen > 0)
     {
-       DEBUG_PRINT("Ignoring FillBufferDone\n");
-       continue;
-    }
-
-    DIVX_PRINTF("[DivX] FBD_Ctr[%d] Timestamp[%ld]\n",
-        fbd_cnt, pBuffer->nTimeStamp);
-    if (pBuffer->nTimeStamp != (lastTimestamp + timestampInterval))
-    {
-        DIVX_PRINTF("[DivX] Unexpected timestamp[%ld]! Expected[%ld]\n",
-            pBuffer->nTimeStamp, lastTimestamp + timestampInterval);
-    }
-    lastTimestamp = pBuffer->nTimeStamp;
-
-    if (realtime_display)
-    {
-      if(!gettimeofday(&t_avsync,NULL))
+      fbd_cnt++;
+      DEBUG_PRINT("[%s] fbd_cnt[%d] \n", __FUNCTION__, fbd_cnt);
+      if (realtime_display)
       {
-         current_avsync_time =(t_avsync.tv_sec*1000000)+t_avsync.tv_usec;
-      }
-
-      if (base_avsync_time != 0)
-      {
-        pthread_mutex_lock(&fbd_lock);
-        delta_time = (current_avsync_time - base_avsync_time) - ((long)pBuffer->nTimeStamp - base_timestamp);
-        if (delta_time < 0 )
+        DEBUG_PRINT("FBD_Ctr[%d] Timestamp[%ld]\n",
+            fbd_cnt, pBuffer->nTimeStamp);
+        if (pBuffer->nTimeStamp != (lastTimestamp + timestampInterval))
         {
-          DEBUG_PRINT_ERROR("Sleep %d us. AV Sync time is left behind\n",
-                 -delta_time);
-          usleep(-delta_time);
-          canDisplay = 1;
+            DEBUG_PRINT_ERROR("Unexpected timestamp[%ld]! Expected[%ld]\n",
+                pBuffer->nTimeStamp, lastTimestamp + timestampInterval);
         }
-        else if ((delta_time>lipsync_time) && (contigous_drop_frame < 6))
+        lastTimestamp = pBuffer->nTimeStamp;
+        if(!gettimeofday(&t_avsync,NULL))
         {
-          DEBUG_PRINT_ERROR("Error - Drop the frame at the renderer. Video frame with ts %lu usec behind by %ld usec"
-                         ", pBuffer->nFilledLen %u\n",
-                        (unsigned long)pBuffer->nTimeStamp, delta_time, pBuffer->nFilledLen);
-          canDisplay = 0;
-          contigous_drop_frame++;
+           current_avsync_time =(t_avsync.tv_sec*1000000)+t_avsync.tv_usec;
+        }
+
+        if (base_avsync_time != 0)
+        {
+          delta_time = (current_avsync_time - base_avsync_time) - ((long)pBuffer->nTimeStamp - base_timestamp);
+          if (delta_time < 0 )
+          {
+            DEBUG_PRINT("Sleep %d us. AV Sync time is left behind\n",
+                   -delta_time);
+            usleep(-delta_time);
+            canDisplay = 1;
+          }
+          else if ((delta_time>lipsync_time) && (contigous_drop_frame < 6))
+          {
+            DEBUG_PRINT_ERROR("Error - Drop the frame at the renderer. Video frame with ts %lu usec behind by %ld usec"
+                           ", pBuffer->nFilledLen %u\n",
+                          (unsigned long)pBuffer->nTimeStamp, delta_time, pBuffer->nFilledLen);
+            canDisplay = 0;
+            contigous_drop_frame++;
+          }
+          else
+          {
+            canDisplay = 1;
+          }
         }
         else
         {
-          canDisplay = 1;
+          base_avsync_time = current_avsync_time;
+          base_timestamp = (long)pBuffer->nTimeStamp;
         }
-        pthread_mutex_unlock(&fbd_lock);
       }
-      else
+
+      if (displayYuv && canDisplay)
       {
-        base_avsync_time = current_avsync_time;
-        base_timestamp = (long)pBuffer->nTimeStamp;
+          ret = overlay_fb(pBuffer);
+          if(ret)
+             break;
+          contigous_drop_frame = 0;
+      }
+
+      if (takeYuvLog)
+      {
+          bytes_written = fwrite((const char *)pBuffer->pBuffer,
+                                  pBuffer->nFilledLen,1,outputBufferFile);
+          if (bytes_written < 0) {
+              DEBUG_PRINT("\nFillBufferDone: Failed to write to the file\n");
+          }
+          else {
+              DEBUG_PRINT("\nFillBufferDone: Wrote %d YUV bytes to the file\n",
+                            bytes_written);
+          }
       }
     }
 
-    if (!flush_output_progress && displayYuv && canDisplay && pBuffer->nFilledLen > 0)
+    pthread_mutex_lock(&eos_lock);
+    if (bOutputEosReached)
     {
-        pthread_mutex_lock(&fbd_lock);
-        ret = overlay_fb(pBuffer);
-        pthread_mutex_unlock(&fbd_lock);
-
-        if(ret)
-        {
-           break;
-        }
-        contigous_drop_frame = 0;
+        pthread_mutex_unlock(&eos_lock);
+        break;
     }
-
-    if (!flush_output_progress && takeYuvLog) {
-        pthread_mutex_lock(&fbd_lock);
-        bytes_written = fwrite((const char *)pBuffer->pBuffer,
-                                pBuffer->nFilledLen,1,outputBufferFile);
-        pthread_mutex_unlock(&fbd_lock);
-        if (bytes_written < 0) {
-            DEBUG_PRINT("\nFillBufferDone: Failed to write to the file\n");
-        }
-        else {
-            DEBUG_PRINT("\nFillBufferDone: Wrote %d YUV bytes to the file\n",
-                          bytes_written);
-        }
-    }
-
+    pthread_mutex_unlock(&eos_lock);
     /********************************************************************/
     /* De-Initializing the open max and relasing the buffers and */
     /* closing the files.*/
@@ -588,19 +619,49 @@ void* fbd_thread(void* pArg)
       bOutputEosReached = true;
       pthread_cond_broadcast(&eos_cond);
       pthread_mutex_unlock(&eos_lock);
+      if(seq_enabled)
+      {
+          seq_enabled = 0;
+          sem_post(&seq_sem);
+          printf("\n Posted seq_sem in EOS");
+      }
+      DEBUG_PRINT("***************************************************\n");
+      DEBUG_PRINT("FBD_THREAD bOutputEosReached %d\n", bOutputEosReached);
       //QPERF_END(client_decode);
       //QPERF_SET_ITERATION(client_decode, fbd_cnt);
-      DEBUG_PRINT("***************************************************\n");
-      DEBUG_PRINT("FBD_THREAD bOutputEosReached %d\n",bOutputEosReached);
       break;
     }
 
-    pthread_mutex_lock(&rcfg_lock);
-    if(!out_reconfig_in_progress)
+    pthread_mutex_lock(&enable_lock);
+    if (flush_output_progress || sent_disabled)
     {
-        OMX_FillThisBuffer(dec_handle, pBuffer);
+        pBuffer->nFilledLen = 0;
+        pthread_mutex_lock(&fbd_lock);
+        if(push(fbd_queue, (void *)pBuffer) < 0)
+        {
+          DEBUG_PRINT_ERROR("Error in enqueueing fbd_data\n");
+        }
+        else
+        {
+          free_op_buf_cnt++;
+          sem_post(&fbd_sem);
+        }
+        pthread_mutex_unlock(&fbd_lock);
     }
-    pthread_mutex_unlock(&rcfg_lock);
+    else
+    {
+        pthread_mutex_lock(&fbd_lock);
+        OMX_FillThisBuffer(dec_handle, pBuffer);
+        free_op_buf_cnt--;
+        pthread_mutex_unlock(&fbd_lock);
+    }
+    pthread_mutex_unlock(&enable_lock);
+    if(cmd_data <= fbd_cnt)
+    {
+      sem_post(&seq_sem);
+      printf("\n Posted seq_sem Frm(%d) Req(%d)", fbd_cnt, cmd_data);
+      cmd_data = ~(unsigned)0;
+    }
   }
   return NULL;
 }
@@ -616,22 +677,36 @@ OMX_ERRORTYPE EventHandler(OMX_IN OMX_HANDLETYPE hComponent,
     switch(eEvent) {
         case OMX_EventCmdComplete:
             DEBUG_PRINT("\n OMX_EventCmdComplete \n");
-            // check nData1 for DISABLE event
+            currentStatus = GOOD_STATE;
             if(OMX_CommandPortDisable == (OMX_COMMANDTYPE)nData1)
             {
                 DEBUG_PRINT("*********************************************\n");
                 DEBUG_PRINT("Recieved DISABLE Event Command Complete[%d]\n",nData2);
                 DEBUG_PRINT("*********************************************\n");
-                sent_disabled = 0;
             }
             else if(OMX_CommandPortEnable == (OMX_COMMANDTYPE)nData1)
             {
                 DEBUG_PRINT("*********************************************\n");
                 DEBUG_PRINT("Recieved ENABLE Event Command Complete[%d]\n",nData2);
                 DEBUG_PRINT("*********************************************\n");
+                pthread_mutex_lock(&enable_lock);
+                sent_disabled = 0;
+                pthread_mutex_unlock(&enable_lock);
             }
-            currentStatus = GOOD_STATE;
-            event_complete();
+            else if(OMX_CommandFlush == (OMX_COMMANDTYPE)nData1)
+            {
+                DEBUG_PRINT("*********************************************\n");
+                DEBUG_PRINT("Received FLUSH Event Command Complete[%d]\n",nData2);
+                DEBUG_PRINT("*********************************************\n");
+                if (nData2 == 0)
+                    flush_input_progress = 0;
+                else if (nData2 == 1)
+                    flush_output_progress = 0;
+                if (flush_input_progress || flush_output_progress)
+                    currentStatus = FLUSHING_STATE;
+            }
+            if (currentStatus == GOOD_STATE)
+                event_complete();
             break;
 
         case OMX_EventError:
@@ -649,21 +724,51 @@ OMX_ERRORTYPE EventHandler(OMX_IN OMX_HANDLETYPE hComponent,
                 bOutputEosReached = true;
                 pthread_cond_broadcast(&eos_cond);
                 pthread_mutex_unlock(&eos_lock);
-
+                if(seq_enabled)
+                {
+                    seq_enabled = 0;
+                    sem_post(&seq_sem);
+                    printf("\n Posted seq_sem in ERROR");
+                }
               }
             }
 
             event_complete();
             break;
         case OMX_EventPortSettingsChanged:
-            DEBUG_PRINT("OMX_EventPortSettingsChanged port[%d]\n",nData1);
-            waitForPortSettingsChanged = 0;
+            DEBUG_PRINT("OMX_EventPortSettingsChanged port[%d]\n", nData1);
             currentStatus = PORT_SETTING_CHANGE_STATE;
-            pthread_mutex_lock(&rcfg_lock);
-            out_reconfig_in_progress = 1;
-            pthread_mutex_unlock(&rcfg_lock);
-            // reset the event
-            event_complete();
+            if (waitForPortSettingsChanged)
+            {
+	            waitForPortSettingsChanged = 0;
+	            event_complete();
+            }
+            else
+            {
+                pthread_mutex_lock(&eos_lock);
+                pthread_cond_broadcast(&eos_cond);
+                pthread_mutex_unlock(&eos_lock);
+            }
+            break;
+
+        case OMX_EventBufferFlag:
+            DEBUG_PRINT("OMX_EventBufferFlag port[%d] flags[%x]\n", nData1, nData2);
+            if (nData1 == 1 && (nData2 & OMX_BUFFERFLAG_EOS)) {
+                pthread_mutex_lock(&eos_lock);
+                bOutputEosReached = true;
+                pthread_cond_broadcast(&eos_cond);
+                pthread_mutex_unlock(&eos_lock);
+                if(seq_enabled)
+                {
+                    seq_enabled = 0;
+                    sem_post(&seq_sem);
+                    printf("\n Posted seq_sem in OMX_EventBufferFlag");
+                }
+            }
+            else
+            {
+                DEBUG_PRINT_ERROR("OMX_EventBufferFlag Event not handled\n");
+            }
             break;
 
         default:
@@ -715,25 +820,22 @@ OMX_ERRORTYPE FillBufferDone(OMX_OUT OMX_HANDLETYPE hComponent,
     {
       currentStatus = GOOD_STATE;
       waitForPortSettingsChanged = 0;
-
       if(displayYuv)
-      {
-          overlay_set();
-      }
+        overlay_set();
       event_complete();
     }
 
-    if(!sent_disabled)
+    pthread_mutex_lock(&fbd_lock);
+    free_op_buf_cnt++;
+    if(push(fbd_queue, (void *)pBuffer) < 0)
     {
-      pthread_mutex_lock(&fbd_lock);
-      if(push(fbd_queue, (void *)pBuffer) < 0)
-      {
-         DEBUG_PRINT_ERROR("Error in enqueueing fbd_data\n");
-         return OMX_ErrorUndefined;
-      }
       pthread_mutex_unlock(&fbd_lock);
-      sem_post(&fbd_sem);
+      DEBUG_PRINT_ERROR("Error in enqueueing fbd_data\n");
+      return OMX_ErrorUndefined;
     }
+    pthread_mutex_unlock(&fbd_lock);
+    sem_post(&fbd_sem);
+
     return OMX_ErrorNone;
 }
 
@@ -1081,7 +1183,7 @@ int main(int argc, char **argv)
     pthread_mutex_init(&lock, 0);
     pthread_mutex_init(&etb_lock, 0);
     pthread_mutex_init(&fbd_lock, 0);
-    pthread_mutex_init(&rcfg_lock, 0);
+    pthread_mutex_init(&enable_lock, 0);
     if (-1 == sem_init(&etb_sem, 0, 0))
     {
       printf("Error - sem_init failed %d\n", errno);
@@ -1160,7 +1262,7 @@ int main(int argc, char **argv)
     pthread_mutex_destroy(&lock);
     pthread_mutex_destroy(&etb_lock);
     pthread_mutex_destroy(&fbd_lock);
-    pthread_mutex_destroy(&rcfg_lock);
+    pthread_mutex_destroy(&enable_lock);
     pthread_cond_destroy(&eos_cond);
     pthread_mutex_destroy(&eos_lock);
     if (-1 == sem_destroy(&etb_sem))
@@ -1196,6 +1298,7 @@ int main(int argc, char **argv)
 
 int run_tests()
 {
+  int cmd_error = 0;
   DEBUG_PRINT("Inside %s\n", __FUNCTION__);
   waitForPortSettingsChanged = 1;
   currentStatus = GOOD_STATE;
@@ -1265,24 +1368,25 @@ int run_tests()
   }
 
   pthread_mutex_lock(&eos_lock);
-  while (bOutputEosReached == false)
+  while (bOutputEosReached == false && cmd_error == 0)
   {
     if(seq_enabled)
     {
+        pthread_mutex_unlock(&eos_lock);
         if(!get_next_command(seqFile))
-        {
-            process_current_command(curr_seq_command);
-        }
+            cmd_error = process_current_command(curr_seq_command);
         else
         {
             printf("\n Error in get_next_cmd or EOF");
             seq_enabled = 0;
         }
+        pthread_mutex_lock(&eos_lock);
     }
     else
-    {
         pthread_cond_wait(&eos_cond, &eos_lock);
-    }
+
+    if (currentStatus == PORT_SETTING_CHANGE_STATE)
+      cmd_error = output_port_reconfig();
   }
   pthread_mutex_unlock(&eos_lock);
 
@@ -1305,14 +1409,10 @@ int run_tests()
 
       DEBUG_PRINT("[OMX Vdec Test] - Deallocating i/p and o/p buffers \n");
       for(bufCnt=0; bufCnt < input_buf_cnt; ++bufCnt)
-      {
         OMX_FreeBuffer(dec_handle, 0, pInputBufHdrs[bufCnt]);
-      }
 
-      for(bufCnt=0; bufCnt < portFmt.nBufferCountActual; ++bufCnt)
-      {
+      for(bufCnt = 0; bufCnt < portFmt.nBufferCountActual; ++bufCnt)
         OMX_FreeBuffer(dec_handle, 1, pOutYUVBufHdrs[bufCnt]);
-      }
 
       fbd_cnt = 0; ebd_cnt=0;
       bInputEosReached = false;
@@ -1356,7 +1456,7 @@ int run_tests()
         fbd_queue = NULL;
       }
 
-      printf("*****************************************\n");
+      printf("\n*****************************************\n");
       printf("******...TEST SUCCESSFULL...*******\n");
       printf("*****************************************\n");
 
@@ -1520,10 +1620,9 @@ int Play_Decoder()
     OMX_VIDEO_PARAM_PORTFORMATTYPE videoportFmt = {0};
     int i, bufCnt, index = 0;
     int frameSize=0;
-    DEBUG_PRINT("Inside %s \n", __FUNCTION__);
     OMX_ERRORTYPE ret = OMX_ErrorNone;
-
-    DEBUG_PRINT("sizeof[%d]\n", sizeof(OMX_BUFFERHEADERTYPE));
+    OMX_BUFFERHEADERTYPE* pBuffer = NULL;
+    DEBUG_PRINT("Inside %s \n", __FUNCTION__);
 
     /* open the i/p and o/p files based on the video file format passed */
     if(open_video_file()) {
@@ -1685,6 +1784,7 @@ int Play_Decoder()
     /* Allocate buffer on decoder's o/p port */
     error = Allocate_Buffer(dec_handle, &pOutYUVBufHdrs, portFmt.nPortIndex,
                             portFmt.nBufferCountActual, portFmt.nBufferSize);
+    free_op_buf_cnt = portFmt.nBufferCountActual;
     if (error != OMX_ErrorNone) {
         DEBUG_PRINT_ERROR("Error - OMX_AllocateBuffer Output buffer error\n");
         return -1;
@@ -1732,19 +1832,13 @@ int Play_Decoder()
         DEBUG_PRINT("OMX_FillThisBuffer on output buf no.%d\n",bufCnt);
         pOutYUVBufHdrs[bufCnt]->nOutputPortIndex = 1;
         pOutYUVBufHdrs[bufCnt]->nFlags &= ~OMX_BUFFERFLAG_EOS;
-
-        pthread_mutex_lock(&rcfg_lock);
-        if(!out_reconfig_in_progress)
-        {
-            ret = OMX_FillThisBuffer(dec_handle, pOutYUVBufHdrs[bufCnt]);
-        }
-        pthread_mutex_unlock(&rcfg_lock);
-
-        if (OMX_ErrorNone != ret) {
+        ret = OMX_FillThisBuffer(dec_handle, pOutYUVBufHdrs[bufCnt]);
+        if (OMX_ErrorNone != ret)
             DEBUG_PRINT_ERROR("Error - OMX_FillThisBuffer failed with result %d\n", ret);
-        }
-        else {
+        else
+        {
             DEBUG_PRINT("OMX_FillThisBuffer success!\n");
+            free_op_buf_cnt--;
         }
     }
 
@@ -1791,11 +1885,6 @@ int Play_Decoder()
       {
           etb_count++;
           DEBUG_PRINT("OMX_EmptyThisBuffer success!\n");
-          if(cmd_data == etb_count)
-          {
-            sem_post(&seq_sem);
-            printf("\n Posted seq_sem");
-          }
       }
       i = 1;
     }
@@ -1816,11 +1905,6 @@ int Play_Decoder()
 
         OMX_EmptyThisBuffer(dec_handle, pInputBufHdrs[i]);
         etb_count++;
-        if(cmd_data == etb_count)
-        {
-            sem_post(&seq_sem);
-            printf("\n Posted seq_sem");
-        }
         DEBUG_PRINT("File is small::Either EOS or Some Error while reading file\n");
         break;
       }
@@ -1837,11 +1921,6 @@ int Play_Decoder()
       else {
           DEBUG_PRINT("OMX_EmptyThisBuffer success!\n");
           etb_count++;
-          if(cmd_data == etb_count)
-          {
-            sem_post(&seq_sem);
-            printf("\n Posted seq_sem");
-          }
       }
     }
 
@@ -1865,96 +1944,8 @@ int Play_Decoder()
     }
     else if (currentStatus == PORT_SETTING_CHANGE_STATE)
     {
-        DEBUG_PRINT("PORT_SETTING_CHANGE_STATE\n");
-        DEBUG_PRINT("\n Sending FLUSH cmd to OMX compt");
-        flush_output_progress = 1;
-        OMX_SendCommand(dec_handle, OMX_CommandFlush, 1, 0);
-        wait_for_event();
-        flush_output_progress = 0;
-        sem_post(&out_flush_sem);
-        DEBUG_PRINT("\n EventHandler for FLUSH DONE");
-
-        // Send DISABLE command
-        sent_disabled = 1;
-        OMX_SendCommand(dec_handle, OMX_CommandPortDisable, 1, 0);
-
-        DEBUG_PRINT("FREEING BUFFERS\n");
-        // Free output Buffer
-        for(bufCnt=0; bufCnt < portFmt.nBufferCountActual; ++bufCnt) {
-            OMX_FreeBuffer(dec_handle, 1, pOutYUVBufHdrs[bufCnt]);
-        }
-
-        // wait for Disable event to come back
-        wait_for_event();
-        if (currentStatus == INVALID_STATE)
-        {
-          do_freeHandle_and_clean_up(true);
-          return -1;
-        }
-        DEBUG_PRINT("DISABLE EVENT RECD\n");
-        // GetParam and SetParam
-
-        // Send Enable command
-        OMX_SendCommand(dec_handle, OMX_CommandPortEnable, 1, 0);
-        // AllocateBuffers
-        /* Allocate buffer on decoder's o/p port */
-
-        portFmt.nPortIndex = 1;
-        /* Port for which the Client needs to obtain info */
-
-        OMX_GetParameter(dec_handle,OMX_IndexParamPortDefinition,&portFmt);
-        DEBUG_PRINT("Min Buffer Count=%d", portFmt.nBufferCountMin);
-        DEBUG_PRINT("Buffer Size=%d", portFmt.nBufferSize);
-        if(OMX_DirOutput != portFmt.eDir) {
-            DEBUG_PRINT_ERROR("Error - Expect Output Port\n");
-            return -1;
-        }
-        height = portFmt.format.video.nFrameHeight;
-        width = portFmt.format.video.nFrameWidth;
-        stride = portFmt.format.video.nStride;
-        sliceheight = portFmt.format.video.nSliceHeight;
-
-        error = Allocate_Buffer(dec_handle, &pOutYUVBufHdrs, portFmt.nPortIndex,
-                                portFmt.nBufferCountActual, portFmt.nBufferSize);
-        if (error != OMX_ErrorNone) {
-            DEBUG_PRINT_ERROR("Error - OMX_AllocateBuffer Output buffer error\n");
-            return -1;
-        }
-        else
-        {
-            DEBUG_PRINT("OMX_AllocateBuffer Output buffer success\n");
-        }
-
-        // wait for enable event to come back
-        wait_for_event();
-        if (currentStatus == INVALID_STATE)
-        {
-          do_freeHandle_and_clean_up(true);
-          return -1;
-        }
-        DEBUG_PRINT("ENABLE EVENT HANDLER RECD\n");
-
-        pthread_mutex_lock(&rcfg_lock);
-        out_reconfig_in_progress = 0;
-        pthread_mutex_unlock(&rcfg_lock);
-
-        if(displayYuv)
-        {
-            overlay_set();
-        }
-
-        for(bufCnt=0; bufCnt < portFmt.nBufferCountActual; ++bufCnt) {
-            DEBUG_PRINT("OMX_FillThisBuffer on output buf no.%d\n",bufCnt);
-            pOutYUVBufHdrs[bufCnt]->nOutputPortIndex = 1;
-            pOutYUVBufHdrs[bufCnt]->nFlags &= ~OMX_BUFFERFLAG_EOS;
-            ret = OMX_FillThisBuffer(dec_handle, pOutYUVBufHdrs[bufCnt]);
-            if (OMX_ErrorNone != ret) {
-                DEBUG_PRINT_ERROR("ERROR - OMX_FillThisBuffer failed with result %d\n", ret);
-            }
-            else {
-                DEBUG_PRINT("OMX_FillThisBuffer success!\n");
-            }
-        }
+      if (output_port_reconfig() != 0)
+        return -1;
     }
 
     if (freeHandle_option == FREE_HANDLE_AT_EXECUTING)
@@ -2072,10 +2063,8 @@ static void do_freeHandle_and_clean_up(bool isDueToError)
        pInputBufHdrs = NULL;
     }
 
-    for(bufCnt=0; bufCnt < portFmt.nBufferCountActual; ++bufCnt)
-    {
+    for(bufCnt = 0; bufCnt < portFmt.nBufferCountActual; ++bufCnt)
         OMX_FreeBuffer(dec_handle, 1, pOutYUVBufHdrs[bufCnt]);
-    }
 
     DEBUG_PRINT("[OMX Vdec Test] - Free handle decoder\n");
     OMX_ERRORTYPE result = OMX_FreeHandle(dec_handle);
@@ -2596,7 +2585,7 @@ struct frame_data_type {
     timeStampLfile = frame_data_arr[pckt_end_idx].timestamp;
 #ifdef __DEBUG_DIVX__
     total_bytes += pBufHdr->nFilledLen;
-    DIVX_PRINTF("[DivX] Packet: Type[%s] Size[%u] TS[%ld] TB[%u] NFrms[%u]\n",
+    LOGE("[DivX] Packet: Type[%s] Size[%u] TS[%ld] TB[%u] NFrms[%u]\n",
       pckt_type, pBufHdr->nFilledLen, (long int)pBufHdr->nTimeStamp,
 	  total_bytes, total_frames);
 #endif //__DEBUG_DIVX__
@@ -2952,3 +2941,104 @@ void render_fb(struct OMX_BUFFERHEADERTYPE *pBufHdr)
     DEBUG_PRINT("render_fb complete!\n");
 }
 
+int disable_output_port()
+{
+    DEBUG_PRINT("DISABLING OP PORT\n");
+    pthread_mutex_lock(&enable_lock);
+    sent_disabled = 1;
+    // Send DISABLE command
+    OMX_SendCommand(dec_handle, OMX_CommandPortDisable, 1, 0);
+    pthread_mutex_unlock(&enable_lock);
+    // wait for Disable event to come back
+    wait_for_event();
+    if (currentStatus == INVALID_STATE)
+    {
+      do_freeHandle_and_clean_up(true);
+      return -1;
+    }
+    DEBUG_PRINT("OP PORT DISABLED!\n");
+    return 0;
+}
+
+int enable_output_port()
+{
+    int bufCnt = 0;
+    OMX_ERRORTYPE ret = OMX_ErrorNone;
+    DEBUG_PRINT("ENABLING OP PORT\n");
+    // Send Enable command
+    OMX_SendCommand(dec_handle, OMX_CommandPortEnable, 1, 0);
+    /* Allocate buffer on decoder's o/p port */
+    portFmt.nPortIndex = 1;
+    error = Allocate_Buffer(dec_handle, &pOutYUVBufHdrs, portFmt.nPortIndex,
+                            portFmt.nBufferCountActual, portFmt.nBufferSize);
+    if (error != OMX_ErrorNone) {
+        DEBUG_PRINT_ERROR("Error - OMX_AllocateBuffer Output buffer error\n");
+        return -1;
+    }
+    else
+    {
+        DEBUG_PRINT("OMX_AllocateBuffer Output buffer success\n");
+        free_op_buf_cnt = portFmt.nBufferCountActual;
+    }
+    // wait for enable event to come back
+    wait_for_event();
+    if (currentStatus == INVALID_STATE)
+    {
+      do_freeHandle_and_clean_up(true);
+      return -1;
+    }
+    for(bufCnt=0; bufCnt < portFmt.nBufferCountActual; ++bufCnt) {
+        DEBUG_PRINT("OMX_FillThisBuffer on output buf no.%d\n",bufCnt);
+        pOutYUVBufHdrs[bufCnt]->nOutputPortIndex = 1;
+        pOutYUVBufHdrs[bufCnt]->nFlags &= ~OMX_BUFFERFLAG_EOS;
+        ret = OMX_FillThisBuffer(dec_handle, pOutYUVBufHdrs[bufCnt]);
+        if (OMX_ErrorNone != ret) {
+            DEBUG_PRINT_ERROR("ERROR - OMX_FillThisBuffer failed with result %d\n", ret);
+        }
+        else
+        {
+            DEBUG_PRINT("OMX_FillThisBuffer success!\n");
+            free_op_buf_cnt--;
+        }
+    }
+    DEBUG_PRINT("OP PORT ENABLED!\n");
+    return 0;
+}
+
+int output_port_reconfig()
+{
+    DEBUG_PRINT("PORT_SETTING_CHANGE_STATE\n");
+    if (disable_output_port() != 0)
+	    return -1;
+
+    /* Port for which the Client needs to obtain info */
+    portFmt.nPortIndex = 1;
+    OMX_GetParameter(dec_handle,OMX_IndexParamPortDefinition,&portFmt);
+    DEBUG_PRINT("Min Buffer Count=%d", portFmt.nBufferCountMin);
+    DEBUG_PRINT("Buffer Size=%d", portFmt.nBufferSize);
+    if(OMX_DirOutput != portFmt.eDir) {
+        DEBUG_PRINT_ERROR("Error - Expect Output Port\n");
+        return -1;
+    }
+    height = portFmt.format.video.nFrameHeight;
+    width = portFmt.format.video.nFrameWidth;
+    stride = portFmt.format.video.nStride;
+    sliceheight = portFmt.format.video.nSliceHeight;
+
+    if(displayYuv)
+        overlay_set();
+
+    if (enable_output_port() != 0)
+	    return -1;
+    DEBUG_PRINT("PORT_SETTING_CHANGE DONE!\n");
+	return 0;
+}
+
+void free_output_buffers()
+{
+    OMX_BUFFERHEADERTYPE *pBuffer;
+    do {
+        pBuffer = (OMX_BUFFERHEADERTYPE *) pop(fbd_queue);
+        OMX_FreeBuffer(dec_handle, 1, pBuffer);
+    }while (pBuffer);
+}

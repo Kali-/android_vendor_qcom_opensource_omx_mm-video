@@ -442,8 +442,8 @@ private:
                                    OMX_U8                 *buffer);
 
     bool execute_omx_flush(OMX_U32);
-    bool execute_output_flush(OMX_U32);
-    bool execute_input_flush(OMX_U32);
+    bool execute_output_flush();
+    bool execute_input_flush();
     OMX_ERRORTYPE empty_buffer_done(OMX_HANDLETYPE hComp,
                                     OMX_BUFFERHEADERTYPE * buffer);
 
