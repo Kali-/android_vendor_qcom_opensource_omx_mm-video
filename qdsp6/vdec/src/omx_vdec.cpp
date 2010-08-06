@@ -316,7 +316,8 @@ m_codec_profile(0),
 m_bInvalidState(false),
 m_display_id(NULL),
 m_is_use_egl_buffer(false),
-m_first_sync_frame_rcvd(false)
+m_first_sync_frame_rcvd(false),
+m_heap_ptr(NULL)
 {
    /* Assumption is that , to begin with , we have all the frames with client */
    memset(m_out_flags, 0x00, (OMX_CORE_NUM_OUTPUT_BUFFERS + 7) / 8);
@@ -6803,15 +6804,17 @@ OMX_ERRORTYPE omx_vdec::component_deinit(OMX_IN OMX_HANDLETYPE hComp) {
     * for us to know when surface flinger reduces its cound, so we wait
     * here in a infinite loop till the count is zero
     */
-   while(1)
-   {
-      if ( (/*for getting count */ (m_heap_ptr.get())->getStrongCount()) == 1)
+   if(m_heap_ptr != NULL) {
+     while(1)
+     {
+       if ( ((m_heap_ptr.get() != NULL) && (m_heap_ptr.get())->getStrongCount()) == 1)
          break;
-      else
+       else
          usleep(10);
+     }
+     // Clear the strong reference
+     m_heap_ptr.clear();
    }
-   // Clear the strong reference
-   m_heap_ptr.clear();
 #endif // _ANDROID_    omx_vdec_free_output_port_memory();
 
    return OMX_ErrorNone;
