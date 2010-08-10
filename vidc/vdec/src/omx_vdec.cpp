@@ -2210,6 +2210,7 @@ OMX_ERRORTYPE  omx_vdec::get_parameter(OMX_IN OMX_HANDLETYPE     hComp,
       else if (1 == portFmt->nPortIndex)
       {
         portFmt->eCompressionFormat =  OMX_VIDEO_CodingUnused;
+#ifdef MAX_RES_720P
         if (0 == portFmt->nIndex)
         {
           portFmt->eColorFormat = OMX_COLOR_FormatYUV420SemiPlanar;
@@ -2219,6 +2220,14 @@ OMX_ERRORTYPE  omx_vdec::get_parameter(OMX_IN OMX_HANDLETYPE     hComp,
           portFmt->eColorFormat = (OMX_COLOR_FORMATTYPE)
             QOMX_COLOR_FormatYUV420PackedSemiPlanar64x32Tile2m8ka;
         }
+#endif
+#ifdef MAX_RES_1080P
+        if(0 == portFmt->nIndex)
+        {
+          portFmt->eColorFormat = (OMX_COLOR_FORMATTYPE)
+            QOMX_COLOR_FormatYUV420PackedSemiPlanar64x32Tile2m8ka;
+        }
+#endif
         else
         {
            DEBUG_PRINT_LOW("get_parameter: OMX_IndexParamVideoPortFormat:"\
