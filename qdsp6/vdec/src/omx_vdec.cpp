@@ -2601,7 +2601,17 @@ OMX_ERRORTYPE omx_vdec::get_parameter(OMX_IN OMX_HANDLETYPE hComp,
                 if (profileLevelType->nProfileIndex == 0)
                 {
                    profileLevelType->eProfile = OMX_VIDEO_AVCProfileBaseline;
-                   profileLevelType->eLevel   = OMX_VIDEO_AVCLevel31;
+                   profileLevelType->eLevel   = OMX_VIDEO_AVCLevel32;
+                }
+                else if (profileLevelType->nProfileIndex == 1)
+                {
+                   profileLevelType->eProfile = OMX_VIDEO_AVCProfileMain;
+                   profileLevelType->eLevel   = OMX_VIDEO_AVCLevel32;
+                }
+                else if (profileLevelType->nProfileIndex == 2)
+                {
+                   profileLevelType->eProfile = OMX_VIDEO_AVCProfileHigh;
+                   profileLevelType->eLevel   = OMX_VIDEO_AVCLevel32;
                 }
                 else
                 {
@@ -2617,7 +2627,7 @@ OMX_ERRORTYPE omx_vdec::get_parameter(OMX_IN OMX_HANDLETYPE hComp,
                 if (profileLevelType->nProfileIndex == 0)
                 {
                    profileLevelType->eProfile = OMX_VIDEO_H263ProfileBaseline;
-                   profileLevelType->eLevel   = OMX_VIDEO_H263Level60;
+                   profileLevelType->eLevel   = OMX_VIDEO_H263Level30;
                 }
                 else
                 {
@@ -2631,6 +2641,11 @@ OMX_ERRORTYPE omx_vdec::get_parameter(OMX_IN OMX_HANDLETYPE hComp,
              else if (!strncmp(m_vdec_cfg.kind, "OMX.qcom.video.decoder.mpeg4",OMX_MAX_STRINGNAME_SIZE))
              {
                 if (profileLevelType->nProfileIndex == 0)
+                {
+                   profileLevelType->eProfile = OMX_VIDEO_MPEG4ProfileSimple;
+                   profileLevelType->eLevel   = OMX_VIDEO_MPEG4Level4a;
+                }
+                else if (profileLevelType->nProfileIndex == 1)
                 {
                    profileLevelType->eProfile = OMX_VIDEO_MPEG4ProfileAdvancedSimple;
                    profileLevelType->eLevel   = OMX_VIDEO_MPEG4Level5;
