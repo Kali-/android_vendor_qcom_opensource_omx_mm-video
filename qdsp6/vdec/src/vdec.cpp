@@ -196,6 +196,20 @@ void vdec_frame_cb_handler(void *vdec_context,
                      QTVDIAG_PRIO_ERROR,
                      "[readframe] - sem_post failed %d\n",
                      errno);;
+
+      /* There is to know the last frame sent by
+       * DSP for every flush, we need this for
+       * the divx time stamp swap logic, also DSP send EOS
+       * status but it does it in a erratic fashion.
+       */
+           static struct vdec_frame vdecFrame;
+           memset(&vdecFrame, 0, sizeof(vdecFrame));
+           vdecFrame.flags |= FRAME_FLAG_EOS;
+           dec->ctxt->frame_done(dec->ctxt, &vdecFrame);
+
+           QTV_MSG_PRIO(QTVDIAG_GENERAL, QTVDIAG_PRIO_MED,
+                   "vdec: Fake frame EOS for flush done.\n");
+
          }
          break;
       }
