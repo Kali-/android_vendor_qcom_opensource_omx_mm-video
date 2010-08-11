@@ -135,15 +135,6 @@ extern "C" {
 #define BITMASK_ABSENT(mArray,mIndex) (((mArray)[BITMASK_OFFSET(mIndex)] \
         & BITMASK_FLAG(mIndex)) == 0x0)
 
-#define OMX_VIDEO_DEC_NUM_INPUT_BUFFERS   2
-#define OMX_VIDEO_DEC_NUM_OUTPUT_BUFFERS  2
-
-#ifdef FEATURE_QTV_WVGA_ENABLE
-#define OMX_VIDEO_DEC_INPUT_BUFFER_SIZE   (256*1024)
-#else
-#define OMX_VIDEO_DEC_INPUT_BUFFER_SIZE   (128*1024)
-#endif
-
 #define OMX_CORE_CONTROL_CMDQ_SIZE   100
 #define OMX_CORE_QCIF_HEIGHT         144
 #define OMX_CORE_QCIF_WIDTH          176
@@ -158,9 +149,9 @@ struct video_driver_context
     int video_driver_fd;
     enum vdec_codec decoder_format;
     enum vdec_output_fromat output_format;
-    struct vdec_picsize video_resoultion;
-    struct vdec_allocatorproperty input_buffer;
-    struct vdec_allocatorproperty output_buffer;
+    struct vdec_picsize video_resolution;
+    struct vdec_allocatorproperty ip_buf;
+    struct vdec_allocatorproperty op_buf;
     struct vdec_bufferpayload *ptr_inputbuffer;
     struct vdec_bufferpayload *ptr_outputbuffer;
     struct vdec_output_frameinfo *ptr_respbuffer;
@@ -296,7 +287,7 @@ public:
 
 
 
-    struct video_driver_context driver_context;
+    struct video_driver_context drv_ctx;
     int  m_pipe_in;
     int  m_pipe_out;
     pthread_t msg_thread_id;
@@ -399,10 +390,6 @@ private:
 
     };
 
-    OMX_ERRORTYPE omx_vdec_check_port_settings(void);
-    OMX_ERRORTYPE omx_vdec_validate_port_param(int height, int width);
-
-
     bool allocate_done(void);
     bool allocate_input_done(void);
     bool allocate_output_done(void);
@@ -472,6 +459,9 @@ private:
 
     bool release_output_done();
     bool release_input_done();
+    OMX_ERRORTYPE get_buffer_req(vdec_allocatorproperty *buffer_prop);
+    OMX_ERRORTYPE set_buffer_req(vdec_allocatorproperty *buffer_prop);
+    OMX_ERRORTYPE start_port_reconfig();
 
     bool align_pmem_buffers(int pmem_fd, OMX_U32 buffer_size,
                             OMX_U32 alignment);
@@ -522,7 +512,6 @@ private:
     OMX_PTR m_app_data;
     // Application callbacks
     OMX_CALLBACKTYPE m_cb;
-    OMX_COLOR_FORMATTYPE  m_color_format;
     OMX_PRIORITYMGMTTYPE m_priority_mgm ;
     OMX_PARAM_BUFFERSUPPLIERTYPE m_buffer_supplier;
     // fill this buffer queue
@@ -543,35 +532,12 @@ private:
     int pending_output_buffers;
     // bitmask array size for output side
     unsigned int m_out_bm_count;
-    // Number of Output Buffers
-    unsigned int m_out_buf_count;
-    unsigned int m_out_buf_count_min;
-    unsigned int m_out_buf_size;
-    // Number of Input Buffers
-    unsigned int m_inp_buf_count;
-    unsigned int m_inp_buf_count_min;
-    // Size of Input Buffers
-    unsigned int m_inp_buf_size;
     // bitmask array size for input side
     unsigned int m_inp_bm_count;
     //Input port Populated
     OMX_BOOL m_inp_bPopulated;
     //Output port Populated
     OMX_BOOL m_out_bPopulated;
-    //Height
-    unsigned int m_height;
-    // Width
-    unsigned int m_width;
-    unsigned int stride;
-    unsigned int scan_lines;
-    // Storage of HxW during dynamic port reconfig
-    unsigned int m_port_height;
-    unsigned int m_port_width;
-
-    unsigned int m_crop_x;
-    unsigned int m_crop_y;
-    unsigned int m_crop_dx;
-    unsigned int m_crop_dy;
     // encapsulate the waiting states.
     unsigned int m_flags;
 
@@ -622,6 +588,8 @@ private:
     long int prev_frame_ts;
     unsigned int frame_interval;
     unsigned int frame_rate;
+    struct vdec_allocatorproperty op_buf_rcnfg;
+    bool in_reconfig;
 };
 
 #endif // __OMX_VDEC_H__

@@ -72,9 +72,6 @@ extern "C" {
 #include <inttypes.h>
 #include <linux/msm_mdp.h>
 #include <linux/fb.h>
-//#include "qutility.h"
-#include <sys/time.h>
-
 
 /************************************************************************/
 /*              #DEFINES                            */
@@ -160,7 +157,6 @@ int takeYuvLog = 0;
 int displayYuv = 0;
 int displayWindow = 0;
 int realtime_display = 0;
-struct timeval t_avsync={0};
 
 Queue *etb_queue = NULL;
 Queue *fbd_queue = NULL;
@@ -218,7 +214,7 @@ int input_buf_cnt = 0;
 int height =0, width =0;
 int sliceheight = 0, stride = 0;
 int used_ip_buf_cnt = 0;
-int free_op_buf_cnt = 0;
+unsigned free_op_buf_cnt = 0;
 volatile int event_is_done = 0;
 int ebd_cnt, fbd_cnt;
 int bInputEosReached = 0;
@@ -227,13 +223,12 @@ char in_filename[512];
 char seq_file_name[512];
 unsigned char seq_enabled = 0;
 unsigned char flush_input_progress = 0, flush_output_progress = 0;
-unsigned int cmd_data = ~(unsigned)0, etb_count = 0;
+unsigned cmd_data = ~(unsigned)0, etb_count = 0;
 
 char curr_seq_command[100];
 long int timeStampLfile = 0;
 int fps = 30;
 unsigned int timestampInterval = 33333;
-long int lastTimestamp = 0;
 codec_format  codec_format_option;
 file_type     file_type_option;
 freeHandle_test freeHandle_option;
@@ -349,7 +344,7 @@ int process_current_command(const char *seq_command)
         printf("\n After frame number %u", data);
         cmd_data = data;
         sem_wait(&seq_sem);
-        if (!bOutputEosReached)
+        if (!bOutputEosReached && !bInputEosReached)
         {
             printf("\n Sending PAUSE cmd to OMX compt");
             OMX_SendCommand(dec_handle, OMX_CommandStateSet, OMX_StatePause,0);
@@ -384,7 +379,7 @@ int process_current_command(const char *seq_command)
         printf("\n After frame number %u", data);
         cmd_data = data;
         sem_wait(&seq_sem);
-        if (!bOutputEosReached)
+        if (!bOutputEosReached && !bInputEosReached)
         {
             printf("\n Sending FLUSH cmd to OMX compt");
             flush_input_progress = 1;
@@ -487,16 +482,13 @@ void* ebd_thread(void* pArg)
 
 void* fbd_thread(void* pArg)
 {
+  long unsigned act_time = 0, display_time = 0;
+  struct timeval t_avsync = {0, 0}, base_avsync = {0, 0};
+  int canDisplay = 1, contigous_drop_frame = 0, bytes_written = 0, ret = 0;
+  long int base_timestamp = 0, lastTimestamp = 0, render_time = 10e3, lipsync = 15e3;
+  OMX_BUFFERHEADERTYPE *pBuffer;
   while(currentStatus != INVALID_STATE)
   {
-    long current_avsync_time = 0, delta_time = 0;
-    int canDisplay = 1, ret = -1;
-    static int contigous_drop_frame = 0;
-    static long base_avsync_time = 0;
-    static long base_timestamp = 0;
-    long lipsync_time = 250000;
-    int bytes_written = 0;
-    OMX_BUFFERHEADERTYPE *pBuffer;
 
     DEBUG_PRINT("Inside %s\n", __FUNCTION__);
 
@@ -532,57 +524,58 @@ void* fbd_thread(void* pArg)
     else if (pBuffer->nFilledLen > 0)
     {
       fbd_cnt++;
-      DEBUG_PRINT("[%s] fbd_cnt[%d] \n", __FUNCTION__, fbd_cnt);
+      DEBUG_PRINT("%s: fbd_cnt(%d) \n", __FUNCTION__, fbd_cnt);
+      canDisplay = 1;
       if (realtime_display)
       {
-        DEBUG_PRINT("FBD_Ctr[%d] Timestamp[%ld]\n",
-            fbd_cnt, pBuffer->nTimeStamp);
+        DEBUG_PRINT("%s: Buf(%p) Timestamp(%ld) \n",
+            __FUNCTION__, pBuffer, (long int)pBuffer->nTimeStamp);
         if (pBuffer->nTimeStamp != (lastTimestamp + timestampInterval))
         {
-            DEBUG_PRINT_ERROR("Unexpected timestamp[%ld]! Expected[%ld]\n",
-                pBuffer->nTimeStamp, lastTimestamp + timestampInterval);
+            DEBUG_PRINT("Unexpected timestamp[%ld]! Expected[%ld]\n",
+                (long int)pBuffer->nTimeStamp, lastTimestamp + timestampInterval);
         }
         lastTimestamp = pBuffer->nTimeStamp;
-        if(!gettimeofday(&t_avsync,NULL))
+        gettimeofday(&t_avsync, NULL);
+        if (!base_avsync.tv_sec && !base_avsync.tv_usec)
         {
-           current_avsync_time =(t_avsync.tv_sec*1000000)+t_avsync.tv_usec;
-        }
-
-        if (base_avsync_time != 0)
-        {
-          delta_time = (current_avsync_time - base_avsync_time) - ((long)pBuffer->nTimeStamp - base_timestamp);
-          if (delta_time < 0 )
-          {
-            DEBUG_PRINT("Sleep %d us. AV Sync time is left behind\n",
-                   -delta_time);
-            usleep(-delta_time);
-            canDisplay = 1;
-          }
-          else if ((delta_time>lipsync_time) && (contigous_drop_frame < 6))
-          {
-            DEBUG_PRINT_ERROR("Error - Drop the frame at the renderer. Video frame with ts %lu usec behind by %ld usec"
-                           ", pBuffer->nFilledLen %u\n",
-                          (unsigned long)pBuffer->nTimeStamp, delta_time, pBuffer->nFilledLen);
-            canDisplay = 0;
-            contigous_drop_frame++;
-          }
-          else
-          {
-            canDisplay = 1;
-          }
+          display_time = 0;
+          base_avsync = t_avsync;
+          base_timestamp = (long int)pBuffer->nTimeStamp;
+          DEBUG_PRINT("base_avsync Sec(%lu) uSec(%lu) base_timestamp(%ld)\n",
+              base_avsync.tv_sec, base_avsync.tv_usec, base_timestamp);
         }
         else
         {
-          base_avsync_time = current_avsync_time;
-          base_timestamp = (long)pBuffer->nTimeStamp;
+          act_time = (t_avsync.tv_sec - base_avsync.tv_sec) * 1e6
+                     + t_avsync.tv_usec - base_avsync.tv_usec;
+          display_time = (long int)pBuffer->nTimeStamp - base_timestamp;
+          DEBUG_PRINT("%s: act_time(%lu) display_time(%lu)\n",
+              __FUNCTION__, act_time, display_time);
+               //Frame rcvd on time
+          if (((act_time + render_time) >= (display_time - lipsync) &&
+               (act_time + render_time) <= (display_time + lipsync)) ||
+               //Display late frame
+               (contigous_drop_frame > 5))
+              display_time = 0;
+          else if ((act_time + render_time) < (display_time - lipsync))
+              //Delaying early frame
+              display_time -= (lipsync + act_time + render_time);
+          else
+          {
+              //Dropping late frame
+              canDisplay = 0;
+              contigous_drop_frame++;
+          }
         }
       }
-
       if (displayYuv && canDisplay)
       {
+          if (display_time)
+              usleep(display_time);
           ret = overlay_fb(pBuffer);
-          if(ret)
-             break;
+          if (ret != 0) break;
+          usleep(render_time);
           contigous_drop_frame = 0;
       }
 
@@ -963,10 +956,7 @@ int main(int argc, char **argv)
         displayWindow = 0;
       }
 
-      if((file_type_option == FILE_TYPE_PICTURE_START_CODE) ||
-         (file_type_option == FILE_TYPE_DIVX_PACKED_FRAMES) ||
-         (file_type_option == FILE_TYPE_RCV) ||
-         (file_type_option == FILE_TYPE_VC1) && argc > 8)
+      if(argc > 8)
       {
           realtime_display = atoi(argv[8]);
       }
@@ -1068,29 +1058,29 @@ int main(int argc, char **argv)
       scanf("%d", &test_option);
       fflush(stdin);
 
-      printf(" *********************************************\n");
-      printf(" ENTER THE PORTION OF DISPLAY TO USE\n");
-      printf(" *********************************************\n");
-      printf(" 0 --> Entire Screen\n");
-      printf(" 1 --> 1/4 th of the screen starting from top left corner to middle \n");
-      printf(" 2 --> 1/4 th of the screen starting from middle to top right corner \n");
-      printf(" 3 --> 1/4 th of the screen starting from middle to bottom left \n");
-      printf(" 4 --> 1/4 th of the screen starting from middle to bottom right \n");
-      printf("       Please only see \"TEST SUCCESSFULL\" to indidcate test pass\n");
-      fflush(stdin);
-      scanf("%d", &displayWindow);
-      fflush(stdin);
-
-      if(displayWindow > 0)
+      if (outputOption == 1 || outputOption == 3)
       {
-          printf(" Curently display window 0 only supported; ignoring other values\n");
-          displayWindow = 0;
+          printf(" *********************************************\n");
+          printf(" ENTER THE PORTION OF DISPLAY TO USE\n");
+          printf(" *********************************************\n");
+          printf(" 0 --> Entire Screen\n");
+          printf(" 1 --> 1/4 th of the screen starting from top left corner to middle \n");
+          printf(" 2 --> 1/4 th of the screen starting from middle to top right corner \n");
+          printf(" 3 --> 1/4 th of the screen starting from middle to bottom left \n");
+          printf(" 4 --> 1/4 th of the screen starting from middle to bottom right \n");
+          printf("       Please only see \"TEST SUCCESSFULL\" to indidcate test pass\n");
+          fflush(stdin);
+          scanf("%d", &displayWindow);
+          fflush(stdin);
+
+          if(displayWindow > 0)
+          {
+              printf(" Curently display window 0 only supported; ignoring other values\n");
+              displayWindow = 0;
+          }
       }
 
-      if((file_type_option == FILE_TYPE_PICTURE_START_CODE) ||
-         (file_type_option == FILE_TYPE_RCV) ||
-         (file_type_option == FILE_TYPE_VC1) ||
-         (file_type_option == FILE_TYPE_DIVX_PACKED_FRAMES))
+      if (outputOption == 1 || outputOption == 3)
       {
           printf(" *********************************************\n");
           printf(" DO YOU WANT TEST APP TO RENDER in Real time \n");
