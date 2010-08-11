@@ -96,6 +96,37 @@ LOCAL_SRC_FILES         += test/queue.c
 include $(BUILD_EXECUTABLE)
 
 # ---------------------------------------------------------------------------------
+# Build AST test app
+# ---------------------------------------------------------------------------------
+# Build LASIC lib (AST)
+include $(CLEAR_VARS)
+
+LOCAL_MODULE            	:= liblasic
+LOCAL_CFLAGS                    := $(libOmxVdec-def)
+LOCAL_C_INCLUDES        	:= $(LOCAL_PATH)/test
+LOCAL_PRELINK_MODULE    	:= false
+LOCAL_SHARED_LIBRARIES  	:=
+LOCAL_SRC_FILES         	:= test/lasic_control.c
+include $(BUILD_SHARED_LIBRARY)
+
+# Build the app
+include $(CLEAR_VARS)
+mm-vdec-test-inc		:= $(LOCAL_PATH)/../../../mm-core/omxcore/inc
+mm-vdec-test-inc		+= $(LOCAL_PATH)/src
+mm-vdec-test-inc		+= $(LOCAL_PATH)/test
+mm-vdec-test-inc		+= $(LOCAL_PATH)/../../../common/inc
+
+LOCAL_MODULE            	:= ast-mm-vdec-omx-test
+LOCAL_CFLAGS	  		:= $(libOmxVdec-def) -DTARGET_ARCH_8K
+LOCAL_C_INCLUDES  		:= $(mm-vdec-test-inc)
+LOCAL_PRELINK_MODULE    	:= false
+LOCAL_SHARED_LIBRARIES 		:= libmm-omxcore libOmxVdec liblasic
+LOCAL_SRC_FILES 		:= test/ast_omx_mm_vdec_test.cpp \
+				   test/ast_testutils.cpp \
+				   src/H264_Utils.cpp
+include $(BUILD_EXECUTABLE)
+
+# ---------------------------------------------------------------------------------
 #          Make the vdec-property-mgr (mm-vdec-omx-property-mgr)
 # ---------------------------------------------------------------------------------
 
