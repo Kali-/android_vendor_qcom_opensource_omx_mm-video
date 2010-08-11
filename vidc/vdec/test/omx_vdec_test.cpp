@@ -193,7 +193,11 @@ OMX_PARAM_PORTDEFINITIONTYPE portFmt;
 OMX_PORT_PARAM_TYPE portParam;
 OMX_ERRORTYPE error;
 OMX_COLOR_FORMATTYPE color_fmt;
+#ifdef MAX_RES_1080P
+unsigned int color_fmt_type = 1;
+#else
 unsigned int color_fmt_type = 0;
+#endif
 
 #define CLR_KEY  0xe8fd
 #define COLOR_BLACK_RGBA_8888 0x00000000
