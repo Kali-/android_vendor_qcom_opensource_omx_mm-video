@@ -151,7 +151,10 @@ void vdec_frame_cb_handler(void *vdec_context,
             return;
          } else {
             ++nGoodFrameCnt;
-            dec->ctxt->outputBuffer[index].flags = pFrame -> flags;
+            /* we dont need any other flags at this momment for a successfully decoded
+             * frame
+             */
+            dec->ctxt->outputBuffer[index].flags = (SEI_TRIGGER_BIT_QDSP & (pFrame -> flags));
             QTV_MSG_PRIO1(QTVDIAG_GENERAL, QTVDIAG_PRIO_HIGH,
                      "vdec: callback status good frame, cnt: %d\n",
                      nGoodFrameCnt);

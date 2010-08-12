@@ -9839,12 +9839,22 @@ void omx_vdec::fill_extradata(OMX_INOUT OMX_BUFFERHEADERTYPE * pBufHdr,
          /* DSP successfully calculated the time stamp*/
          pExtraCodecData->h264ExtraData.seiTimeStamp =
              frameDetails->calculatedTimeStamp;
+
+         /*this is a internally set by vdec so no need to propagate
+          *it to client
+          */
+         frame->flags &= (~SEI_TRIGGER_BIT_QDSP);
       }
       else if((frame->timestamp & SEI_TRIGGER_BIT_VDEC) &&
          (frame->flags & SEI_TRIGGER_BIT_QDSP))
       {
          /* sei math failure */
          pExtraCodecData->h264ExtraData.seiTimeStamp |=  SEI_TRIGGER_BIT_VDEC;
+
+         /*this is a internally set by vdec so no need to propagate
+          *it to client
+          */
+         frame->flags &= (~SEI_TRIGGER_BIT_QDSP);
       }
 
    } else if (strncmp(m_vdec_cfg.kind, "OMX.qcom.video.decoder.vc1", 26) ==
