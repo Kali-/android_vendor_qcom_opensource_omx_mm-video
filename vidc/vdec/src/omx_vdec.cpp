@@ -292,9 +292,6 @@ omx_vdec::omx_vdec(): m_state(OMX_StateInvalid),
                       input_flush_progress (false),
                       input_use_buffer (false),
                       output_use_buffer (false),
-                      m_ineos_reached (0),
-                      m_outeos_pending (0),
-                      m_outeos_reached (0),
                       arbitrary_bytes (true),
                       psource_frame (NULL),
                       pdest_frame (NULL),
@@ -761,6 +758,12 @@ void omx_vdec::process_event_cb(void *ctxt, unsigned char id)
           DEBUG_PRINT_HIGH("\n Rxd OMX_COMPONENT_GENERATE_PORT_RECONFIG");
           pThis->m_cb.EventHandler(&pThis->m_cmp, pThis->m_app_data, OMX_EventPortSettingsChanged,
                             OMX_CORE_OUTPUT_PORT_INDEX, 0, NULL );
+        break;
+
+        case OMX_COMPONENT_GENERATE_EOS_DONE:
+          DEBUG_PRINT_HIGH("\n Rxd OMX_COMPONENT_GENERATE_EOS_DONE");
+          pThis->m_cb.EventHandler(&pThis->m_cmp, pThis->m_app_data, OMX_EventBufferFlag,
+                            OMX_CORE_OUTPUT_PORT_INDEX, OMX_BUFFERFLAG_EOS, NULL );
         break;
 
         case OMX_COMPONENT_GENERATE_HARDWARE_ERROR:
@@ -4672,7 +4675,7 @@ OMX_ERRORTYPE  omx_vdec::empty_this_buffer_proxy(OMX_IN OMX_HANDLETYPE         h
 
   pending_input_buffers++;
 
-  if( input_flush_progress == true || m_ineos_reached == 1)
+  if( input_flush_progress == true )
   {
     DEBUG_PRINT_LOW("\n Flush in progress return buffer ");
     post_event ((unsigned int)buffer,VDEC_S_SUCCESS,
@@ -4763,7 +4766,14 @@ OMX_ERRORTYPE  omx_vdec::empty_this_buffer_proxy(OMX_IN OMX_HANDLETYPE         h
   {
     DEBUG_PRINT_HIGH("\n Rxd i/p EOS, Notify Driver that EOS has been reached");
     frameinfo.flags |= VDEC_BUFFERFLAG_EOS;
-    m_ineos_reached = 1;
+    h264_scratch.nFilledLen = 0;
+    nal_count = 0;
+    look_ahead_nal = false;
+    frame_count = 0;
+    first_frame = 0;
+    if (m_frame_parser.mutils)
+      m_frame_parser.mutils->initialize_frame_checking_environment();
+    m_frame_parser.flush();
   }
 
   DEBUG_PRINT_LOW("\n Decode Input Frame Size %d",frameinfo.datalen);
@@ -4868,11 +4878,10 @@ OMX_ERRORTYPE  omx_vdec::fill_this_buffer_proxy(
   DEBUG_PRINT_LOW("\n FTBProxy: bufhdr = %p, bufhdr->pBuffer = %p",
       bufferAdd, bufferAdd->pBuffer);
   /*Return back the output buffer to client*/
-  if((m_out_bEnabled != OMX_TRUE)
-      || output_flush_progress == true || m_outeos_reached == 1)
+  if(m_out_bEnabled != OMX_TRUE || output_flush_progress == true)
   {
-    DEBUG_PRINT_LOW("\n Output Buffers return in EOS condition");
-    buffer->nFlags |= m_outeos_reached;
+    DEBUG_PRINT_LOW("\n Output Buffers return flush/disable condition");
+    buffer->nFilledLen = 0;
     m_cb.FillBufferDone (hComp,m_app_data,buffer);
     return OMX_ErrorNone;
   }
@@ -5506,32 +5515,17 @@ OMX_ERRORTYPE omx_vdec::fill_buffer_done(OMX_HANDLETYPE hComp,
   if (buffer->nFlags & OMX_BUFFERFLAG_EOS)
   {
     DEBUG_PRINT_LOW("\n Output EOS has been reached");
-
-    m_outeos_reached = 0;
-    m_ineos_reached = 0;
-    h264_scratch.nFilledLen = 0;
-    nal_count = 0;
-    look_ahead_nal = false;
-    frame_count = 0;
-    first_frame = 0;
-
-    if (m_frame_parser.mutils)
-    {
-      m_frame_parser.mutils->initialize_frame_checking_environment();
-    }
     if (psource_frame)
     {
-      m_cb.EmptyBufferDone(&m_cmp ,m_app_data,psource_frame);
+      m_cb.EmptyBufferDone(&m_cmp, m_app_data, psource_frame);
       psource_frame = NULL;
     }
-
     if (pdest_frame)
     {
       pdest_frame->nFilledLen = 0;
       m_input_free_q.insert_entry((unsigned) pdest_frame,NULL,NULL);
       pdest_frame = NULL;
     }
-    m_frame_parser.flush();
   }
 
   DEBUG_PRINT_LOW("\n In fill Buffer done call address %p ",buffer);
@@ -5744,18 +5738,23 @@ int omx_vdec::async_message_process (void *context, void* message)
       {
         omxhdr->nFilledLen = 0;
       }
-
+      omx->post_event ((unsigned int)omxhdr,vdec_msg->status_code,
+                       OMX_COMPONENT_GENERATE_FBD);
     }
+    else if (vdec_msg->msgdata.output_frame.flags & OMX_BUFFERFLAG_EOS)
+        omx->post_event (NULL, vdec_msg->status_code,
+                         OMX_COMPONENT_GENERATE_EOS_DONE);
     else
     {
-       omxhdr = NULL;
-       vdec_msg->status_code = VDEC_S_EFATAL;
+        omxhdr = NULL;
+        vdec_msg->status_code = VDEC_S_EFATAL;
+        omx->post_event ((unsigned int)omxhdr,vdec_msg->status_code,
+                         OMX_COMPONENT_GENERATE_FBD);
     }
 
     DEBUG_PRINT_LOW("\n Driver returned a output Buffer status %d",
                        vdec_msg->status_code);
-    omx->post_event ((unsigned int)omxhdr,vdec_msg->status_code,
-                     OMX_COMPONENT_GENERATE_FBD);
+
     break;
   case VDEC_MSG_EVT_CONFIG_CHANGED:
     DEBUG_PRINT_HIGH("\n Port settings changed");
@@ -5785,7 +5784,7 @@ OMX_ERRORTYPE omx_vdec::empty_this_buffer_proxy_arbitrary (
   DEBUG_PRINT_LOW("\n ETBProxyArb: nFilledLen %u, flags %d, timestamp %u",
         buffer->nFilledLen, buffer->nFlags, (unsigned)buffer->nTimeStamp);
 
-  if( input_flush_progress == true || m_ineos_reached == 1)
+  if( input_flush_progress == true )
   {
     DEBUG_PRINT_LOW("\n Flush in progress return buffer ");
     m_cb.EmptyBufferDone (hComp,m_app_data,buffer);

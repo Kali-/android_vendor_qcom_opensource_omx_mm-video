@@ -360,7 +360,8 @@ private:
         OMX_COMPONENT_GENERATE_STOP_DONE = 0x10,
         OMX_COMPONENT_GENERATE_HARDWARE_ERROR = 0x11,
         OMX_COMPONENT_GENERATE_ETB_ARBITRARY = 0x12,
-        OMX_COMPONENT_GENERATE_PORT_RECONFIG = 0x13
+        OMX_COMPONENT_GENERATE_PORT_RECONFIG = 0x13,
+        OMX_COMPONENT_GENERATE_EOS_DONE = 0x14
     };
 
     enum port_indexes
@@ -536,9 +537,6 @@ private:
     bool output_use_buffer;
     int pending_input_buffers;
     int pending_output_buffers;
-    int m_ineos_reached;
-    int m_outeos_pending;
-    int m_outeos_reached;
     // bitmask array size for output side
     unsigned int m_out_bm_count;
     // Number of Output Buffers
