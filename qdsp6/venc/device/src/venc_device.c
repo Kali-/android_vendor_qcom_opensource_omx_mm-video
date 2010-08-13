@@ -1118,7 +1118,7 @@ int ven_set_vop_timing(struct ven_device* dvenc,
 {
   if(!vop_timing || !dvenc)
     return -1;
-  memcpy(&dvenc->config.rate_control, vop_timing, sizeof(struct ven_vop_timing_cfg));
+  memcpy(&dvenc->config.vop_timing, vop_timing, sizeof(struct ven_vop_timing_cfg));
   return 0;
 }
 int ven_get_vop_timing(struct ven_device* dvenc,
@@ -1126,7 +1126,7 @@ int ven_get_vop_timing(struct ven_device* dvenc,
 {
   if(!vop_timing || !dvenc)
     return -1;
-  memcpy(vop_timing, &dvenc->config.rate_control, sizeof(struct ven_vop_timing_cfg));
+  memcpy(vop_timing, &dvenc->config.vop_timing, sizeof(struct ven_vop_timing_cfg));
   return 0;
 }
 int ven_set_rotation(struct ven_device* dvenc,
@@ -1207,7 +1207,9 @@ int ven_set_base_cfg(struct ven_device * dvenc,
   dvenc->input_attrs.data_size = pconfig->input_width * pconfig->input_height * 3 / 2;
   dvenc->output_attrs.data_size = pconfig->input_width * pconfig->input_height * 3 / 2;
   dvenc->config.intra_period.num_pframes = pconfig->fps_num * 2 - 1;
-  dvenc->config.vop_timing.vop_time_resolution = pconfig->fps_num * 2;
+  /* removed the vop_time_resolution resetting to default value as we have already set it */
+  /* properly via set_parameter call */
+  //dvenc->config.vop_timing.vop_time_resolution = pconfig->fps_num * 2;
 
   if (new_codec)
   {

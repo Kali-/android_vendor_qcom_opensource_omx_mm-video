@@ -2610,14 +2610,16 @@ OMX_ERRORTYPE Venc::set_parameter(OMX_IN  OMX_HANDLETYPE hComponent,
       {
         QC_OMX_MSG_MEDIUM("OMX_IndexParamVideoPortFormat");
         result = update_param_port_fmt(reinterpret_cast<OMX_VIDEO_PARAM_PORTFORMATTYPE*>(pCompParam));
-        result = adjust_profile_level();
+        if (result == OMX_ErrorNone)
+            result = adjust_profile_level();
         break;
       }
     case OMX_IndexParamPortDefinition:
       {
         QC_OMX_MSG_MEDIUM("OMX_IndexParamPortDefinition");
         result = update_param_port_def(reinterpret_cast<OMX_PARAM_PORTDEFINITIONTYPE*>(pCompParam));
-        result = adjust_profile_level();
+        if (result == OMX_ErrorNone)
+            result = adjust_profile_level();
         break;
       }
     case OMX_IndexParamVideoInit:
