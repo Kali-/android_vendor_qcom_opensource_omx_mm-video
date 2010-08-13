@@ -111,6 +111,7 @@ typedef unsigned char byte;   /* Unsigned 8  bit value type. */
 #define SIMPLE_PROFILE_LEVEL4A            0x04
 #define SIMPLE_PROFILE_LEVEL5            0x05
 #define SIMPLE_PROFILE_LEVEL6            0x06
+#define SIMPLE_PROFILE_LEVEL0B           0x09
 
 #define SIMPLE_SCALABLE_PROFILE_LEVEL0                  0x10
 #define SIMPLE_SCALABLE_PROFILE_LEVEL1                  0x11
