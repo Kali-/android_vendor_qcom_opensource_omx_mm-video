@@ -1785,12 +1785,7 @@ OMX_ERRORTYPE  omx_video::get_config(OMX_IN OMX_HANDLETYPE      hComp,
   case OMX_IndexConfigCommonRotate:
     {
       OMX_CONFIG_ROTATIONTYPE* pParam = reinterpret_cast<OMX_CONFIG_ROTATIONTYPE*>(configData);
-      if(m_state != OMX_StateLoaded)
-      {
-        // we only allow this at init time!
-        DEBUG_PRINT_ERROR("ERROR: frame rate can only be configured in loaded state",0,0,0);
-        return OMX_ErrorIncorrectStateOperation;
-      }
+
       memcpy(pParam, &m_sConfigFrameRotation, sizeof(m_sConfigFrameRotation));
       break;
     }

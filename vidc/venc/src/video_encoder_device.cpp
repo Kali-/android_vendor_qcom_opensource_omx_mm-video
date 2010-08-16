@@ -862,6 +862,25 @@ bool venc_dev::venc_set_config(void *configData, OMX_INDEXTYPE index)
       }
       break;
     }
+  case OMX_IndexConfigCommonRotate:
+    {
+      OMX_CONFIG_ROTATIONTYPE *config_rotation =
+         reinterpret_cast<OMX_CONFIG_ROTATIONTYPE*>(configData);
+      venc_ioctl_msg ioctl_msg = {NULL,NULL};
+      OMX_U32 nFrameWidth;
+
+      DEBUG_PRINT_HIGH("\nvenc_set_config: updating the new Dims");
+      nFrameWidth = m_sVenc_cfg.input_width;
+      m_sVenc_cfg.input_width  = m_sVenc_cfg.input_height;
+      m_sVenc_cfg.input_height = nFrameWidth;
+      ioctl_msg.in = (void*)&m_sVenc_cfg;
+      ioctl_msg.out = NULL;
+      if(ioctl (m_nDriver_fd,VEN_IOCTL_SET_BASE_CFG,(void*)&ioctl_msg) < 0) {
+          DEBUG_PRINT_ERROR("\nERROR: Dimension Change for Rotation failed");
+          return false;
+      }
+      break;
+    }
   default:
     DEBUG_PRINT_ERROR("\n Unsupported config index = %u", index);
     break;
@@ -932,7 +951,6 @@ void venc_dev::venc_config_print()
 
   DEBUG_PRINT_HIGH("\nENC_CONFIG: IntraMB/Frame: %d, HEC: %d\n",
                    intra_refresh.mbcount, hec.header_extension);
-
 }
 
 unsigned venc_dev::venc_flush( unsigned port)
@@ -2214,4 +2232,3 @@ bool venc_dev::venc_validate_profile_level(OMX_U32 *eProfile, OMX_U32 *eLevel)
 
   return true;
 }
-

@@ -170,7 +170,7 @@ OMX_ERRORTYPE omx_venc::component_init(OMX_STRING role)
   m_sConfigIntraRefreshVOP.IntraRefreshVOP = OMX_FALSE;
 
   OMX_INIT_STRUCT(&m_sConfigFrameRotation, OMX_CONFIG_ROTATIONTYPE);
-  m_sConfigFrameRotation.nPortIndex = (OMX_U32) PORT_INDEX_OUT;
+  m_sConfigFrameRotation.nPortIndex = (OMX_U32) PORT_INDEX_IN;
   m_sConfigFrameRotation.nRotation = 0;
 
   OMX_INIT_STRUCT(&m_sSessionQuantization, OMX_VIDEO_PARAM_QUANTIZATIONTYPE);
@@ -512,6 +512,8 @@ OMX_ERRORTYPE  omx_venc::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
           DEBUG_PRINT_ERROR("\nERROR: venc_set_param output failed");
           return OMX_ErrorUnsupportedSetting;
         }
+        m_sOutPortDef.format.video.nFrameWidth  = portDefn->format.video.nFrameWidth;
+        m_sOutPortDef.format.video.nFrameHeight = portDefn->format.video.nFrameHeight;
 
         DEBUG_PRINT_LOW("\n o/p previous actual cnt = %d\n", m_sOutPortDef.nBufferCountActual);
         DEBUG_PRINT_LOW("\n o/p previous min cnt = %d\n", m_sOutPortDef.nBufferCountMin);
@@ -1016,7 +1018,43 @@ OMX_ERRORTYPE  omx_venc::set_config(OMX_IN OMX_HANDLETYPE      hComp,
     }
   case OMX_IndexConfigCommonRotate:
     {
-      DEBUG_PRINT_ERROR("ERROR: OMX_IndexConfigCommonRotate is currently unsupported");
+      OMX_CONFIG_ROTATIONTYPE *pParam =
+         reinterpret_cast<OMX_CONFIG_ROTATIONTYPE*>(configData);
+      OMX_S32 nRotation;
+
+      nRotation = pParam->nRotation - m_sConfigFrameRotation.nRotation;
+      if(nRotation < 0)
+        nRotation = -nRotation;
+
+      DEBUG_PRINT_HIGH("\nset_config: Rotation Angle %u/%d",
+         pParam->nRotation, nRotation);
+      if(pParam->nPortIndex == PORT_INDEX_IN && (nRotation == 90 ||
+          nRotation == 270)) {
+          DEBUG_PRINT_HIGH("\nset_config: updating device Dims");
+          if(handle->venc_set_config(configData,
+             OMX_IndexConfigCommonRotate) != true) {
+             DEBUG_PRINT_ERROR("ERROR: Set OMX_IndexConfigCommonRotate failed");
+             return OMX_ErrorUnsupportedSetting;
+          } else {
+                  OMX_U32 nFrameWidth;
+
+                  DEBUG_PRINT_HIGH("\nset_config: updating port Dims");
+
+                  nFrameWidth = m_sInPortDef.format.video.nFrameWidth;
+	          m_sInPortDef.format.video.nFrameWidth =
+                      m_sInPortDef.format.video.nFrameHeight;
+                  m_sInPortDef.format.video.nFrameHeight = nFrameWidth;
+
+                  m_sOutPortDef.format.video.nFrameWidth  =
+                      m_sInPortDef.format.video.nFrameWidth;
+                  m_sOutPortDef.format.video.nFrameHeight =
+                      m_sInPortDef.format.video.nFrameHeight;
+                  m_sConfigFrameRotation.nRotation = pParam->nRotation;
+           }
+       } else {
+           DEBUG_PRINT_ERROR("ERROR: Unsupported port index: %u", pParam->nPortIndex);
+           return OMX_ErrorBadPortIndex;
+      }
       break;
     }
   default:
