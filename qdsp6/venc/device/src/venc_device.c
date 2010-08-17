@@ -409,6 +409,8 @@ static int ven_translate_config(struct ven_config_type* psrc,
       pcommon == NULL ||
       pcodec == NULL) {
     QC_OMX_MSG_ERROR( "%s: failed with null parameter \n", __func__);
+     ret = VENC_S_EFAIL;
+     return ret;
   }
 
   memset(pcommon, 0, sizeof(*pcommon));
@@ -576,6 +578,15 @@ static int ven_translate_config(struct ven_config_type* psrc,
   pcommon->input_frame_height  = psrc->base_config.input_height;
   pcommon->output_frame_width  = psrc->base_config.dvs_width;
   pcommon->output_frame_height  = psrc->base_config.dvs_height;
+  
+  if ((pcommon->input_frame_width != ((pcommon->input_frame_width/16)*16)) ||
+     (pcommon->input_frame_height != ((pcommon->input_frame_height/16)*16)) ||
+     (pcommon->output_frame_width != ((pcommon->output_frame_width/16)*16)) ||
+     (pcommon->output_frame_height != ((pcommon->output_frame_height/16)*16)) )
+  {
+    QC_OMX_MSG_ERROR("non multiple of 16 width or height is not supported");
+    ret = VENC_S_ENOTSUPP;
+  }
 
   if (psrc->rotation.rotation == VEN_ROTATION_0)
   {
@@ -675,8 +686,14 @@ int ven_start(struct ven_device *dvenc,
   int ret = 0;
   struct venc_init_config vcfg;
 
-  ven_translate_config(&(dvenc->config), &(vcfg.q6_config.codec_params),
+  ret = ven_translate_config(&(dvenc->config), &(vcfg.q6_config.codec_params),
       &(vcfg.q6_config.config_params));
+
+  if (ret != VENC_S_SUCCESS) {
+      QC_OMX_MSG_ERROR("%s ven_translate_config(...) failed (%d) \n", __func__, ret);
+      return ret;
+    }
+
   memcpy(&(vcfg.q6_bufs), venc_bufs, sizeof(struct venc_buffers));
 
   ven_print_config(&(vcfg.q6_config));
