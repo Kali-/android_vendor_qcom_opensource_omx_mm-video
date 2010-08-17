@@ -505,6 +505,7 @@ bool MP4_Utils::parseHeader(mp4StreamType * psBits) {
        && (profile_and_level_indication != SIMPLE_PROFILE_LEVEL4A)
        && (profile_and_level_indication != SIMPLE_PROFILE_LEVEL5)
        && (profile_and_level_indication != SIMPLE_PROFILE_LEVEL6)
+       && (profile_and_level_indication != SIMPLE_PROFILE_LEVEL0B)
        && (profile_and_level_indication != SIMPLE_SCALABLE_PROFILE_LEVEL0)
        && (profile_and_level_indication != SIMPLE_SCALABLE_PROFILE_LEVEL1)
        && (profile_and_level_indication != SIMPLE_SCALABLE_PROFILE_LEVEL2)
