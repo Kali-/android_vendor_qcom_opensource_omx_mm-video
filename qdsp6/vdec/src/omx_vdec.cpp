@@ -5826,12 +5826,22 @@ OMX_ERRORTYPE omx_vdec::
             QTV_MSG_PRIO(QTVDIAG_GENERAL,
                     QTVDIAG_PRIO_ERROR,
                     "empty_this_buffer_proxy_subframe_stitching- Bit stream Error send Eventerro\n");
-            m_bInvalidState = true;
-            m_cb.EventHandler(&m_cmp, m_app_data,
-                    OMX_EventError,
-                    OMX_ErrorStreamCorrupt, 0,
-                    NULL);
-            return OMX_ErrorStreamCorrupt;
+
+            /* bitsteam is corrupted beyond improvisation
+             * so moving to invalid state.
+             */
+
+            m_state = OMX_StateInvalid;
+
+            post_event(OMX_EventError,
+                  OMX_ErrorStreamCorrupt,
+                  OMX_COMPONENT_GENERATE_EVENT);
+
+            post_event(OMX_EventError,
+                  OMX_ErrorInvalidState,
+                  OMX_COMPONENT_GENERATE_EVENT);
+
+            return OMX_ErrorInvalidState;
 
          }
       }
@@ -5921,10 +5931,22 @@ OMX_ERRORTYPE omx_vdec::
                else{
                   QTV_MSG_PRIO1(QTVDIAG_GENERAL, QTVDIAG_PRIO_ERROR,
                           "Frame size too high [%d], Aborting session\n",(m_pcurrent_frame->nFilledLen +buffer->nFilledLen));
-                  m_bInvalidState = true;
-                  m_cb.EventHandler(&m_cmp, m_app_data, OMX_EventError,
-                          OMX_ErrorStreamCorrupt, 0, NULL);
-                  return OMX_ErrorStreamCorrupt;
+                  /* bitsteam is corrupted beyond improvisation
+                   * so moving to invalid state.
+                   */
+
+                  m_state = OMX_StateInvalid;
+
+                  post_event(OMX_EventError,
+                        OMX_ErrorStreamCorrupt,
+                        OMX_COMPONENT_GENERATE_EVENT);
+
+                  post_event(OMX_EventError,
+                        OMX_ErrorInvalidState,
+                        OMX_COMPONENT_GENERATE_EVENT);
+
+                  return OMX_ErrorInvalidState;
+
                }
 
             } else
