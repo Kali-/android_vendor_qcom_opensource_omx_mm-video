@@ -105,8 +105,8 @@ void* async_message_thread (void *input)
   DEBUG_PRINT_HIGH("omx_vdec: Async thread start\n");
   while (1)
   {
-    ioctl_msg.in = NULL;
-    ioctl_msg.out = (void*)&vdec_msg;
+    ioctl_msg.inputparam = NULL;
+    ioctl_msg.outputparam = (void*)&vdec_msg;
 
     /*Wait for a message from the video decoder driver*/
     if (ioctl ( omx->driver_context.video_driver_fd,VDEC_IOCTL_GET_NEXT_MSG,
@@ -856,7 +856,7 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
 #ifndef MULTI_DEC_INST
   unsigned int instance_count = 0;
   if (!is_fluid) {
-    ioctl_msg.out = &instance_count;
+    ioctl_msg.outputparam = &instance_count;
     if (ioctl (driver_context.video_driver_fd,VDEC_IOCTL_GET_NUMBER_INSTANCES,
                (void*)&ioctl_msg) < 0){
         DEBUG_PRINT_ERROR("\n Instance Query Failed");
@@ -978,8 +978,8 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
     driver_context.output_format = VDEC_YUV_FORMAT_TILE_4x2;
 #endif
     /*Initialize Decoder with codec type and resolution*/
-    ioctl_msg.in = &driver_context.decoder_format;
-    ioctl_msg.out = NULL;
+    ioctl_msg.inputparam = &driver_context.decoder_format;
+    ioctl_msg.outputparam = NULL;
 
     if ( (eRet == OMX_ErrorNone) &&
          ioctl (driver_context.video_driver_fd,VDEC_IOCTL_SET_CODEC,
@@ -991,8 +991,8 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
     }
 
     /*Set the output format*/
-    ioctl_msg.in = &driver_context.output_format;
-    ioctl_msg.out = NULL;
+    ioctl_msg.inputparam = &driver_context.output_format;
+    ioctl_msg.outputparam = NULL;
 
     if ( (eRet == OMX_ErrorNone) &&
          ioctl (driver_context.video_driver_fd,VDEC_IOCTL_SET_OUTPUT_FORMAT,
@@ -1015,8 +1015,8 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
     driver_context.video_resoultion.scan_lines = 1088;
 #endif
 
-    ioctl_msg.in = &driver_context.video_resoultion;
-    ioctl_msg.out = NULL;
+    ioctl_msg.inputparam = &driver_context.video_resoultion;
+    ioctl_msg.outputparam = NULL;
 
     if ( (eRet == OMX_ErrorNone) &&
         ioctl (driver_context.video_driver_fd,VDEC_IOCTL_SET_PICRES,
@@ -1028,8 +1028,8 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
 
     /*Get the Buffer requirements for input and output ports*/
     driver_context.input_buffer.buffer_type = VDEC_BUFFER_TYPE_INPUT;
-    ioctl_msg.in = NULL;
-    ioctl_msg.out = &driver_context.input_buffer;
+    ioctl_msg.inputparam = NULL;
+    ioctl_msg.outputparam = &driver_context.input_buffer;
 
     if ( (eRet == OMX_ErrorNone) &&
          ioctl (driver_context.video_driver_fd,VDEC_IOCTL_GET_BUFFER_REQ,
@@ -1047,8 +1047,8 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
 
     /*Get the Buffer requirements for input and output ports*/
     driver_context.input_buffer.buffer_type = VDEC_BUFFER_TYPE_INPUT;
-    ioctl_msg.in = &driver_context.input_buffer;
-    ioctl_msg.out = NULL;
+    ioctl_msg.inputparam = &driver_context.input_buffer;
+    ioctl_msg.outputparam = NULL;
 
     m_inp_buf_count = driver_context.input_buffer.actualcount =
      driver_context.input_buffer.mincount + 3;
@@ -1063,8 +1063,8 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
 
 
     driver_context.output_buffer.buffer_type = VDEC_BUFFER_TYPE_OUTPUT;
-    ioctl_msg.in = NULL;
-    ioctl_msg.out = &driver_context.output_buffer;
+    ioctl_msg.inputparam = NULL;
+    ioctl_msg.outputparam = &driver_context.output_buffer;
 
     if ((eRet == OMX_ErrorNone) &&
         ioctl (driver_context.video_driver_fd,VDEC_IOCTL_GET_BUFFER_REQ,
@@ -1825,8 +1825,8 @@ bool omx_vdec::execute_omx_flush(OMX_U32 flushType)
   {
     /*Check if there are buffers with the Driver*/
     DEBUG_PRINT_LOW("\n Flush ALL ioctl issued");
-    ioctl_msg.in = &flush_dir;
-    ioctl_msg.out = NULL;
+    ioctl_msg.inputparam = &flush_dir;
+    ioctl_msg.outputparam = NULL;
 
     if (ioctl(driver_context.video_driver_fd,VDEC_IOCTL_CMD_FLUSH,&ioctl_msg) < 0)
     {
@@ -1886,8 +1886,8 @@ bool omx_vdec::execute_output_flush(OMX_U32 flushType)
   {
     /*Check if there are buffers with the Driver*/
     DEBUG_PRINT_LOW("\n ioctl command flush for output");
-    ioctl_msg.in = &flush_dir;
-    ioctl_msg.out = NULL;
+    ioctl_msg.inputparam = &flush_dir;
+    ioctl_msg.outputparam = NULL;
 
     if (ioctl(driver_context.video_driver_fd,VDEC_IOCTL_CMD_FLUSH,&ioctl_msg) < 0)
     {
@@ -1991,8 +1991,8 @@ bool omx_vdec::execute_input_flush(OMX_U32 flushType)
   {
     /*Check if there are buffers with the Driver*/
     DEBUG_PRINT_LOW("\n Input Flush ioctl issued");
-    ioctl_msg.in = &flush_dir;
-    ioctl_msg.out = NULL;
+    ioctl_msg.inputparam = &flush_dir;
+    ioctl_msg.outputparam = NULL;
 
     if (ioctl(driver_context.video_driver_fd,VDEC_IOCTL_CMD_FLUSH,&ioctl_msg) < 0)
     {
@@ -2125,8 +2125,8 @@ OMX_ERRORTYPE  omx_vdec::get_parameter(OMX_IN OMX_HANDLETYPE     hComp,
       {
         driver_context.output_buffer.buffer_type =
                                                 VDEC_BUFFER_TYPE_OUTPUT;
-        ioctl_msg.in = NULL;
-        ioctl_msg.out = &driver_context.output_buffer;
+        ioctl_msg.inputparam = NULL;
+        ioctl_msg.outputparam = &driver_context.output_buffer;
 
         if (ioctl (driver_context.video_driver_fd,
                   VDEC_IOCTL_GET_BUFFER_REQ,(void*)&ioctl_msg) < 0)
@@ -2439,8 +2439,8 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
               return OMX_ErrorBadParameter;
           }
           driver_context.output_buffer.buffer_type = VDEC_BUFFER_TYPE_OUTPUT;
-          ioctl_msg.in = NULL;
-          ioctl_msg.out = &driver_context.output_buffer;
+          ioctl_msg.inputparam = NULL;
+          ioctl_msg.outputparam = &driver_context.output_buffer;
 
           if (ioctl (driver_context.video_driver_fd,
                      VDEC_IOCTL_GET_BUFFER_REQ,(void*)&ioctl_msg) < 0)
@@ -2451,8 +2451,8 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
           driver_context.output_buffer.buffer_type = VDEC_BUFFER_TYPE_OUTPUT;
           driver_context.output_buffer.actualcount =
                                                 portDefn->nBufferCountActual;
-          ioctl_msg.in = &driver_context.output_buffer;
-          ioctl_msg.out = NULL;
+          ioctl_msg.inputparam = &driver_context.output_buffer;
+          ioctl_msg.outputparam = NULL;
 
           if (ioctl (driver_context.video_driver_fd,
                      VDEC_IOCTL_SET_BUFFER_REQ,(void*)&ioctl_msg) < 0)
@@ -2488,8 +2488,8 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
                driver_context.video_resoultion.frame_width = m_width;
                driver_context.video_resoultion.stride = stride;
                driver_context.video_resoultion.scan_lines = scan_lines;
-               ioctl_msg.in = &driver_context.video_resoultion;
-               ioctl_msg.out = NULL;
+               ioctl_msg.inputparam = &driver_context.video_resoultion;
+               ioctl_msg.outputparam = NULL;
 
                if (ioctl (driver_context.video_driver_fd,VDEC_IOCTL_SET_PICRES,
                           (void*)&ioctl_msg) < 0)
@@ -2499,8 +2499,8 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
                }
                driver_context.output_buffer.buffer_type =
                                                         VDEC_BUFFER_TYPE_OUTPUT;
-               ioctl_msg.in = NULL;
-               ioctl_msg.out = &driver_context.output_buffer;
+               ioctl_msg.inputparam = NULL;
+               ioctl_msg.outputparam = &driver_context.output_buffer;
 
                if (ioctl (driver_context.video_driver_fd,
                           VDEC_IOCTL_GET_BUFFER_REQ,(void*)&ioctl_msg) < 0)
@@ -2533,8 +2533,8 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
             }
                /*Get the Buffer requirements for input and output ports*/
                driver_context.input_buffer.buffer_type = VDEC_BUFFER_TYPE_INPUT;
-               ioctl_msg.in = NULL;
-               ioctl_msg.out = &driver_context.input_buffer;
+               ioctl_msg.inputparam = NULL;
+               ioctl_msg.outputparam = &driver_context.input_buffer;
 
                if (ioctl (driver_context.video_driver_fd,VDEC_IOCTL_GET_BUFFER_REQ,
                           (void*)&ioctl_msg) < 0)
@@ -2546,8 +2546,8 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
                driver_context.input_buffer.buffer_type = VDEC_BUFFER_TYPE_INPUT;
                driver_context.input_buffer.actualcount =
                  portDefn->nBufferCountActual;
-               ioctl_msg.in = &driver_context.input_buffer;
-               ioctl_msg.out = NULL;
+               ioctl_msg.inputparam = &driver_context.input_buffer;
+               ioctl_msg.outputparam = NULL;
 
                if (ioctl (driver_context.video_driver_fd,VDEC_IOCTL_SET_BUFFER_REQ,
                           (void*)&ioctl_msg) < 0)
@@ -2597,8 +2597,8 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
          if(eRet == OMX_ErrorNone)
          {
            /*Set the output format*/
-           ioctl_msg.in = &driver_context.output_format;
-           ioctl_msg.out = NULL;
+           ioctl_msg.inputparam = &driver_context.output_format;
+           ioctl_msg.outputparam = NULL;
 
            if (ioctl(driver_context.video_driver_fd, VDEC_IOCTL_SET_OUTPUT_FORMAT,
                  (void*)&ioctl_msg) < 0)
@@ -2610,8 +2610,8 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
            {
              m_color_format = portFmt->eColorFormat;
              driver_context.output_buffer.buffer_type = VDEC_BUFFER_TYPE_OUTPUT;
-             ioctl_msg.in = NULL;
-             ioctl_msg.out = &driver_context.output_buffer;
+             ioctl_msg.inputparam = NULL;
+             ioctl_msg.outputparam = &driver_context.output_buffer;
 
              if (ioctl (driver_context.video_driver_fd,VDEC_IOCTL_GET_BUFFER_REQ,
                     (void*)&ioctl_msg) < 0)
@@ -2882,7 +2882,7 @@ OMX_ERRORTYPE  omx_vdec::get_config(OMX_IN OMX_HANDLETYPE      hComp,
         struct vdec_ioctl_msg ioctl_msg = {NULL,NULL};
         QOMX_VIDEO_QUERY_DECODER_INSTANCES *decoderinstances =
           (QOMX_VIDEO_QUERY_DECODER_INSTANCES*)configData;
-        ioctl_msg.out = (void*)&decoderinstances->nNumOfInstances;
+        ioctl_msg.outputparam = (void*)&decoderinstances->nNumOfInstances;
         (void)(ioctl(driver_context.video_driver_fd,
                VDEC_IOCTL_GET_NUMBER_INSTANCES,&ioctl_msg));
     break;
@@ -3247,8 +3247,8 @@ OMX_ERRORTYPE  omx_vdec::use_input_buffer(
     setbuffers.buffer_type = VDEC_BUFFER_TYPE_INPUT;
     memcpy (&setbuffers.buffer,&driver_context.ptr_inputbuffer [i],
             sizeof (vdec_bufferpayload));
-    ioctl_msg.in  = &setbuffers;
-    ioctl_msg.out = NULL;
+    ioctl_msg.inputparam  = &setbuffers;
+    ioctl_msg.outputparam = NULL;
 
     if (ioctl (driver_context.video_driver_fd,VDEC_IOCTL_SET_BUFFER,
          &ioctl_msg) < 0)
@@ -3705,8 +3705,8 @@ OMX_ERRORTYPE omx_vdec::free_input_buffer(OMX_BUFFERHEADERTYPE *bufferHdr)
        setbuffers.buffer_type = VDEC_BUFFER_TYPE_INPUT;
        memcpy (&setbuffers.buffer,&driver_context.ptr_inputbuffer[index],
           sizeof (vdec_bufferpayload));
-       ioctl_msg.in  = &setbuffers;
-       ioctl_msg.out = NULL;
+       ioctl_msg.inputparam  = &setbuffers;
+       ioctl_msg.outputparam = NULL;
        int ioctl_r = ioctl (driver_context.video_driver_fd,
                             VDEC_IOCTL_FREE_BUFFER, &ioctl_msg);
        if (ioctl_r < 0)
@@ -3751,8 +3751,8 @@ OMX_ERRORTYPE omx_vdec::free_output_buffer(OMX_BUFFERHEADERTYPE *bufferHdr)
     setbuffers.buffer_type = VDEC_BUFFER_TYPE_OUTPUT;
     memcpy (&setbuffers.buffer,&driver_context.ptr_outputbuffer[index],
         sizeof (vdec_bufferpayload));
-    ioctl_msg.in  = &setbuffers;
-    ioctl_msg.out = NULL;
+    ioctl_msg.inputparam  = &setbuffers;
+    ioctl_msg.outputparam = NULL;
     DEBUG_PRINT_LOW("\nRelease the Output Buffer");
     if (ioctl (driver_context.video_driver_fd, VDEC_IOCTL_FREE_BUFFER,
           &ioctl_msg) < 0)
@@ -3989,8 +3989,8 @@ OMX_ERRORTYPE  omx_vdec::allocate_input_buffer(
     setbuffers.buffer_type = VDEC_BUFFER_TYPE_INPUT;
     memcpy (&setbuffers.buffer,&driver_context.ptr_inputbuffer [i],
             sizeof (vdec_bufferpayload));
-    ioctl_msg.in  = &setbuffers;
-    ioctl_msg.out = NULL;
+    ioctl_msg.inputparam  = &setbuffers;
+    ioctl_msg.outputparam = NULL;
 
     if (ioctl (driver_context.video_driver_fd,VDEC_IOCTL_SET_BUFFER,
          &ioctl_msg) < 0)
@@ -4247,8 +4247,8 @@ OMX_ERRORTYPE  omx_vdec::allocate_output_buffer(
      setbuffers.buffer_type = VDEC_BUFFER_TYPE_OUTPUT;
      memcpy (&setbuffers.buffer,&driver_context.ptr_outputbuffer[i],
              sizeof (vdec_bufferpayload));
-     ioctl_msg.in  = &setbuffers;
-     ioctl_msg.out = NULL;
+     ioctl_msg.inputparam  = &setbuffers;
+     ioctl_msg.outputparam = NULL;
 
      DEBUG_PRINT_LOW("\n Set the Output Buffer Idx: %d Addr: %x", i, driver_context.ptr_outputbuffer[i]);
      if (ioctl (driver_context.video_driver_fd,VDEC_IOCTL_SET_BUFFER,
@@ -4260,7 +4260,7 @@ OMX_ERRORTYPE  omx_vdec::allocate_output_buffer(
 
       // found an empty buffer at i
       *bufferHdr = (m_out_mem_ptr + i );
-      (*bufferHdr)->pBuffer = (OMX_U8*)driver_context.ptr_outputbuffer[i].bufferaddr;
+      (*bufferHdr)->pBuffer = driver_context.ptr_outputbuffer[i].bufferaddr;
       (*bufferHdr)->pAppPrivate = appData;
       BITMASK_SET(&m_out_bm_count,i);
     }
@@ -4823,8 +4823,8 @@ OMX_ERRORTYPE  omx_vdec::empty_this_buffer_proxy(OMX_IN OMX_HANDLETYPE         h
   }
 
   DEBUG_PRINT_LOW("\n Decode Input Frame Size %d",frameinfo.datalen);
-  ioctl_msg.in = &frameinfo;
-  ioctl_msg.out = NULL;
+  ioctl_msg.inputparam = &frameinfo;
+  ioctl_msg.outputparam = NULL;
 
   if (ioctl(driver_context.video_driver_fd,VDEC_IOCTL_DECODE_FRAME,
             &ioctl_msg) < 0)
@@ -4948,8 +4948,8 @@ OMX_ERRORTYPE  omx_vdec::fill_this_buffer_proxy(
           sizeof(struct vdec_bufferpayload));
   fillbuffer.client_data = bufferAdd;
 
-  ioctl_msg.in = &fillbuffer;
-  ioctl_msg.out = NULL;
+  ioctl_msg.inputparam = &fillbuffer;
+  ioctl_msg.outputparam = NULL;
   if (ioctl (driver_context.video_driver_fd,
          VDEC_IOCTL_FILL_OUTPUT_BUFFER,&ioctl_msg) < 0)
   {
@@ -5480,16 +5480,16 @@ OMX_ERRORTYPE omx_vdec::omx_vdec_check_port_settings(void)
     unsigned int alignment = 0,buffer_size = 0;
     OMX_ERRORTYPE eRet = OMX_ErrorNone;
 
-    ioctl_msg.in = NULL;
-    ioctl_msg.out = &driver_context.video_resoultion;
+    ioctl_msg.inputparam = NULL;
+    ioctl_msg.outputparam = &driver_context.video_resoultion;
     if (ioctl (driver_context.video_driver_fd,VDEC_IOCTL_GET_PICRES,&ioctl_msg))
     {
       DEBUG_PRINT_ERROR("\n Error in VDEC_IOCTL_GET_PICRES in port_setting");
       return OMX_ErrorHardware;
     }
 
-    ioctl_msg.in = NULL;
-    ioctl_msg.out = &driver_context.output_buffer;
+    ioctl_msg.inputparam = NULL;
+    ioctl_msg.outputparam = &driver_context.output_buffer;
     if (ioctl (driver_context.video_driver_fd,VDEC_IOCTL_GET_BUFFER_REQ,
                &ioctl_msg))
     {
@@ -5766,14 +5766,14 @@ int omx_vdec::async_message_process (void *context, void* message)
 
         output_respbuf = (struct vdec_output_frameinfo *)\
                           omxhdr->pOutputPortPrivate;
-        output_respbuf->framesize.bottom = \
-          vdec_msg->msgdata.output_frame.framesize.bottom;
-        output_respbuf->framesize.left = \
-          vdec_msg->msgdata.output_frame.framesize.left;
-        output_respbuf->framesize.right = \
-          vdec_msg->msgdata.output_frame.framesize.right;
-        output_respbuf->framesize.top = \
-          vdec_msg->msgdata.output_frame.framesize.top;
+        output_respbuf->framesize.n_bottom = \
+          vdec_msg->msgdata.output_frame.framesize.n_bottom;
+        output_respbuf->framesize.n_left = \
+          vdec_msg->msgdata.output_frame.framesize.n_left;
+        output_respbuf->framesize.n_right = \
+          vdec_msg->msgdata.output_frame.framesize.n_right;
+        output_respbuf->framesize.n_top = \
+          vdec_msg->msgdata.output_frame.framesize.n_top;
         output_respbuf->len = vdec_msg->msgdata.output_frame.len;
         output_respbuf->offset = vdec_msg->msgdata.output_frame.offset;
         output_respbuf->time_stamp = vdec_msg->msgdata.output_frame.time_stamp;
