@@ -199,7 +199,11 @@ bool venc_dev::venc_open(OMX_U32 codec)
   m_sVenc_cfg.fps_num = 30;
   m_sVenc_cfg.fps_den = 1;
   m_sVenc_cfg.targetbitrate = 64000;
+#ifdef MAX_RES_1080P
+  m_sVenc_cfg.inputformat= VEN_INPUTFMT_NV12_16M2KA;
+#else
   m_sVenc_cfg.inputformat= VEN_INPUTFMT_NV12;
+#endif
   if(codec == OMX_VIDEO_CodingMPEG4)
   {
     m_sVenc_cfg.codectype = VEN_CODEC_MPEG4;
@@ -1514,12 +1518,20 @@ bool venc_dev::venc_set_color_format(OMX_COLOR_FORMATTYPE color_format)
 
   if(color_format == OMX_COLOR_FormatYUV420SemiPlanar)
   {
+#ifdef MAX_RES_1080P
+  m_sVenc_cfg.inputformat= VEN_INPUTFMT_NV12_16M2KA;
+#else
     m_sVenc_cfg.inputformat = VEN_INPUTFMT_NV12;
+#endif
   }
   else
   {
     DEBUG_PRINT_ERROR("\nWARNING: Unsupported Color format [%d]", color_format);
+#ifdef MAX_RES_1080P
+    m_sVenc_cfg.inputformat= VEN_INPUTFMT_NV12_16M2KA;
+#else
     m_sVenc_cfg.inputformat = VEN_INPUTFMT_NV12;
+#endif
     DEBUG_PRINT_HIGH("\n Default color format YUV420SemiPlanar is set");
   }
   ioctl_msg.inputparam = (void*)&m_sVenc_cfg;
