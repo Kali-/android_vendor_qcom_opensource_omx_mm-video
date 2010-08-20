@@ -408,7 +408,11 @@ private:
     bool allocate_output_done(void);
 
     OMX_ERRORTYPE free_input_buffer(OMX_BUFFERHEADERTYPE *bufferHdr);
+    OMX_ERRORTYPE free_input_buffer(unsigned int bufferindex,
+                                    OMX_BUFFERHEADERTYPE *pmem_bufferHdr);
     OMX_ERRORTYPE free_output_buffer(OMX_BUFFERHEADERTYPE *bufferHdr);
+    void free_output_buffer_header();
+    void free_input_buffer_header();
 
     OMX_ERRORTYPE allocate_input_heap_buffer(OMX_HANDLETYPE       hComp,
                                              OMX_BUFFERHEADERTYPE **bufferHdr,

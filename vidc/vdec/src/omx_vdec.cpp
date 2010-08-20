@@ -3630,6 +3630,20 @@ OMX_ERRORTYPE  omx_vdec::use_buffer(
     return error;
 }
 
+OMX_ERRORTYPE omx_vdec::free_input_buffer(unsigned int bufferindex,
+                                OMX_BUFFERHEADERTYPE *pmem_bufferHdr)
+{
+  if (m_inp_heap_ptr && !input_use_buffer && arbitrary_bytes)
+  {
+    if(m_inp_heap_ptr[bufferindex].pBuffer)
+      free(m_inp_heap_ptr[bufferindex].pBuffer);
+    m_inp_heap_ptr[bufferindex].pBuffer = NULL;
+  }
+  if (pmem_bufferHdr)
+    free_input_buffer(pmem_bufferHdr);
+  return OMX_ErrorNone;
+}
+
 OMX_ERRORTYPE omx_vdec::free_input_buffer(OMX_BUFFERHEADERTYPE *bufferHdr)
 {
   unsigned int index = 0;
@@ -4363,104 +4377,43 @@ OMX_ERRORTYPE  omx_vdec::free_buffer(OMX_IN OMX_HANDLETYPE         hComp,
     if(port == OMX_CORE_INPUT_PORT_INDEX)
     {
       /*Check if arbitrary bytes*/
-      if (!arbitrary_bytes)
-      {
-         // check if the buffer is valid
-         if (input_use_buffer)
-         {
-           nPortIndex = buffer - m_inp_heap_ptr;
-         }
-         else{
-           nPortIndex = buffer - m_inp_mem_ptr;
-         }
-      }
+      if(!arbitrary_bytes && !input_use_buffer)
+        nPortIndex = buffer - m_inp_mem_ptr;
       else
-      {
-         nPortIndex = buffer - m_inp_heap_ptr;
-      }
+        nPortIndex = buffer - m_inp_heap_ptr;
 
         DEBUG_PRINT_LOW("free_buffer on i/p port - Port idx %d \n", nPortIndex);
         if(nPortIndex < m_inp_buf_count)
         {
-          // Clear the bit associated with it.
-          BITMASK_CLEAR(&m_inp_bm_count,nPortIndex);
+         // Clear the bit associated with it.
+         BITMASK_CLEAR(&m_inp_bm_count,nPortIndex);
+         BITMASK_CLEAR(&m_heap_inp_bm_count,nPortIndex);
          if (input_use_buffer == true)
          {
-               BITMASK_CLEAR(&m_heap_inp_bm_count,nPortIndex);
-            if (m_phdr_pmem_ptr[nPortIndex])
-            {
-               DEBUG_PRINT_LOW("\n Free pmem Buffer index %d",nPortIndex);
-               free_input_buffer(m_phdr_pmem_ptr[nPortIndex]);
-            }
-            m_inp_bPopulated = OMX_FALSE;
+
+            DEBUG_PRINT_LOW("\n Free pmem Buffer index %d",nPortIndex);
+            if(m_phdr_pmem_ptr)
+              free_input_buffer(m_phdr_pmem_ptr[nPortIndex]);
          }
          else
          {
-          if (arbitrary_bytes)
-          {
-            if (m_inp_heap_ptr[nPortIndex].pBuffer)
+            if (arbitrary_bytes)
             {
-              BITMASK_CLEAR(&m_heap_inp_bm_count,nPortIndex);
-              DEBUG_PRINT_LOW("\n Free Heap Buffer index %d",nPortIndex);
-              free (m_inp_heap_ptr[nPortIndex].pBuffer);
-              m_inp_heap_ptr[nPortIndex].pBuffer = NULL;
+              if(m_phdr_pmem_ptr)
+                free_input_buffer(nPortIndex,m_phdr_pmem_ptr[nPortIndex]);
+              else
+                free_input_buffer(nPortIndex,NULL);
             }
-            if (m_phdr_pmem_ptr[nPortIndex])
-            {
-              DEBUG_PRINT_LOW("\n Free pmem Buffer index %d",nPortIndex);
-              free_input_buffer(m_phdr_pmem_ptr[nPortIndex]);
-            }
-          }
-          else
-          {
-            free_input_buffer(buffer);
-          }
-
-          m_inp_bPopulated = OMX_FALSE;
+            else
+              free_input_buffer(buffer);
          }
-          /*Free the Buffer Header*/
+         m_inp_bPopulated = OMX_FALSE;
+         /*Free the Buffer Header*/
           if (release_input_done())
           {
             DEBUG_PRINT_HIGH("\n ALL input buffers are freed/released");
-            input_use_buffer = false;
-            if (arbitrary_bytes)
-            {
-              if (m_frame_parser.mutils)
-              {
-                DEBUG_PRINT_LOW("\n Free utils parser");
-                delete (m_frame_parser.mutils);
-                m_frame_parser.mutils = NULL;
-              }
-
-              if (m_inp_heap_ptr)
-              {
-                DEBUG_PRINT_LOW("\n Free input Heap Pointer");
-                free (m_inp_heap_ptr);
-                m_inp_heap_ptr = NULL;
-              }
-
-              if (m_phdr_pmem_ptr)
-              {
-                DEBUG_PRINT_LOW("\n Free input pmem header Pointer");
-                free (m_phdr_pmem_ptr);
-                m_phdr_pmem_ptr = NULL;
-              }
-            }
-            if (m_inp_mem_ptr)
-            {
-              DEBUG_PRINT_LOW("\n Free input pmem Pointer area");
-              free (m_inp_mem_ptr);
-              m_inp_mem_ptr = NULL;
-            }
-
-            if (driver_context.ptr_inputbuffer)
-            {
-              DEBUG_PRINT_LOW("\n Free Driver Context pointer");
-              free (driver_context.ptr_inputbuffer);
-              driver_context.ptr_inputbuffer = NULL;
-            }
+            free_input_buffer_header();
           }
-
         }
         else
         {
@@ -4492,23 +4445,7 @@ OMX_ERRORTYPE  omx_vdec::free_buffer(OMX_IN OMX_HANDLETYPE         hComp,
 
             if (release_output_done())
             {
-              DEBUG_PRINT_HIGH("\n ALL output buffers are freed/released");
-              output_use_buffer = false;
-              if (m_out_mem_ptr)
-              {
-                free (m_out_mem_ptr);
-                m_out_mem_ptr = NULL;
-              }
-              if (driver_context.ptr_respbuffer)
-              {
-                free (driver_context.ptr_respbuffer);
-                driver_context.ptr_respbuffer = NULL;
-              }
-              if (driver_context.ptr_outputbuffer)
-              {
-                free (driver_context.ptr_outputbuffer);
-                driver_context.ptr_outputbuffer = NULL;
-              }
+              free_output_buffer_header();
             }
         }
         else
@@ -4977,46 +4914,22 @@ OMX_ERRORTYPE  omx_vdec::component_deinit(OMX_IN OMX_HANDLETYPE hComp)
         {
           free_output_buffer (&m_out_mem_ptr[i]);
         }
-        if (driver_context.ptr_outputbuffer)
-        {
-          free (driver_context.ptr_outputbuffer);
-          driver_context.ptr_outputbuffer = NULL;
-        }
-
-        if (driver_context.ptr_respbuffer)
-        {
-          free (driver_context.ptr_respbuffer);
-          driver_context.ptr_respbuffer = NULL;
-        }
-        free(m_out_mem_ptr);
-        m_out_mem_ptr = NULL;
     }
 
     /*Check if the input buffers have to be cleaned up*/
-    if(m_inp_mem_ptr)
+    if(m_inp_mem_ptr || m_inp_heap_ptr)
     {
         DEBUG_PRINT_LOW("Freeing the Input Memory\n");
         for (i=0; i<m_inp_buf_count; i++ )
         {
-          free_input_buffer (&m_inp_mem_ptr[i]);
+          if (m_inp_mem_ptr)
+            free_input_buffer (i,&m_inp_mem_ptr[i]);
+          else
+            free_input_buffer (i,NULL);
         }
-
-        if (driver_context.ptr_inputbuffer)
-        {
-          free (driver_context.ptr_inputbuffer);
-          driver_context.ptr_inputbuffer = NULL;
-        }
-
-        free(m_inp_mem_ptr);
-        m_inp_mem_ptr = NULL;
     }
-
-    if(h264_scratch.pBuffer)
-    {
-      free(h264_scratch.pBuffer);
-      h264_scratch.pBuffer = NULL;
-    }
-
+    free_input_buffer_header();
+    free_output_buffer_header();
     if(m_platform_list)
     {
         free(m_platform_list);
@@ -6320,3 +6233,63 @@ bool omx_vdec::align_pmem_buffers(int pmem_fd, OMX_U32 buffer_size,
   return true;
 }
 
+void omx_vdec::free_output_buffer_header()
+{
+  DEBUG_PRINT_HIGH("\n ALL output buffers are freed/released");
+  output_use_buffer = false;
+  if (m_out_mem_ptr)
+  {
+    free (m_out_mem_ptr);
+    m_out_mem_ptr = NULL;
+  }
+  if (driver_context.ptr_respbuffer)
+  {
+    free (driver_context.ptr_respbuffer);
+    driver_context.ptr_respbuffer = NULL;
+  }
+  if (driver_context.ptr_outputbuffer)
+  {
+    free (driver_context.ptr_outputbuffer);
+    driver_context.ptr_outputbuffer = NULL;
+  }
+}
+
+void omx_vdec::free_input_buffer_header()
+{
+    input_use_buffer = false;
+    if (arbitrary_bytes)
+    {
+      if (m_frame_parser.mutils)
+      {
+        DEBUG_PRINT_LOW("\n Free utils parser");
+        delete (m_frame_parser.mutils);
+        m_frame_parser.mutils = NULL;
+      }
+
+      if (m_inp_heap_ptr)
+      {
+        DEBUG_PRINT_LOW("\n Free input Heap Pointer");
+        free (m_inp_heap_ptr);
+        m_inp_heap_ptr = NULL;
+      }
+
+      if (m_phdr_pmem_ptr)
+      {
+        DEBUG_PRINT_LOW("\n Free input pmem header Pointer");
+        free (m_phdr_pmem_ptr);
+        m_phdr_pmem_ptr = NULL;
+      }
+    }
+    if (m_inp_mem_ptr)
+    {
+      DEBUG_PRINT_LOW("\n Free input pmem Pointer area");
+      free (m_inp_mem_ptr);
+      m_inp_mem_ptr = NULL;
+    }
+    if (driver_context.ptr_inputbuffer)
+    {
+      DEBUG_PRINT_LOW("\n Free Driver Context pointer");
+      free (driver_context.ptr_inputbuffer);
+      driver_context.ptr_inputbuffer = NULL;
+    }
+}
