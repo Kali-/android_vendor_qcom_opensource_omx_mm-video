@@ -315,7 +315,10 @@ omx_vdec::omx_vdec(): m_state(OMX_StateInvalid),
                       prev_frame_ts(0),
                       frame_interval(~((unsigned int)0)),
                       frame_rate(DEFAULT_FPS),
-		      m_in_alloc_cnt(0)
+                      m_in_alloc_cnt(0)
+#ifdef _ANDROID_
+                      ,m_heap_ptr(NULL)
+#endif
 {
   /* Assumption is that , to begin with , we have all the frames with decoder */
   DEBUG_PRINT_HIGH("\n In OMX vdec Constuctor");
@@ -4953,6 +4956,26 @@ OMX_ERRORTYPE  omx_vdec::component_deinit(OMX_IN OMX_HANDLETYPE hComp)
     (void)ioctl(driver_context.video_driver_fd, VDEC_IOCTL_STOP_NEXT_MSG,
         NULL);
     DEBUG_PRINT_HIGH("\n Close the driver instance");
+#ifdef _ANDROID_
+   /* get strong count gets the refernce count of the pmem, the count will
+    * be incremented by our kernal driver and surface flinger, by the time
+    * we close the pmem, this cound needs to be zero, but there is no way
+    * for us to know when surface flinger reduces its cound, so we wait
+    * here in a infinite loop till the count is zero
+    */
+   if(m_heap_ptr != NULL) {
+     while(1)
+     {
+       if ( ((m_heap_ptr.get() != NULL)
+             && (m_heap_ptr.get())->getStrongCount()) == 1)
+         break;
+       usleep(10);
+     }
+     // Clear the strong reference
+     m_heap_ptr.clear();
+   }
+#endif // _ANDROID_
+
     close(driver_context.video_driver_fd);
 
 #ifdef INPUT_BUFFER_LOG
@@ -4961,13 +4984,6 @@ OMX_ERRORTYPE  omx_vdec::component_deinit(OMX_IN OMX_HANDLETYPE hComp)
 #ifdef OUTPUT_BUFFER_LOG
     fclose (outputBufferFile1);
 #endif
-#ifdef _ANDROID_
-    //for (i=0; i<m_out_buf_count; i++ )
-    {
-       // Clear the strong reference
-      m_heap_ptr.clear();
-    }
-#endif // _ANDROID_
   DEBUG_PRINT_HIGH("\n omx_vdec::component_deinit() complete");
   return OMX_ErrorNone;
 }
