@@ -71,7 +71,7 @@ public:
 private:
   struct venc_basecfg             m_sVenc_cfg;
   struct venc_ratectrlcfg         rate_ctrl;
-  struct venc_targetbitrate       bit_rate;
+  struct venc_targetbitrate       bitrate;
   struct venc_intraperiod         intra_period;
   struct venc_profile             codec_profile;
   struct ven_profilelevel         profile_level;
@@ -80,9 +80,12 @@ private:
   struct venc_allocatorproperty   m_sInput_buff_property;
   struct venc_allocatorproperty   m_sOutput_buff_property;
   struct venc_sessionqp           session_qp;
-  struct venc_multiclicecfg       multislice_cfg;
-  struct venc_entropycfg          entropy_cfg;
-  struct venc_dbcfg               loopfilter_cfg;
+  struct venc_multiclicecfg       multislice;
+  struct venc_entropycfg          entropy;
+  struct venc_dbcfg               dbkfilter;
+  struct venc_intrarefresh        intra_refresh;
+  struct venc_headerextension     hec;
+  struct venc_voptimingcfg        voptimecfg;
 
   bool venc_set_profile_level(OMX_U32 eProfile,OMX_U32 eLevel);
   bool venc_set_intra_period(OMX_U32 nPFrames);
@@ -93,9 +96,13 @@ private:
   bool venc_set_intra_vop_refresh(OMX_BOOL intra_vop_refresh);
   bool venc_set_color_format(OMX_COLOR_FORMATTYPE color_format);
   bool venc_validate_profile_level(OMX_U32 *eProfile, OMX_U32 *eLevel);
-  bool venc_set_multislice_cfg(OMX_VIDEO_AVCSLICEMODETYPE eSliceMode);
+  bool venc_set_multislice_cfg(OMX_INDEXTYPE codec, OMX_U32 slicesize);
   bool venc_set_entropy_config(OMX_BOOL enable, OMX_U32 i_cabac_level);
   bool venc_set_inloop_filter(OMX_VIDEO_AVCLOOPFILTERTYPE loop_filter);
+  bool venc_set_intra_refresh (OMX_VIDEO_INTRAREFRESHTYPE intrarefresh, OMX_U32 nMBs);
+  bool venc_set_error_resilience(OMX_VIDEO_PARAM_ERRORCORRECTIONTYPE* error_resilience);
+  bool venc_set_voptiming_cfg(OMX_U32 nTimeIncRes);
+  void venc_config_print();
 };
 
 #endif

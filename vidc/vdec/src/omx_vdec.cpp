@@ -1043,16 +1043,31 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
 
     m_state                   = OMX_StateLoaded;
 
-    if (m_frame_parser.mutils == NULL)
+    if (drv_ctx.decoder_format == VDEC_CODECTYPE_H264)
     {
-       m_frame_parser.mutils = new H264_Utils();
+      if (m_frame_parser.mutils == NULL)
+      {
+         m_frame_parser.mutils = new H264_Utils();
 
-       if (m_frame_parser.mutils == NULL)
-       {
-          DEBUG_PRINT_ERROR("\n parser utils Allocation failed ");
-          eRet = OMX_ErrorInsufficientResources;
-       }
-       m_frame_parser.mutils->initialize_frame_checking_environment();
+         if (m_frame_parser.mutils == NULL)
+         {
+            DEBUG_PRINT_ERROR("\n parser utils Allocation failed ");
+            eRet = OMX_ErrorInsufficientResources;
+         }
+
+         h264_scratch.nAllocLen = drv_ctx.ip_buf.buffer_size;
+         h264_scratch.pBuffer = (OMX_U8 *)malloc (drv_ctx.ip_buf.buffer_size);
+         h264_scratch.nFilledLen = 0;
+         h264_scratch.nOffset = 0;
+
+         if (h264_scratch.pBuffer == NULL)
+         {
+           DEBUG_PRINT_ERROR("\n h264_scratch.pBuffer Allocation failed ");
+           return OMX_ErrorInsufficientResources;
+         }
+         m_frame_parser.mutils->initialize_frame_checking_environment();
+         m_frame_parser.mutils->allocate_rbsp_buffer (drv_ctx.ip_buf.buffer_size);
+         }
     }
 
     if(pipe(fds))
@@ -3299,18 +3314,6 @@ OMX_ERRORTYPE  omx_vdec::use_input_heap_buffers(
 {
    DEBUG_PRINT_LOW("Inside %s, %p\n", __FUNCTION__, buffer);
    int i;
-   h264_scratch.nAllocLen = bytes;
-   h264_scratch.pBuffer = (OMX_U8 *)malloc (bytes);
-       h264_scratch.nFilledLen = 0;
-       h264_scratch.nOffset = 0;
-
-       if (h264_scratch.pBuffer == NULL)
-       {
-         DEBUG_PRINT_ERROR("\n h264_scratch.pBuffer Allocation failed ");
-         return OMX_ErrorInsufficientResources;
-       }
-
-          m_frame_parser.mutils->allocate_rbsp_buffer (bytes);
 
      /*Find a Free index*/
      for(i=0; i< drv_ctx.ip_buf.actualcount; i++)
@@ -3597,19 +3600,7 @@ OMX_ERRORTYPE omx_vdec::allocate_input_heap_buffer(OMX_HANDLETYPE       hComp,
       DEBUG_PRINT_ERROR("\n m_inp_heap_ptr Allocation failed ");
       return OMX_ErrorInsufficientResources;
     }
-
-    h264_scratch.nAllocLen = drv_ctx.ip_buf.buffer_size;
-    h264_scratch.pBuffer = (OMX_U8 *)malloc (drv_ctx.ip_buf.buffer_size);
-    h264_scratch.nFilledLen = 0;
-    h264_scratch.nOffset = 0;
-
-    if (h264_scratch.pBuffer == NULL)
-    {
-      DEBUG_PRINT_ERROR("\n h264_scratch.pBuffer Allocation failed ");
-      return OMX_ErrorInsufficientResources;
-    }
-       m_frame_parser.mutils->allocate_rbsp_buffer (drv_ctx.ip_buf.buffer_size);
-    }
+  }
 
   /*Find a Free index*/
   for(i=0; i< drv_ctx.ip_buf.actualcount; i++)

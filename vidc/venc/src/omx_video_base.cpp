@@ -1673,6 +1673,24 @@ OMX_ERRORTYPE  omx_video::get_parameter(OMX_IN OMX_HANDLETYPE     hComp,
       break;
     }
 
+    case OMX_IndexParamVideoErrorCorrection:
+    {
+      OMX_VIDEO_PARAM_ERRORCORRECTIONTYPE* errorresilience = (OMX_VIDEO_PARAM_ERRORCORRECTIONTYPE*)paramData;
+      DEBUG_PRINT_LOW("OMX_IndexParamVideoErrorCorrection\n");
+      errorresilience->bEnableHEC = m_sErrorCorrection.bEnableHEC;
+      errorresilience->bEnableResync = m_sErrorCorrection.bEnableResync;
+      errorresilience->nResynchMarkerSpacing = m_sErrorCorrection.nResynchMarkerSpacing;
+      break;
+    }
+  case OMX_IndexParamVideoIntraRefresh:
+    {
+      OMX_VIDEO_PARAM_INTRAREFRESHTYPE* intrarefresh = (OMX_VIDEO_PARAM_INTRAREFRESHTYPE*)paramData;
+      DEBUG_PRINT_LOW("OMX_IndexParamVideoIntraRefresh\n");
+      DEBUG_PRINT_ERROR("OMX_IndexParamVideoIntraRefresh GET\n");
+      intrarefresh->eRefreshMode = m_sIntraRefresh.eRefreshMode;
+      intrarefresh->nCirMBs = m_sIntraRefresh.nCirMBs;
+      break;
+    }
   case OMX_QcomIndexPortDefn:
     //TODO
     break;
@@ -1693,21 +1711,6 @@ OMX_ERRORTYPE  omx_video::get_parameter(OMX_IN OMX_HANDLETYPE     hComp,
         break;
    }
   case OMX_IndexParamVideoSliceFMO:
-    {
-        OMX_VIDEO_PARAM_AVCSLICEFMO *avc_slice_fmo = (OMX_VIDEO_PARAM_AVCSLICEFMO*)paramData;
-        DEBUG_PRINT_LOW("get_parameter: OMX_IndexParamVideoSliceFMO\n");
-        if(!strncmp((char *)m_nkind, "OMX.qcom.video.encoder.avc",\
-          OMX_MAX_STRINGNAME_SIZE))
-        {
-           memcpy(avc_slice_fmo, &m_sAVCSliceFMO, sizeof(m_sAVCSliceFMO));
-        }
-        else
-        {
-          DEBUG_PRINT_ERROR("ERROR: get_parameter: AVCSliceFMO queried non-AVC codec\n");
-          eRet = OMX_ErrorBadParameter;
-        }
-        break;
-    }
   default:
     {
       DEBUG_PRINT_ERROR("ERROR: get_parameter: unknown param %08x\n", paramIndex);
@@ -1789,6 +1792,13 @@ OMX_ERRORTYPE  omx_video::get_config(OMX_IN OMX_HANDLETYPE      hComp,
         return OMX_ErrorIncorrectStateOperation;
       }
       memcpy(pParam, &m_sConfigFrameRotation, sizeof(m_sConfigFrameRotation));
+      break;
+    }
+  case QOMX_IndexConfigVideoIntraperiod:
+    {
+      DEBUG_PRINT_LOW("get_config:QOMX_IndexConfigVideoIntraperiod\n");
+      QOMX_VIDEO_INTRAPERIODTYPE* pParam = reinterpret_cast<QOMX_VIDEO_INTRAPERIODTYPE*>(configData);
+      memcpy(pParam, &m_sIntraperiod, sizeof(m_sIntraperiod));
       break;
     }
   default:

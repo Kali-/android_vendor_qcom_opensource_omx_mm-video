@@ -234,6 +234,14 @@ enum Mode
    MODE_LIVE_ENCODE
 };
 
+enum ResyncMarkerType
+{
+   RESYNC_MARKER_NONE,     ///< No resync marker
+   RESYNC_MARKER_BYTE,     ///< BYTE Resync marker for MPEG4, H.264
+   RESYNC_MARKER_MB,       ///< MB resync marker for MPEG4, H.264
+   RESYNC_MARKER_GOB       ///< GOB resync marker for H.263
+};
+
 //////////////////////////
 // MODULE VARS
 //////////////////////////
@@ -468,9 +476,9 @@ result = OMX_SetParameter(m_hHandle,
       h263.eLevel = (OMX_VIDEO_H263LEVELTYPE)eLevel;
       h263.bPLUSPTYPEAllowed = OMX_FALSE;
       h263.nAllowedPictureTypes = 2;
-      h263.bForceRoundingTypeToZero = OMX_TRUE; ///@todo determine what this should be
-      h263.nPictureHeaderRepetition = 0; ///@todo determine what this should be
-      h263.nGOBHeaderInterval = 0; ///@todo determine what this should be
+      h263.bForceRoundingTypeToZero = OMX_TRUE;
+      h263.nPictureHeaderRepetition = 0;
+      h263.nGOBHeaderInterval = 1;
       result = OMX_SetParameter(m_hHandle,
                                 OMX_IndexParamVideoH263,
                                 &h263);
@@ -496,84 +504,48 @@ result = OMX_SetParameter(m_hHandle,
       D ("\n Profile = %d level = %d",profileLevel.eProfile,profileLevel.eLevel);
       CHK(result);
 
-     /*OMX_VIDEO_PARAM_MPEG4TYPE mp4;
-
-      result = OMX_GetParameter(m_hHandle,
-                                OMX_IndexParamVideoMpeg4,
-                                &mp4);
-      E("\n OMX_IndexParamVideoMpeg4 Set Paramter port");
-      CHK(result);
-
-      mp4.nTimeIncRes = m_sProfile.nFramerate * 2;
-      mp4.nPFrames = mp4.nTimeIncRes - 1; // intra period
-
-      result = OMX_SetParameter(m_hHandle,
-                                OMX_IndexParamVideoMpeg4,
-                                &mp4);
-      CHK(result);*/
-
-//       OMX_VIDEO_PARAM_MPEG4TYPE mp4; // OMX_IndexParamVideoMpeg4
-//       result = OMX_GetParameter(m_hHandle,
-//                                 OMX_IndexParamVideoMpeg4,
-//                                 &mp4);
-//       CHK(result);
-//       mp4.nPortIndex = (OMX_U32) PORT_INDEX_OUT;
-//       mp4.eProfile = OMX_VIDEO_MPEG4ProfileSimple;
-//       mp4.eLevel = m_sProfile.eLevel;
-//       mp4.nSliceHeaderSpacing = 0;
-//       mp4.bSVH = OMX_FALSE;
-//       mp4.bGov = OMX_FALSE;
-//       mp4.nPFrames = m_sProfile.nFramerate * 2 - 1; // intra period
-//       mp4.bACPred = OMX_TRUE;
-//       mp4.nTimeIncRes = m_sProfile.nFramerate * 2; // delta = 2 @ 15 fps
-//       mp4.nAllowedPictureTypes = 2; // pframe and iframe
-//       result = OMX_SetParameter(m_hHandle,
-//                                 OMX_IndexParamVideoMpeg4,
-//                                 &mp4);
-//       CHK(result);
+        if (m_sProfile.eCodec == OMX_VIDEO_CodingMPEG4)
+        {
+        OMX_VIDEO_PARAM_MPEG4TYPE mp4; // OMX_IndexParamVideoMpeg4
+       result = OMX_GetParameter(m_hHandle,
+                                 OMX_IndexParamVideoMpeg4,
+                                 &mp4);
+       CHK(result);
+       mp4.nPortIndex = (OMX_U32) PORT_INDEX_OUT;
+       mp4.nTimeIncRes = 1000;
+       result = OMX_SetParameter(m_hHandle,
+                                 OMX_IndexParamVideoMpeg4,
+                                 &mp4);
+       CHK(result);
+         }
    }
-
    if (m_sProfile.eCodec == OMX_VIDEO_CodingAVC)
    {
-      OMX_VIDEO_PARAM_AVCSLICEFMO avcslicefmo;
-      avcslicefmo.nPortIndex = (OMX_U32)PORT_INDEX_OUT;
-      result = OMX_GetParameter(m_hHandle,
-                             OMX_IndexParamVideoSliceFMO,
-                             &avcslicefmo);
-      E("\n OMX_IndexParamVideoSliceFMO Get Paramter port");
-      CHK(result);
-
-      avcslicefmo.eSliceMode = m_sProfile.eSliceMode;
-      result = OMX_SetParameter(m_hHandle,
-                                OMX_IndexParamVideoSliceFMO,
-                                &avcslicefmo);
-      E("\n OMX_IndexParamVideoSliceFMO Set Paramter port");
-      CHK(result);
+#if 1
+/////////////C A B A C ///A N D/////D E B L O C K I N G /////////////////
 
       OMX_VIDEO_PARAM_AVCTYPE avcdata;
+      avcdata.nPortIndex = (OMX_U32)PORT_INDEX_OUT;
       result = OMX_GetParameter(m_hHandle,
                                 OMX_IndexParamVideoAvc,
                                 &avcdata);
-      E("\n OMX_IndexParamVideoAvc Get Parameter filter");
       CHK(result);
-      E("\n OMX_IndexParamVideoAvc Ready to Set Parameter filter/CABAC");
+// TEST VALUES (CHANGE FOR DIFF CONFIG's)
+    avcdata.eLoopFilterMode = OMX_VIDEO_AVCLoopFilterEnable;
+//      avcdata.eLoopFilterMode = OMX_VIDEO_AVCLoopFilterDisable;
+//    avcdata.eLoopFilterMode = OMX_VIDEO_AVCLoopFilterDisableSliceBoundary;
+   avcdata.bEntropyCodingCABAC = OMX_FALSE;
+//   avcdata.bEntropyCodingCABAC = OMX_TRUE;
+   avcdata.nCabacInitIdc = 1;
+///////////////////////////////////////////////
 
-      printf("\n TEST profile %d Index %d ",avcdata.eProfile, avcdata.eLevel);
-
-//      avcdata.eLoopFilterMode = OMX_VIDEO_AVCLoopFilterEnable;
-
-      avcdata.eLoopFilterMode = OMX_VIDEO_AVCLoopFilterDisable;
-//      avcdata.eLoopFilterMode = OMX_VIDEO_AVCLoopFilterDisableSliceBoundary;
-
-      avcdata.bEntropyCodingCABAC = OMX_FALSE;
-   //   avcdata.bEntropyCodingCABAC = OMX_TRUE;
-      avcdata.nCabacInitIdc = 0;
-      printf("\n TEST Filter value %u ",avcdata.eLoopFilterMode);
       result = OMX_SetParameter(m_hHandle,
                                 OMX_IndexParamVideoAvc,
                                 &avcdata);
       CHK(result);
-      E("\n OMX_IndexParamVideoAvc Set Parameter DBK/CABAC complete");
+
+/////////////C A B A C ///A N D/////D E B L O C K I N G /////////////////
+#endif
    }
 
    OMX_VIDEO_PARAM_BITRATETYPE bitrate; // OMX_IndexParamVideoBitrate
@@ -606,20 +578,178 @@ result = OMX_SetParameter(m_hHandle,
    CHK(result);
 
 #if 1
+///////////////////I N T R A P E R I O D ///////////////////
+
+      QOMX_VIDEO_INTRAPERIODTYPE intra;
+
+      intra.nPortIndex = (OMX_U32) PORT_INDEX_OUT; // output
+      result = OMX_GetConfig(m_hHandle,
+                             (OMX_INDEXTYPE) QOMX_IndexConfigVideoIntraperiod,
+                             (OMX_PTR) &intra);
+
+      if (result == OMX_ErrorNone)
+      {
+         intra.nPFrames = (OMX_U32) (2 * m_sProfile.nFramerate - 1); //setting I
+                                                                     //frame interval to
+                                                                     //2 x framerate
+         intra.nIDRPeriod = 1; //every I frame is an IDR
+         intra.nPortIndex = (OMX_U32) PORT_INDEX_OUT;
+         result = OMX_SetConfig(m_hHandle,
+                                (OMX_INDEXTYPE) QOMX_IndexConfigVideoIntraperiod,
+                                (OMX_PTR) &intra);
+      }
+      else
+      {
+         E("failed to get state", 0, 0, 0);
+      }
+
+
+///////////////////I N T R A P E R I O D ///////////////////
+#endif
+
+#if 1
+///////////////////E R R O R C O R R E C T I O N ///////////////////
+
+      ResyncMarkerType eResyncMarkerType;
+      unsigned long int nResyncMarkerSpacing;
+      OMX_BOOL enableHEC = OMX_FALSE;
+
+//For Testing ONLY
+   if (m_sProfile.eCodec == OMX_VIDEO_CodingMPEG4)
+   {
+// MPEG4
+//      eResyncMarkerType = RESYNC_MARKER_BYTE;
+//      nResyncMarkerSpacing = 1920;
+      eResyncMarkerType = RESYNC_MARKER_MB;
+      nResyncMarkerSpacing = 50;
+      enableHEC = OMX_TRUE;
+   }
+   else if (m_sProfile.eCodec == OMX_VIDEO_CodingH263)
+   {
+//H263
+      eResyncMarkerType = RESYNC_MARKER_GOB;
+      nResyncMarkerSpacing = 0;
+   }
+   else if (m_sProfile.eCodec == OMX_VIDEO_CodingAVC)
+   {
+//H264
+//      eResyncMarkerType = RESYNC_MARKER_BYTE;
+//      nResyncMarkerSpacing = 1920;
+      eResyncMarkerType = RESYNC_MARKER_MB;
+       nResyncMarkerSpacing = 50;
+   }
+
+   OMX_VIDEO_PARAM_ERRORCORRECTIONTYPE errorCorrection; //OMX_IndexParamVideoErrorCorrection
+   errorCorrection.nPortIndex = (OMX_U32) PORT_INDEX_OUT; // output
+   result = OMX_GetParameter(m_hHandle,
+                             (OMX_INDEXTYPE) OMX_IndexParamVideoErrorCorrection,
+                             (OMX_PTR) &errorCorrection);
+
+   errorCorrection.bEnableRVLC = OMX_FALSE;
+   errorCorrection.bEnableDataPartitioning = OMX_FALSE;
+
+      if ((eResyncMarkerType == RESYNC_MARKER_BYTE) &&
+         (m_sProfile.eCodec == OMX_VIDEO_CodingMPEG4)){
+            errorCorrection.bEnableResync = OMX_TRUE;
+            errorCorrection.nResynchMarkerSpacing = nResyncMarkerSpacing;
+            errorCorrection.bEnableHEC = enableHEC;
+            }
+      else if ((eResyncMarkerType == RESYNC_MARKER_BYTE) &&
+               (m_sProfile.eCodec == OMX_VIDEO_CodingAVC)){
+         errorCorrection.bEnableResync = OMX_TRUE;
+         errorCorrection.nResynchMarkerSpacing = nResyncMarkerSpacing;
+         }
+      else if ((eResyncMarkerType == RESYNC_MARKER_GOB) &&
+               (m_sProfile.eCodec == OMX_VIDEO_CodingH263)){
+         errorCorrection.bEnableResync = OMX_FALSE;
+         errorCorrection.nResynchMarkerSpacing = nResyncMarkerSpacing;
+         errorCorrection.bEnableDataPartitioning = OMX_TRUE;
+         }
+
+      result = OMX_SetParameter(m_hHandle,
+                            (OMX_INDEXTYPE) OMX_IndexParamVideoErrorCorrection,
+                            (OMX_PTR) &errorCorrection);
+   CHK(result);
+
+      if (eResyncMarkerType == RESYNC_MARKER_MB){
+         if (m_sProfile.eCodec == OMX_VIDEO_CodingAVC){
+            OMX_VIDEO_PARAM_AVCTYPE avcdata;
+            avcdata.nPortIndex = (OMX_U32) PORT_INDEX_OUT; // output
+            result = OMX_GetParameter(m_hHandle,
+                                      OMX_IndexParamVideoAvc,
+                                      (OMX_PTR) &avcdata);
+            CHK(result);
+            if (result == OMX_ErrorNone)
+            {
+               avcdata.nSliceHeaderSpacing = nResyncMarkerSpacing;
+               result = OMX_SetParameter(m_hHandle,
+                                         OMX_IndexParamVideoAvc,
+                                         (OMX_PTR) &avcdata);
+               CHK(result);
+
+            }
+         }
+         else if(m_sProfile.eCodec == OMX_VIDEO_CodingMPEG4){
+            OMX_VIDEO_PARAM_MPEG4TYPE mp4;
+            mp4.nPortIndex = (OMX_U32) PORT_INDEX_OUT; // output
+            result = OMX_GetParameter(m_hHandle,
+                                      OMX_IndexParamVideoMpeg4,
+                                      (OMX_PTR) &mp4);
+            CHK(result);
+
+            if (result == OMX_ErrorNone)
+            {
+               mp4.nSliceHeaderSpacing = nResyncMarkerSpacing;
+               result = OMX_SetParameter(m_hHandle,
+                                         OMX_IndexParamVideoMpeg4,
+                                         (OMX_PTR) &mp4);
+               CHK(result);
+            }
+         }
+         }
+
+///////////////////E R R O R C O R R E C T I O N ///////////////////
+#endif
+
+#if 1
+///////////////////I N T R A R E F R E S H///////////////////
+      bool bEnableIntraRefresh = OMX_TRUE;
+
+      if (result == OMX_ErrorNone)
+      {
+         OMX_VIDEO_PARAM_INTRAREFRESHTYPE ir; // OMX_IndexParamVideoIntraRefresh
+         ir.nPortIndex = (OMX_U32) PORT_INDEX_OUT; // output
+         result = OMX_GetParameter(m_hHandle,
+                                   OMX_IndexParamVideoIntraRefresh,
+                                   (OMX_PTR) &ir);
+         if (result == OMX_ErrorNone)
+         {
+            if (bEnableIntraRefresh)
+            {
+               ir.eRefreshMode = OMX_VIDEO_IntraRefreshCyclic;
+               ir.nCirMBs = 5;
+               result = OMX_SetParameter(m_hHandle,
+                                         OMX_IndexParamVideoIntraRefresh,
+                                         (OMX_PTR) &ir);
+               CHK(result);
+            }
+         }
+      }
+
+//////////////////////OMX_VIDEO_PARAM_INTRAREFRESHTYPE///////////////////
+#endif
+
    OMX_CONFIG_FRAMERATETYPE enc_framerate; // OMX_IndexConfigVideoFramerate
    enc_framerate.nPortIndex = (OMX_U32)PORT_INDEX_OUT;
    result = OMX_GetConfig(m_hHandle,
                           OMX_IndexConfigVideoFramerate,
                           &enc_framerate);
-   E("\n OMX_IndexConfigVideoFramerate Get config port");
    CHK(result);
    enc_framerate.xEncodeFramerate = m_sProfile.nFramerate << 16;
    result = OMX_SetConfig(m_hHandle,
                           OMX_IndexConfigVideoFramerate,
                           &enc_framerate);
-   E("\n OMX_IndexConfigVideoFramerate Set config port");
    CHK(result);
-#endif
    return OMX_ErrorNone;
 }
 ////////////////////////////////////////////////////////////////////////////////
@@ -1120,12 +1250,26 @@ bool parseWxH(char *str, OMX_U32 *width, OMX_U32 *height)
            h = strtoul(token, NULL, 10);
            if (w != ULONG_MAX && h != ULONG_MAX)
            {
-               parseOK = true;
-               *width = w;
-               *height = h;
+#ifdef MAX_RES_720P
+              if ((w * h >> 8) <= 3600)
+              {
+                 parseOK = true;
+                 *width = w;
+                 *height = h;
+                 }
+#else
+              if ((w * h >> 8) <= 8100)
+              {
+                 parseOK = true;
+                 *width = w;
+                 *height = h;
+                 }
+#endif
+              else
+                 E("\nInvalid dimensions %dx%d",w,h);
+              }
            }
        }
-   }
    return parseOK;
 }
 
@@ -1710,6 +1854,26 @@ int main(int argc, char** argv)
       default:
          E("invalid msg id %d", (int) msg.id);
       } // end switch (msg.id)
+
+/*  // TO UNCOMMENT FOR PAUSE TESTINGS
+      if(m_nFrameOut == 10)
+      {
+         E("\nGoing to Pause state\n");
+         SetState(OMX_StatePause);
+         sleep(3);
+//REQUEST AN I FRAME AFTER PAUSE
+         OMX_CONFIG_INTRAREFRESHVOPTYPE voprefresh;
+         voprefresh.nPortIndex = (OMX_U32)PORT_INDEX_OUT;
+         voprefresh.IntraRefreshVOP = OMX_TRUE;
+         result = OMX_SetConfig(m_hHandle,
+                                   OMX_IndexConfigVideoIntraVOPRefresh,
+                                   &voprefresh);
+         E("\n OMX_IndexConfigVideoIntraVOPRefresh Set Paramter port");
+         CHK(result);
+         E("\nGoing to executing state\n");
+         SetState(OMX_StateExecuting);
+      }
+*/
    } // end while (!bQuit)
 
 

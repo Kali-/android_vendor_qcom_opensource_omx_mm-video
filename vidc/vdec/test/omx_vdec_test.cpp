@@ -903,7 +903,7 @@ int main(int argc, char **argv)
       printf(" ENTER THE TEST CASE YOU WOULD LIKE TO EXECUTE\n");
       printf(" *********************************************\n");
       printf(" 1--> PER ACCESS UNIT CLIP (.dat). Clip only available for H264 and Mpeg4\n");
-      printf(" 2--> ARBITRARY BYTES (need .264/.264c/.mv4/.263/.rcv/.vc1)\n");
+      printf(" 2--> ARBITRARY BYTES (need .264/.264c/.m4v/.263/.rcv/.vc1)\n");
       if (codec_format_option == CODEC_FORMAT_H264)
       {
         printf(" 3--> NAL LENGTH SIZE CLIP (.264c)\n");
@@ -1072,7 +1072,7 @@ int main(int argc, char **argv)
       printf(" *********************************************\n");
       printf(" 1 --> Play the clip till the end\n");
       printf(" 2 --> Run compliance test. Do NOT expect any display for most option. \n");
-      printf("       Please only see \"TEST SUCCESSFULL\" to indidcate test pass\n");
+      printf("       Please only see \"TEST SUCCESSFULL\" to indicate test pass\n");
       fflush(stdin);
       scanf("%d", &test_option);
       fflush(stdin);
