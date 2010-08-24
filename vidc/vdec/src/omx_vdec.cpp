@@ -758,6 +758,10 @@ void omx_vdec::process_event_cb(void *ctxt, unsigned char id)
             if (pThis->in_reconfig)
               pThis->m_cb.EventHandler(&pThis->m_cmp, pThis->m_app_data,
                 OMX_EventPortSettingsChanged, OMX_CORE_OUTPUT_PORT_INDEX, 0, NULL );
+            if (pThis->drv_ctx.interlace != VDEC_InterlaceFrameProgressive)
+              pThis->m_cb.EventHandler(&pThis->m_cmp, pThis->m_app_data,
+                (OMX_EVENTTYPE)OMX_EventIndexsettingChanged,
+                pThis->drv_ctx.interlace, 0, NULL );
           }
         break;
 
@@ -1029,6 +1033,7 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
     /*Get the Buffer requirements for input and output ports*/
     drv_ctx.ip_buf.buffer_type = VDEC_BUFFER_TYPE_INPUT;
     drv_ctx.op_buf.buffer_type = VDEC_BUFFER_TYPE_OUTPUT;
+    drv_ctx.interlace = VDEC_InterlaceFrameProgressive;
 
     if (eRet == OMX_ErrorNone)
         eRet = get_buffer_req(&drv_ctx.ip_buf);
@@ -5218,9 +5223,11 @@ OMX_ERRORTYPE omx_vdec::fill_buffer_done(OMX_HANDLETYPE hComp,
   /* For use buffer we need to copy the data */
   if (m_cb.FillBufferDone)
   {
-    pPMEMInfo  = (OMX_QCOM_PLATFORM_PRIVATE_PMEM_INFO *)
-                   ((OMX_QCOM_PLATFORM_PRIVATE_LIST *)
-                      buffer->pPlatformPrivate)->entryList->entry;
+    if (drv_ctx.interlace != VDEC_InterlaceFrameProgressive && !in_reconfig)
+      append_interlace_extradata(buffer);
+    pPMEMInfo = (OMX_QCOM_PLATFORM_PRIVATE_PMEM_INFO *)
+                ((OMX_QCOM_PLATFORM_PRIVATE_LIST *)
+                buffer->pPlatformPrivate)->entryList->entry;
     DEBUG_PRINT_LOW("\n Before FBD callback Accessed Pmeminfo %d",pPMEMInfo->pmem_fd);
     m_cb.FillBufferDone (hComp,m_app_data,buffer);
     DEBUG_PRINT_LOW("\n After Fill Buffer Done callback %d",pPMEMInfo->pmem_fd);
@@ -6059,7 +6066,7 @@ void omx_vdec::free_input_buffer_header()
     }
 }
 
-OMX_ERRORTYPE omx_vdec::get_buffer_req(vdec_allocatorproperty *buffer_prop)
+OMX_ERRORTYPE omx_vdec::get_buffer_req(vdec_allocatorproperty *buffer_prop, unsigned int extra_data)
 {
   struct vdec_ioctl_msg ioctl_msg = {NULL, NULL};
   OMX_ERRORTYPE eRet = OMX_ErrorNone;
@@ -6076,7 +6083,12 @@ OMX_ERRORTYPE omx_vdec::get_buffer_req(vdec_allocatorproperty *buffer_prop)
   }
   else
   {
-    buf_size = (buffer_prop->buffer_size + buffer_prop->alignment - 1)&(~(buffer_prop->alignment -1));
+    buf_size = buffer_prop->buffer_size;
+    if (extra_data)
+      buf_size = ((buf_size + 3)&(~3)) + extra_data;
+    buf_size = (buf_size + buffer_prop->alignment - 1)&(~(buffer_prop->alignment - 1));
+    DEBUG_PRINT_LOW("GetBufReq UPDATE: ActCnt(%d) Size(%d) BufSize(%d)",
+      buffer_prop->actualcount, buffer_prop->buffer_size, buf_size);
     if (in_reconfig) // BufReq will be set to driver when port is disabled
       buffer_prop->buffer_size = buf_size;
     else if (buf_size != buffer_prop->buffer_size)
@@ -6121,9 +6133,11 @@ OMX_ERRORTYPE omx_vdec::set_buffer_req(vdec_allocatorproperty *buffer_prop)
 OMX_ERRORTYPE omx_vdec::start_port_reconfig()
 {
   struct vdec_ioctl_msg ioctl_msg = {NULL, NULL};
+  struct vdec_picsize vid_res;
   OMX_ERRORTYPE eRet = OMX_ErrorNone;
+  unsigned int extra_data_size = 0;
   ioctl_msg.in = NULL;
-  ioctl_msg.out = &drv_ctx.video_resolution;
+  ioctl_msg.out = &vid_res;
   if (ioctl(drv_ctx.video_driver_fd, VDEC_IOCTL_GET_PICRES, &ioctl_msg))
   {
     DEBUG_PRINT_ERROR("Error VDEC_IOCTL_GET_PICRES");
@@ -6131,11 +6145,69 @@ OMX_ERRORTYPE omx_vdec::start_port_reconfig()
   }
   else
   {
-    in_reconfig = true;
-    op_buf_rcnfg.buffer_type = VDEC_BUFFER_TYPE_OUTPUT;
-    eRet = get_buffer_req(&op_buf_rcnfg);
-    if (eRet != OMX_ErrorNone)
-      in_reconfig = false;
+    ioctl_msg.out = &drv_ctx.interlace;
+    if (ioctl(drv_ctx.video_driver_fd, VDEC_IOCTL_GET_INTERLACE_FORMAT, &ioctl_msg))
+    {
+      DEBUG_PRINT_ERROR("Error VDEC_IOCTL_GET_INTERLACE_FORMAT");
+      eRet = OMX_ErrorHardware;
+    }
+    else
+    {
+      if (drv_ctx.interlace != VDEC_InterlaceFrameProgressive)
+        extra_data_size = (sizeof(OMX_OTHER_EXTRADATATYPE) +
+                           sizeof(OMX_STREAMINTERLACEFORMAT) + 3)&(~3) +
+                           sizeof(OMX_OTHER_EXTRADATATYPE);
+      in_reconfig = true;
+      op_buf_rcnfg.buffer_type = VDEC_BUFFER_TYPE_OUTPUT;
+      eRet = get_buffer_req(&op_buf_rcnfg, extra_data_size);
+      if (eRet == OMX_ErrorNone &&
+         (vid_res.frame_height != drv_ctx.video_resolution.frame_height ||
+          vid_res.frame_width != drv_ctx.video_resolution.frame_width ||
+          vid_res.stride != drv_ctx.video_resolution.stride ||
+          vid_res.scan_lines != drv_ctx.video_resolution.scan_lines ||
+          op_buf_rcnfg.actualcount > drv_ctx.op_buf.actualcount ||
+          op_buf_rcnfg.buffer_size > drv_ctx.op_buf.buffer_size))
+        drv_ctx.video_resolution = vid_res;
+      else
+      // Reconfig issued for interlace, current buffer requirements are good
+      // enough for the extradata required, no reconfig from client required.
+        in_reconfig = false;
+    }
   }
   return eRet;
+}
+
+void omx_vdec::append_interlace_extradata(OMX_BUFFERHEADERTYPE *buffer)
+{
+  OMX_OTHER_EXTRADATATYPE *pExtra;
+  OMX_STREAMINTERLACEFORMAT *pInterlaceFormat;
+  buffer->nFlags |= OMX_BUFFERFLAG_EXTRADATA;
+  pExtra = (OMX_OTHER_EXTRADATATYPE *)
+           ((unsigned)(buffer->pBuffer + buffer->nOffset +
+            buffer->nFilledLen + 3)&(~3));
+  buffer->nFlags |= OMX_BUFFERFLAG_EXTRADATA;
+  pExtra->nSize = (sizeof(OMX_OTHER_EXTRADATATYPE) +
+                   sizeof(OMX_STREAMINTERLACEFORMAT) + 3)&(~3);
+  pExtra->nVersion.nVersion = OMX_SPEC_VERSION;
+  pExtra->nPortIndex = OMX_CORE_OUTPUT_PORT_INDEX;
+  pExtra->eType = (OMX_EXTRADATATYPE)OMX_ExtraDataInterlaceFormat;
+  pExtra->nDataSize = sizeof(OMX_STREAMINTERLACEFORMAT);
+  pInterlaceFormat = (OMX_STREAMINTERLACEFORMAT *)pExtra->data;
+  pInterlaceFormat->nSize = sizeof(OMX_STREAMINTERLACEFORMAT);
+  pInterlaceFormat->nVersion.nVersion = OMX_SPEC_VERSION;
+  pInterlaceFormat->nPortIndex = OMX_CORE_OUTPUT_PORT_INDEX;
+  pInterlaceFormat->bInterlaceFormat = OMX_TRUE;
+  if (drv_ctx.interlace == VDEC_InterlaceInterleaveFrameTopFieldFirst)
+    pInterlaceFormat->nInterlaceFormats = OMX_InterlaceInterleaveFrameTopFieldFirst;
+  else
+    pInterlaceFormat->nInterlaceFormats = OMX_InterlaceInterleaveFrameBottomFieldFirst;
+  DEBUG_PRINT_LOW("\n Buf(%p) TSmp(%ld) Off(%x) FLen(%x) XDPtr(%p) IntPtr(%p) Fmt(%x) SizeXD(%u) pExtra->data(%p)",
+    buffer->pBuffer, (long int)buffer->nTimeStamp, buffer->nOffset, buffer->nFilledLen,
+    pExtra, pInterlaceFormat, pInterlaceFormat->nInterlaceFormats, (OMX_STREAMINTERLACEFORMAT *)pExtra->data);
+  pExtra = pExtra + pExtra->nSize;
+  pExtra->nSize = sizeof(OMX_OTHER_EXTRADATATYPE);
+  pExtra->nVersion.nVersion = OMX_SPEC_VERSION;
+  pExtra->eType = OMX_ExtraDataNone;
+  pExtra->nDataSize = 0;
+  pExtra->data[0] = 0;
 }

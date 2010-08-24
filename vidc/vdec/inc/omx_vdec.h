@@ -149,6 +149,7 @@ struct video_driver_context
     int video_driver_fd;
     enum vdec_codec decoder_format;
     enum vdec_output_fromat output_format;
+    enum vdec_interlaced_format interlace;
     struct vdec_picsize video_resolution;
     struct vdec_allocatorproperty ip_buf;
     struct vdec_allocatorproperty op_buf;
@@ -459,9 +460,10 @@ private:
 
     bool release_output_done();
     bool release_input_done();
-    OMX_ERRORTYPE get_buffer_req(vdec_allocatorproperty *buffer_prop);
+    OMX_ERRORTYPE get_buffer_req(vdec_allocatorproperty *buffer_prop, unsigned int extra_data = 0);
     OMX_ERRORTYPE set_buffer_req(vdec_allocatorproperty *buffer_prop);
     OMX_ERRORTYPE start_port_reconfig();
+    void append_interlace_extradata(OMX_BUFFERHEADERTYPE *buffer);
 
     bool align_pmem_buffers(int pmem_fd, OMX_U32 buffer_size,
                             OMX_U32 alignment);

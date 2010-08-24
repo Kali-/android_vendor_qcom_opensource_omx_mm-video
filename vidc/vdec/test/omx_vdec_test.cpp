@@ -593,6 +593,23 @@ void* fbd_thread(void* pArg)
       }
     }
 
+    if (pBuffer->nFlags & OMX_BUFFERFLAG_EXTRADATA)
+    {
+        OMX_OTHER_EXTRADATATYPE *pExtra;
+        OMX_STREAMINTERLACEFORMAT *pInterlaceFormat;
+        DEBUG_PRINT(">> BUFFER WITH EXTRA DATA RCVD <<<");
+        pExtra = (OMX_OTHER_EXTRADATATYPE *)
+                 ((unsigned)(pBuffer->pBuffer + pBuffer->nOffset +
+                  pBuffer->nFilledLen + 3)&(~3));
+        if (pExtra->eType == OMX_ExtraDataInterlaceFormat)
+        {
+          pInterlaceFormat = (OMX_STREAMINTERLACEFORMAT *)pExtra->data;
+          DEBUG_PRINT("Buf(%p) TSmp(%ld) Off(%x) FLen(%x) XDPtr(%p) IntPtr(%p) Fmt(%x)",
+            pBuffer->pBuffer, (long int)pBuffer->nTimeStamp, pBuffer->nOffset, pBuffer->nFilledLen,
+            pExtra, pInterlaceFormat, pInterlaceFormat->nInterlaceFormats);
+        }
+    }
+
     pthread_mutex_lock(&eos_lock);
     if (bOutputEosReached)
     {
@@ -763,7 +780,9 @@ OMX_ERRORTYPE EventHandler(OMX_IN OMX_HANDLETYPE hComponent,
                 DEBUG_PRINT_ERROR("OMX_EventBufferFlag Event not handled\n");
             }
             break;
-
+        case OMX_EventIndexsettingChanged:
+            DEBUG_PRINT("OMX_EventIndexSettingChanged Interlace mode[%x]\n", nData1);
+            break;
         default:
             DEBUG_PRINT_ERROR("ERROR - Unknown Event \n");
             break;
