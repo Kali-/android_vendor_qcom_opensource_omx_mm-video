@@ -2106,8 +2106,8 @@ bool omx_vdec::execute_input_flush(void)
                 pInpBufHdr;
 /* since these buffers are not processed by vdec, below statment should make sure that the
    nFilledLen is not zero, so that client knows that vdec didnt consume the buffer*/
-            m_extra_buf_info[i].arbitrarybytesInput->nOffset=
-               m_extra_buf_info[i].arbitrarybytesInput->nFilledLen;
+            m_extra_buf_info[index].arbitrarybytesInput->nOffset=
+               m_extra_buf_info[index].arbitrarybytesInput->nFilledLen;
             //post_event((unsigned)&m_vdec_cfg,(unsigned)pInpBufHdr,OMX_COMPONENT_GENERATE_BUFFER_DONE);
          }
          for (i = 0; i < m_inp_buf_count; i++) {
