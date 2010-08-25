@@ -230,7 +230,7 @@ unsigned char flush_input_progress = 0, flush_output_progress = 0;
 unsigned cmd_data = ~(unsigned)0, etb_count = 0;
 
 char curr_seq_command[100];
-long int timeStampLfile = 0;
+OMX_S64 timeStampLfile = 0;
 int fps = 30;
 unsigned int timestampInterval = 33333;
 codec_format  codec_format_option;
@@ -468,6 +468,7 @@ void* ebd_thread(void* pArg)
     pBuffer->nOffset = 0;
     if((readBytes = Read_Buffer(pBuffer)) > 0) {
         pBuffer->nFilledLen = readBytes;
+        DEBUG_PRINT("%s: Timestamp sent(%lld)", __FUNCTION__, pBuffer->nTimeStamp);
         OMX_EmptyThisBuffer(dec_handle,pBuffer);
         etb_count++;
     }
@@ -476,6 +477,7 @@ void* ebd_thread(void* pArg)
         pBuffer->nFlags |= OMX_BUFFERFLAG_EOS;
         bInputEosReached = true;
         pBuffer->nFilledLen = readBytes;
+        DEBUG_PRINT("%s: Timestamp sent(%lld)", __FUNCTION__, pBuffer->nTimeStamp);
         OMX_EmptyThisBuffer(dec_handle,pBuffer);
         DEBUG_PRINT("EBD::Either EOS or Some Error while reading file\n");
         etb_count++;
@@ -533,8 +535,8 @@ void* fbd_thread(void* pArg)
       canDisplay = 1;
       if (realtime_display)
       {
-        DEBUG_PRINT("%s: Buf(%p) Timestamp(%ld) \n",
-            __FUNCTION__, pBuffer, (long int)pBuffer->nTimeStamp);
+        DEBUG_PRINT("%s: Buf(%p) Timestamp(%lld) \n",
+            __FUNCTION__, pBuffer, pBuffer->nTimeStamp);
         if (pBuffer->nTimeStamp != (lastTimestamp + timestampInterval))
         {
             DEBUG_PRINT("Unexpected timestamp[%ld]! Expected[%ld]\n",
@@ -1953,6 +1955,7 @@ int Play_Decoder()
       pInputBufHdrs[i]->nInputPortIndex = 0;
       pInputBufHdrs[i]->nFlags = 0;
 //pBufHdr[bufCnt]->pAppPrivate = this;
+      DEBUG_PRINT("%s: Timestamp sent(%lld)", __FUNCTION__, pInputBufHdrs[i]->nTimeStamp);
       ret = OMX_EmptyThisBuffer(dec_handle, pInputBufHdrs[i]);
       if (OMX_ErrorNone != ret) {
           DEBUG_PRINT_ERROR("ERROR - OMX_EmptyThisBuffer failed with result %d\n", ret);
@@ -2519,10 +2522,10 @@ static int Read_Buffer_From_DivX_4_5_6_File(OMX_BUFFERHEADERTYPE  *pBufHdr)
 
 struct frame_data_type {
   unsigned int offset;
-  long int timestamp;
+  OMX_S64 timestamp;
 };
 
-    static long int timeStampLfile = 0;
+    static OMX_S64 timeStampLfile = 0;
 
     char *p_buffer = NULL;
     struct frame_data_type frame_data_arr[FRM_ARRAY_SIZE];
@@ -2626,8 +2629,8 @@ struct frame_data_type {
     timeStampLfile = frame_data_arr[pckt_end_idx].timestamp;
 #ifdef __DEBUG_DIVX__
     total_bytes += pBufHdr->nFilledLen;
-    LOGE("[DivX] Packet: Type[%s] Size[%u] TS[%ld] TB[%u] NFrms[%u]\n",
-      pckt_type, pBufHdr->nFilledLen, (long int)pBufHdr->nTimeStamp,
+    LOGE("[DivX] Packet: Type[%s] Size[%u] TS[%lld] TB[%u] NFrms[%u]\n",
+      pckt_type, pBufHdr->nFilledLen, pBufHdr->nTimeStamp,
 	  total_bytes, total_frames);
 #endif //__DEBUG_DIVX__
     return pBufHdr->nFilledLen;
@@ -2635,7 +2638,7 @@ struct frame_data_type {
 
 static int Read_Buffer_From_DivX_311_File(OMX_BUFFERHEADERTYPE  *pBufHdr)
 {
-    static long int timeStampLfile = 0;
+    static OMX_S64 timeStampLfile = 0;
     char *p_buffer = NULL;
     bool pkt_ready = false;
     unsigned int frame_type = 0;

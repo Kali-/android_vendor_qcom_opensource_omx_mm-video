@@ -581,7 +581,7 @@ private:
     unsigned char *first_buffer;
     int first_frame_size;
     unsigned int mp4h263_flags;
-    unsigned int mp4h263_timestamp;
+    OMX_S64 mp4h263_timestamp;
     unsigned char m_hwdevice_name[80];
     FILE *m_device_file_ptr;
     enum vc1_profile_type m_vc1_profile;

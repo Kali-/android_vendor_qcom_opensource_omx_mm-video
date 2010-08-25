@@ -567,7 +567,7 @@ void frame_parse::flush ()
     bytes_tobeparsed = 0;
 }
 
-void frame_parse::update_metadata (unsigned int ts ,unsigned int flgs)
+void frame_parse::update_metadata (OMX_S64 ts ,unsigned int flgs)
 {
     time_stamp = ts;
     flags = flgs;
