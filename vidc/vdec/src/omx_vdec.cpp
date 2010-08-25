@@ -1845,6 +1845,7 @@ bool omx_vdec::execute_output_flush()
   }
   pthread_mutex_unlock(&m_lock);
   output_flush_progress = false;
+  valid_prev_ts = false;
   DEBUG_PRINT_HIGH("\n OMX flush o/p Port complete PenBuf(%d)", pending_output_buffers);
   return bRet;
 }
