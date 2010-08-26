@@ -126,11 +126,15 @@ typedef enum {
 
   FILE_TYPE_START_OF_MP4_SPECIFIC = 20,
   FILE_TYPE_PICTURE_START_CODE = FILE_TYPE_START_OF_MP4_SPECIFIC,
-  FILE_TYPE_DIVX_PACKED_FRAMES,
 
   FILE_TYPE_START_OF_VC1_SPECIFIC = 30,
   FILE_TYPE_RCV = FILE_TYPE_START_OF_VC1_SPECIFIC,
-  FILE_TYPE_VC1
+  FILE_TYPE_VC1,
+
+  FILE_TYPE_START_OF_DIVX_SPECIFIC = 40,
+  FILE_TYPE_DIVX_4_5_6 = FILE_TYPE_START_OF_DIVX_SPECIFIC,
+  FILE_TYPE_DIVX_311
+
 } file_type;
 
 typedef enum {
@@ -269,7 +273,8 @@ static int Read_Buffer_From_Size_Nal(OMX_BUFFERHEADERTYPE  *pBufHdr);
 static int Read_Buffer_From_RCV_File_Seq_Layer(OMX_BUFFERHEADERTYPE  *pBufHdr);
 static int Read_Buffer_From_RCV_File(OMX_BUFFERHEADERTYPE  *pBufHdr);
 static int Read_Buffer_From_VC1_File(OMX_BUFFERHEADERTYPE  *pBufHdr);
-static int Read_Buffer_From_DivX_File(OMX_BUFFERHEADERTYPE  *pBufHdr);
+static int Read_Buffer_From_DivX_4_5_6_File(OMX_BUFFERHEADERTYPE  *pBufHdr);
+static int Read_Buffer_From_DivX_311_File(OMX_BUFFERHEADERTYPE  *pBufHdr);
 
 static OMX_ERRORTYPE Allocate_Buffer ( OMX_COMPONENTTYPE *dec_handle,
                                        OMX_BUFFERHEADERTYPE  ***pBufHdrs,
@@ -919,7 +924,8 @@ int main(int argc, char **argv)
       }
       else if (codec_format_option == CODEC_FORMAT_DIVX)
       {
-          printf(" 3--> DivX clip (.cmp)\n");
+          printf(" 3--> DivX 4, 5, 6 clip (.cmp)\n");
+          printf(" 4--> DivX 3.11 clip \n");
       }
       fflush(stdin);
       scanf("%d", &file_type_option);
@@ -934,7 +940,7 @@ int main(int argc, char **argv)
           file_type_option = (file_type)(FILE_TYPE_START_OF_H264_SPECIFIC + file_type_option - FILE_TYPE_COMMON_CODEC_MAX);
           break;
         case CODEC_FORMAT_DIVX:
-          file_type_option = FILE_TYPE_DIVX_PACKED_FRAMES;
+          file_type_option = (file_type)(FILE_TYPE_START_OF_DIVX_SPECIFIC + file_type_option - FILE_TYPE_COMMON_CODEC_MAX);
           break;
         case CODEC_FORMAT_MP4:
         case CODEC_FORMAT_H263:
@@ -1024,7 +1030,8 @@ int main(int argc, char **argv)
           case FILE_TYPE_PICTURE_START_CODE:
           case FILE_TYPE_RCV:
           case FILE_TYPE_VC1:
-          case FILE_TYPE_DIVX_PACKED_FRAMES:
+          case FILE_TYPE_DIVX_4_5_6:
+          case FILE_TYPE_DIVX_311:
           {
               nalSize = 0;
               if ((file_type_option == FILE_TYPE_264_NAL_SIZE_LENGTH) ||
@@ -1091,7 +1098,6 @@ int main(int argc, char **argv)
           fflush(stdin);
           scanf("%d", &displayWindow);
           fflush(stdin);
-
           if(displayWindow > 0)
           {
               printf(" Curently display window 0 only supported; ignoring other values\n");
@@ -1124,12 +1130,6 @@ int main(int argc, char **argv)
           fflush(stdin);
           timestampInterval = 1000000/fps;
       }
-      printf(" *********************************************\n");
-      printf(" ENTER THE SEQ FILE NAME\n");
-      printf(" *********************************************\n");
-      fflush(stdin);
-      scanf("%[^\n]", &seq_file_name);
-      fflush(stdin);
 
       printf(" *********************************************\n");
       printf(" ENTER THE COLOR FORMAT \n");
@@ -1325,8 +1325,11 @@ int run_tests()
           (codec_format_option == CODEC_FORMAT_MP4)) {
     Read_Buffer = Read_Buffer_From_Vop_Start_Code_File;
   }
-  else if(codec_format_option == CODEC_FORMAT_DIVX) {
-    Read_Buffer = Read_Buffer_From_DivX_File;
+  else if(file_type_option == FILE_TYPE_DIVX_4_5_6) {
+    Read_Buffer = Read_Buffer_From_DivX_4_5_6_File;
+  }
+  else if(file_type_option == FILE_TYPE_DIVX_311) {
+    Read_Buffer = Read_Buffer_From_DivX_311_File;
   }
   else if(file_type_option == FILE_TYPE_RCV) {
     Read_Buffer = Read_Buffer_From_RCV_File;
@@ -1345,7 +1348,8 @@ int run_tests()
     case FILE_TYPE_PICTURE_START_CODE:
     case FILE_TYPE_RCV:
     case FILE_TYPE_VC1:
-    case FILE_TYPE_DIVX_PACKED_FRAMES:
+    case FILE_TYPE_DIVX_4_5_6:
+      case FILE_TYPE_DIVX_311:
       if(Init_Decoder()!= 0x00)
       {
         DEBUG_PRINT_ERROR("Error - Decoder Init failed\n");
@@ -1540,9 +1544,13 @@ int Init_Decoder()
     {
       strncpy(vdecCompNames, "OMX.qcom.video.decoder.vc1", 27);
     }
-    else if (codec_format_option == CODEC_FORMAT_DIVX)
+    else if (file_type_option == FILE_TYPE_DIVX_4_5_6)
     {
       strncpy(vdecCompNames, "OMX.qcom.video.decoder.divx", 28);
+    }
+    else if (file_type_option == FILE_TYPE_DIVX_311)
+    {
+      strncpy(vdecCompNames, "OMX.qcom.video.decoder.divx311", 31);
     }
     else
     {
@@ -1649,6 +1657,7 @@ int Play_Decoder()
       case FILE_TYPE_PICTURE_START_CODE:
       case FILE_TYPE_RCV:
       case FILE_TYPE_VC1:
+      case FILE_TYPE_DIVX_311:
       {
         inputPortFmt.nFramePackingFormat = OMX_QCOM_FramePacking_OnlyOneCompleteFrame;
         break;
@@ -1656,7 +1665,7 @@ int Play_Decoder()
 
       case FILE_TYPE_ARBITRARY_BYTES:
       case FILE_TYPE_264_NAL_SIZE_LENGTH:
-      case FILE_TYPE_DIVX_PACKED_FRAMES:
+      case FILE_TYPE_DIVX_4_5_6:
       {
         inputPortFmt.nFramePackingFormat = OMX_QCOM_FramePacking_Arbitrary;
         break;
@@ -1681,6 +1690,29 @@ int Play_Decoder()
     if(OMX_DirInput != portFmt.eDir) {
         printf ("\nDec: Expect Input Port\n");
         return -1;
+    }
+
+    if( (codec_format_option == CODEC_FORMAT_DIVX) &&
+        (file_type_option == FILE_TYPE_DIVX_311) ) {
+
+            int off;
+            off =  fread(&width, 1, 4, inputBufferFile);
+            DEBUG_PRINT("\nWidth for DIVX = %d\n", width);
+            if (off == 0)
+            {
+                DEBUG_PRINT("\nFailed to read width for divx\n");
+                return  -1;
+            }
+
+            off =  fread(&height, 1, 4, inputBufferFile);
+            if (off == 0)
+            {
+                DEBUG_PRINT("\nFailed to read height for divx\n");
+                return -1;
+            }
+            DEBUG_PRINT("\nHeight for DIVX = %u\n", height);
+            sliceheight = height;
+            stride = width;
     }
 
     bufCnt = 0;
@@ -2478,7 +2510,7 @@ static int Read_Buffer_From_VC1_File(OMX_BUFFERHEADERTYPE  *pBufHdr)
     return readOffset;
 }
 
-static int Read_Buffer_From_DivX_File(OMX_BUFFERHEADERTYPE  *pBufHdr)
+static int Read_Buffer_From_DivX_4_5_6_File(OMX_BUFFERHEADERTYPE  *pBufHdr)
 {
 #define MAX_NO_B_FRMS 3 // Number of non-b-frames packed in each buffer
 #define N_PREV_FRMS_B 1 // Number of previous non-b-frames packed
@@ -2599,6 +2631,56 @@ struct frame_data_type {
 	  total_bytes, total_frames);
 #endif //__DEBUG_DIVX__
     return pBufHdr->nFilledLen;
+}
+
+static int Read_Buffer_From_DivX_311_File(OMX_BUFFERHEADERTYPE  *pBufHdr)
+{
+    static long int timeStampLfile = 0;
+    char *p_buffer = NULL;
+    bool pkt_ready = false;
+    unsigned int frame_type = 0;
+    unsigned int bytes_read = 0;
+    unsigned int frame_size = 0;
+    unsigned int num_bytes_size = 4;
+    unsigned int num_bytes_frame_type = 1;
+    unsigned int n_offset = pBufHdr->nOffset;
+
+    DEBUG_PRINT("Inside %s \n", __FUNCTION__);
+
+    pBufHdr->nTimeStamp = timeStampLfile;
+
+    if (pBufHdr != NULL)
+    {
+        p_buffer = (char *)pBufHdr->pBuffer + pBufHdr->nOffset;
+    }
+    else
+    {
+        DEBUG_PRINT("\n ERROR:Read_Buffer_From_DivX_311_File: pBufHdr is NULL\n");
+        return 0;
+    }
+
+    if (p_buffer == NULL)
+    {
+        DEBUG_PRINT("\n ERROR:Read_Buffer_From_DivX_311_File: p_bufhdr is NULL\n");
+        return 0;
+    }
+
+    //Read first frame based on size
+    //DivX 311 frame - 4 byte header with size followed by the frame
+
+    bytes_read = fread(&frame_size, 1, num_bytes_size, inputBufferFile);
+    DEBUG_PRINT("Read_Buffer_From_DivX_311_File: Frame size = %d\n", frame_size);
+    n_offset += fread(p_buffer, 1, frame_size, inputBufferFile);
+    pBufHdr->nTimeStamp = timeStampLfile;
+
+    timeStampLfile += timestampInterval;
+
+    //the packet is ready to be sent
+    DEBUG_PRINT("\nReturning Read Buffer from Divx 311: TS=[%ld], Offset=[%d]\n",
+           (long int)pBufHdr->nTimeStamp,
+           n_offset );
+
+    return n_offset;
 }
 
 static int open_video_file ()

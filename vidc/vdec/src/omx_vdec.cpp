@@ -919,6 +919,16 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
      codec_type_parse = CODEC_TYPE_DIVX;
      m_frame_parser.init_start_codes (codec_type_parse);
   }
+  else if(!strncmp(drv_ctx.kind, "OMX.qcom.video.decoder.divx311",\
+         OMX_MAX_STRINGNAME_SIZE))
+  {
+     strncpy((char *)m_cRole, "video_decoder.divx",OMX_MAX_STRINGNAME_SIZE);
+     DEBUG_PRINT_LOW ("\n DIVX 311 Decoder selected");
+     drv_ctx.decoder_format = VDEC_CODECTYPE_DIVX_3;
+     eCompressionFormat = (OMX_VIDEO_CODINGTYPE)QOMX_VIDEO_CodingDivx;
+     codec_type_parse = CODEC_TYPE_DIVX;
+     m_frame_parser.init_start_codes (codec_type_parse);
+  }
   else if(!strncmp(drv_ctx.kind, "OMX.qcom.video.decoder.avc",\
          OMX_MAX_STRINGNAME_SIZE))
   {
@@ -2377,8 +2387,6 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
       }
     }
     break;
-
-
     case OMX_IndexParamVideoPortFormat:
     {
       OMX_VIDEO_PARAM_PORTFORMATTYPE *portFmt =
@@ -2498,7 +2506,9 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
                   eRet =OMX_ErrorUnsupportedSetting;
               }
           }
-          else if(!strncmp(drv_ctx.kind, "OMX.qcom.video.decoder.divx",OMX_MAX_STRINGNAME_SIZE))
+          else if((!strncmp(drv_ctx.kind, "OMX.qcom.video.decoder.divx",OMX_MAX_STRINGNAME_SIZE)) ||
+                  (!strncmp(drv_ctx.kind, "OMX.qcom.video.decoder.divx311",OMX_MAX_STRINGNAME_SIZE))
+                  )
           {
               if(!strncmp((const char*)comp_role->cRole,"video_decoder.divx",OMX_MAX_STRINGNAME_SIZE))
               {
@@ -4890,7 +4900,9 @@ OMX_ERRORTYPE  omx_vdec::component_role_enum(OMX_IN OMX_HANDLETYPE hComp,
       eRet = OMX_ErrorNoMore;
     }
   }
-  else if(!strncmp(drv_ctx.kind, "OMX.qcom.video.decoder.divx",OMX_MAX_STRINGNAME_SIZE))
+  else if((!strncmp(drv_ctx.kind, "OMX.qcom.video.decoder.divx",OMX_MAX_STRINGNAME_SIZE)) ||
+          (!strncmp(drv_ctx.kind, "OMX.qcom.video.decoder.divx311",OMX_MAX_STRINGNAME_SIZE))
+          )
   {
     if((0 == index) && role)
     {
@@ -5359,7 +5371,7 @@ int omx_vdec::async_message_process (void *context, void* message)
       if (vdec_msg->msgdata.output_frame.len <=  omxhdr->nAllocLen)
       {
         if (omx->arbitrary_bytes ||
-            omx->eCompressionFormat == QOMX_VIDEO_CodingDivx)
+              omx->eCompressionFormat == QOMX_VIDEO_CodingDivx)
         {
           if (omx->valid_prev_ts) {
             if (vdec_msg->msgdata.output_frame.time_stamp <= omx->prev_frame_ts)
