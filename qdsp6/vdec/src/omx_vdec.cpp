@@ -3265,6 +3265,7 @@ OMX_ERRORTYPE omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE hComp,
                   "Decoder set to Thumbnail Mode");
                m_vdec_cfg.postProc = FLAG_THUMBNAIL_MODE;
             }
+         break;
       }
 
    default:

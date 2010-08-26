@@ -63,7 +63,7 @@ static void vdec_reuse_input_cb_handler(void *vdec_context, void *buffer_id);
 
 #define VDEC_INPUT_BUFFER_SIZE  450 * 1024
 #define VDEC_NUM_INPUT_BUFFERS  8
-#define VDEC_NUM_INPUT_BUFFERS_THUMBNAIL_MODE  8
+#define VDEC_NUM_INPUT_BUFFERS_THUMBNAIL_MODE  2
 #define VDEC_MAX_SEQ_HEADER_SIZE 300
 
 struct Vdec_pthread_info {
