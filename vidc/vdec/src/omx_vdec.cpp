@@ -3571,6 +3571,27 @@ OMX_ERRORTYPE omx_vdec::free_output_buffer(OMX_BUFFERHEADERTYPE *bufferHdr)
                     drv_ctx.ptr_outputbuffer[0].bufferaddr);
        munmap (drv_ctx.ptr_outputbuffer[0].bufferaddr,
                drv_ctx.ptr_outputbuffer[0].mmaped_size);
+#ifdef _ANDROID_
+   /* get strong count gets the refernce count of the pmem, the count will
+    * be incremented by our kernal driver and surface flinger, by the time
+    * we close the pmem, this cound needs to be zero, but there is no way
+    * for us to know when surface flinger reduces its cound, so we wait
+    * here in a infinite loop till the count is zero
+    */
+   if(m_heap_ptr != NULL) {
+     while(1)
+     {
+       if ( ((m_heap_ptr.get() != NULL)
+             && (m_heap_ptr.get())->getStrongCount()) == 1)
+         break;
+       usleep(10);
+     }
+     // Clear the strong reference
+     m_heap_ptr.clear();
+     m_heap_ptr = NULL;
+   }
+#endif // _ANDROID_
+
        close (drv_ctx.ptr_outputbuffer[0].pmem_fd);
        drv_ctx.ptr_outputbuffer[0].pmem_fd = -1;
     }
@@ -5997,6 +6018,7 @@ bool omx_vdec::align_pmem_buffers(int pmem_fd, OMX_U32 buffer_size,
   struct pmem_allocation allocation;
   allocation.size = buffer_size;
   allocation.align = clip2(alignment);
+  DEBUG_PRINT_ERROR("\n allocation.align %d allocation.size %lu", allocation.align, allocation.size);
   if (allocation.align < 4096)
   {
     allocation.align = 4096;
