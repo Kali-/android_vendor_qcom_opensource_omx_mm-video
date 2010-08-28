@@ -420,13 +420,6 @@ private:
                                          OMX_U32 port,OMX_PTR appData,
                                          OMX_U32              bytes);
 
-    OMX_ERRORTYPE use_input_buffer(OMX_HANDLETYPE hComp,
-                                   OMX_BUFFERHEADERTYPE  **bufferHdr,
-                                   OMX_U32               port,
-                                   OMX_PTR               appData,
-                                   OMX_U32               bytes,
-                                   OMX_U8                *buffer);
-
     OMX_ERRORTYPE use_output_buffer(OMX_HANDLETYPE hComp,
                                    OMX_BUFFERHEADERTYPE   **bufferHdr,
                                    OMX_U32                port,

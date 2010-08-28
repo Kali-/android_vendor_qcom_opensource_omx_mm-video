@@ -264,6 +264,7 @@ omx_vdec::omx_vdec(): m_state(OMX_StateInvalid),
                       m_app_data(NULL),
                       m_inp_mem_ptr(NULL),
                       m_out_mem_ptr(NULL),
+                      m_phdr_pmem_ptr(NULL),
                       pending_input_buffers(0),
                       pending_output_buffers(0),
                       m_out_bm_count(0),
@@ -2950,148 +2951,6 @@ OMX_ERRORTYPE  omx_vdec::component_tunnel_request(OMX_IN OMX_HANDLETYPE         
 
 /* ======================================================================
 FUNCTION
-  omx_vdec::UseInputBuffer
-
-DESCRIPTION
-  Helper function for Use buffer in the input pin
-
-PARAMETERS
-  None.
-
-RETURN VALUE
-  true/false
-
-========================================================================== */
-OMX_ERRORTYPE  omx_vdec::use_input_buffer(
-                         OMX_IN OMX_HANDLETYPE            hComp,
-                         OMX_INOUT OMX_BUFFERHEADERTYPE** bufferHdr,
-                         OMX_IN OMX_U32                   port,
-                         OMX_IN OMX_PTR                   appData,
-                         OMX_IN OMX_U32                   bytes,
-                         OMX_IN OMX_U8*                   buffer)
-{
-  OMX_ERRORTYPE eRet = OMX_ErrorNone;
-  struct vdec_setbuffer_cmd setbuffers;
-  OMX_BUFFERHEADERTYPE *input = NULL;
-  struct vdec_ioctl_msg ioctl_msg = {NULL,NULL};
-  unsigned   i = 0;
-  unsigned char *buf_addr = NULL;
-  int pmem_fd = -1;
-
-  if(bytes != drv_ctx.ip_buf.buffer_size)
-  {
-    return OMX_ErrorBadParameter;
-  }
-
-  if(!m_inp_mem_ptr)
-  {
-    DEBUG_PRINT_HIGH("\n Use i/p buffer case - Header List allocation");
-    m_inp_mem_ptr = (OMX_BUFFERHEADERTYPE*) \
-    calloc( (sizeof(OMX_BUFFERHEADERTYPE)), drv_ctx.ip_buf.actualcount);
-
-    if (m_inp_mem_ptr == NULL)
-    {
-      return OMX_ErrorInsufficientResources;
-    }
-
-    drv_ctx.ptr_inputbuffer = (struct vdec_bufferpayload *) \
-    calloc ((sizeof (struct vdec_bufferpayload)),drv_ctx.ip_buf.actualcount);
-
-    if (drv_ctx.ptr_inputbuffer == NULL)
-    {
-      return OMX_ErrorInsufficientResources;
-    }
-
-    for (i=0; i < drv_ctx.ip_buf.actualcount; i++)
-    {
-      drv_ctx.ptr_inputbuffer [i].pmem_fd = -1;
-    }
-  }
-
-  for(i=0; i< drv_ctx.ip_buf.actualcount; i++)
-  {
-    if(BITMASK_ABSENT(&m_inp_bm_count,i))
-    {
-      break;
-    }
-  }
-
-  if(i < drv_ctx.ip_buf.actualcount)
-  {
-    pmem_fd = open (PMEM_DEVICE,O_RDWR);
-
-    if (pmem_fd < 0)
-    {
-      return OMX_ErrorInsufficientResources;
-    }
-
-    if(pmem_fd == 0)
-    {
-      pmem_fd = open (PMEM_DEVICE,O_RDWR);
-      if (pmem_fd < 0)
-      {
-        return OMX_ErrorInsufficientResources;
-      }
-    }
-
-    if(!align_pmem_buffers(pmem_fd, drv_ctx.ip_buf.buffer_size,
-      drv_ctx.ip_buf.alignment))
-    {
-      DEBUG_PRINT_ERROR("\n align_pmem_buffers() failed");
-      close(pmem_fd);
-      return OMX_ErrorInsufficientResources;
-    }
-
-    buf_addr = (unsigned char *)mmap(NULL,
-      drv_ctx.ip_buf.buffer_size,
-      PROT_READ|PROT_WRITE, MAP_SHARED, pmem_fd, 0);
-
-    if (buf_addr == MAP_FAILED)
-    {
-      return OMX_ErrorInsufficientResources;
-    }
-
-    drv_ctx.ptr_inputbuffer [i].bufferaddr = buf_addr;
-    drv_ctx.ptr_inputbuffer [i].pmem_fd = pmem_fd;
-    drv_ctx.ptr_inputbuffer [i].mmaped_size = drv_ctx.ip_buf.buffer_size;
-    drv_ctx.ptr_inputbuffer [i].offset = 0;
-    drv_ctx.ptr_inputbuffer [i].buffer_len = bytes;
-
-    setbuffers.buffer_type = VDEC_BUFFER_TYPE_INPUT;
-    memcpy (&setbuffers.buffer,&drv_ctx.ptr_inputbuffer [i],
-            sizeof (vdec_bufferpayload));
-    ioctl_msg.in  = &setbuffers;
-    ioctl_msg.out = NULL;
-
-    if (ioctl (drv_ctx.video_driver_fd,VDEC_IOCTL_SET_BUFFER,
-         &ioctl_msg) < 0)
-    {
-      return OMX_ErrorInsufficientResources;
-    }
-
-    *bufferHdr = (m_inp_mem_ptr + i);
-    input = *bufferHdr;
-    BITMASK_SET(&m_inp_bm_count,i);
-
-    input->pBuffer           = (OMX_U8 *)buf_addr;
-    input->nSize             = sizeof(OMX_BUFFERHEADERTYPE);
-    input->nVersion.nVersion = OMX_SPEC_VERSION;
-    input->nAllocLen         = drv_ctx.ip_buf.buffer_size;
-    input->pAppPrivate       = NULL;
-    input->nInputPortIndex   = OMX_CORE_INPUT_PORT_INDEX;
-    input->pInputPortPrivate = (void *)&drv_ctx.ptr_inputbuffer [i];
-    input_use_buffer = true;
-  }
-  else
-  {
-    eRet = OMX_ErrorInsufficientResources;
-  }
-  return eRet;
-}
-
-
-/* ======================================================================
-FUNCTION
   omx_vdec::UseOutputBuffer
 
 DESCRIPTION
@@ -3343,43 +3202,46 @@ OMX_ERRORTYPE  omx_vdec::use_input_heap_buffers(
                          OMX_IN OMX_U32                   bytes,
                          OMX_IN OMX_U8*                   buffer)
 {
-   DEBUG_PRINT_LOW("Inside %s, %p\n", __FUNCTION__, buffer);
-   int i;
-
-     /*Find a Free index*/
-     for(i=0; i< drv_ctx.ip_buf.actualcount; i++)
-     {
-       if(BITMASK_ABSENT(&m_heap_inp_bm_count,i))
-       {
-         DEBUG_PRINT_LOW("\n Free Input Buffer Index %d",i);
-         break;
-       }
-     }
-   // Allocation of Input Buffer headers done only in AllocateBuffer or UseBuffer.
-   // Allocation of structures done only once
-      if(0 == m_in_alloc_cnt)
-      {
-         m_inp_heap_ptr = (OMX_BUFFERHEADERTYPE*) \
-                     calloc( (sizeof(OMX_BUFFERHEADERTYPE)),
-                     drv_ctx.ip_buf.actualcount);
-         if(NULL == m_inp_heap_ptr)
-         {
-            DEBUG_PRINT_ERROR("Insufficent memory", 0, 0, 0);
-            return OMX_ErrorInsufficientResources;
-         }
-           DEBUG_PRINT_HIGH("\nAllocated buffer header posting the event callback\n");
-   }
-
-      memset(&m_inp_heap_ptr[m_in_alloc_cnt], 0, sizeof(OMX_BUFFERHEADERTYPE));
-      m_inp_heap_ptr[m_in_alloc_cnt].pBuffer = buffer;
-      m_inp_heap_ptr[m_in_alloc_cnt].nAllocLen = bytes;
-      m_inp_heap_ptr[m_in_alloc_cnt].pAppPrivate = appData;
-      m_inp_heap_ptr[m_in_alloc_cnt].nInputPortIndex = (OMX_U32) OMX_DirInput;
-      m_inp_heap_ptr[m_in_alloc_cnt].nOutputPortIndex = (OMX_U32) OMX_DirMax;
-      *bufferHdr = &m_inp_heap_ptr[m_in_alloc_cnt];
-      m_in_alloc_cnt++;
-
-   return OMX_ErrorNone;
+  DEBUG_PRINT_LOW("Inside %s, %p\n", __FUNCTION__, buffer);
+  OMX_ERRORTYPE eRet = OMX_ErrorNone;
+  if(!m_inp_heap_ptr)
+    m_inp_heap_ptr = (OMX_BUFFERHEADERTYPE*)
+               calloc( (sizeof(OMX_BUFFERHEADERTYPE)),
+               drv_ctx.ip_buf.actualcount);
+  if(!m_phdr_pmem_ptr)
+    m_phdr_pmem_ptr = (OMX_BUFFERHEADERTYPE**)
+               calloc( (sizeof(OMX_BUFFERHEADERTYPE*)),
+               drv_ctx.ip_buf.actualcount);
+  if(!m_inp_heap_ptr || !m_phdr_pmem_ptr)
+  {
+    DEBUG_PRINT_ERROR("Insufficent memory");
+    eRet = OMX_ErrorInsufficientResources;
+  }
+  else if (m_in_alloc_cnt < drv_ctx.ip_buf.actualcount)
+  {
+    input_use_buffer = true;
+    memset(&m_inp_heap_ptr[m_in_alloc_cnt], 0, sizeof(OMX_BUFFERHEADERTYPE));
+    m_inp_heap_ptr[m_in_alloc_cnt].pBuffer = buffer;
+    m_inp_heap_ptr[m_in_alloc_cnt].nAllocLen = bytes;
+    m_inp_heap_ptr[m_in_alloc_cnt].pAppPrivate = appData;
+    m_inp_heap_ptr[m_in_alloc_cnt].nInputPortIndex = (OMX_U32) OMX_DirInput;
+    m_inp_heap_ptr[m_in_alloc_cnt].nOutputPortIndex = (OMX_U32) OMX_DirMax;
+    *bufferHdr = &m_inp_heap_ptr[m_in_alloc_cnt];
+    eRet = allocate_input_buffer(hComp, &m_phdr_pmem_ptr[m_in_alloc_cnt], port, appData, bytes);
+    DEBUG_PRINT_HIGH("\n Heap buffer(%p) Pmem buffer(%p)", *bufferHdr, m_phdr_pmem_ptr[m_in_alloc_cnt]);
+    if (!m_input_free_q.insert_entry((unsigned)m_phdr_pmem_ptr[m_in_alloc_cnt], NULL, NULL))
+    {
+      DEBUG_PRINT_ERROR("\nERROR:Free_q is full");
+      return OMX_ErrorInsufficientResources;
+    }
+    m_in_alloc_cnt++;
+  }
+  else
+  {
+    DEBUG_PRINT_ERROR("All i/p buffers have been set!");
+    eRet = OMX_ErrorInsufficientResources;
+  }
+  return eRet;
 }
 
 /* ======================================================================
@@ -3404,92 +3266,57 @@ OMX_ERRORTYPE  omx_vdec::use_buffer(
                          OMX_IN OMX_U32                   bytes,
                          OMX_IN OMX_U8*                   buffer)
 {
-   OMX_ERRORTYPE error = OMX_ErrorNone;
-   struct vdec_setbuffer_cmd setbuffers;
-   struct vdec_ioctl_msg ioctl_msg = {NULL,NULL};
-   int i;
+  OMX_ERRORTYPE error = OMX_ErrorNone;
+  struct vdec_setbuffer_cmd setbuffers;
+  struct vdec_ioctl_msg ioctl_msg = {NULL,NULL};
 
-   if (bufferHdr == NULL || bytes == 0 || buffer == NULL)
-   {
-      DEBUG_PRINT_ERROR("bad param 0x%p %ld 0x%p",bufferHdr, bytes, buffer);
-      return OMX_ErrorBadParameter;
-   }
-     m_phdr_pmem_ptr = (OMX_BUFFERHEADERTYPE**) \
-                     calloc( (sizeof(OMX_BUFFERHEADERTYPE*)),
-                     drv_ctx.ip_buf.actualcount);
-    if(m_state == OMX_StateInvalid)
+  if (bufferHdr == NULL || bytes == 0 || buffer == NULL)
+  {
+    DEBUG_PRINT_ERROR("bad param 0x%p %ld 0x%p",bufferHdr, bytes, buffer);
+    return OMX_ErrorBadParameter;
+  }
+  if(m_state == OMX_StateInvalid)
+  {
+    DEBUG_PRINT_ERROR("Use Buffer in Invalid State\n");
+    return OMX_ErrorInvalidState;
+  }
+  if(port == OMX_CORE_INPUT_PORT_INDEX)
+    error = use_input_heap_buffers(hComp, bufferHdr, port, appData, bytes, buffer);
+  else if(port == OMX_CORE_OUTPUT_PORT_INDEX)
+    error = use_output_buffer(hComp,bufferHdr,port,appData,bytes,buffer); //not tested
+  else
+  {
+    DEBUG_PRINT_ERROR("Error: Invalid Port Index received %d\n",(int)port);
+    error = OMX_ErrorBadPortIndex;
+  }
+  DEBUG_PRINT_LOW("Use Buffer: port %u, buffer %p, eRet %d", port, *bufferHdr, error);
+  if(error == OMX_ErrorNone)
+  {
+    if(allocate_done() && BITMASK_PRESENT(&m_flags,OMX_COMPONENT_IDLE_PENDING))
     {
-        DEBUG_PRINT_ERROR("Use Buffer in Invalid State\n");
-        return OMX_ErrorInvalidState;
+      // Send the callback now
+      BITMASK_CLEAR((&m_flags),OMX_COMPONENT_IDLE_PENDING);
+      post_event(OMX_CommandStateSet,OMX_StateIdle,
+                         OMX_COMPONENT_GENERATE_EVENT);
     }
-    if(port == OMX_CORE_INPUT_PORT_INDEX)
-   {
-      error =  use_input_heap_buffers(hComp, bufferHdr,port, appData, bytes, buffer);
-      if (error != OMX_ErrorNone)
-      {
-        DEBUG_PRINT_ERROR("Error returned in use_buffer (Pmem allocation failed)");
-      }
-
-      error = use_input_buffer(hComp,m_phdr_pmem_ptr,port,appData,bytes,buffer);
-      if (error != OMX_ErrorNone)
-      {
-        DEBUG_PRINT_ERROR("Error returned in use_buffer (Pmem allocation failed)");
-      }
-      else{
-        /*Add the Buffers to freeq*/
-        if (!m_input_free_q.insert_entry((unsigned)m_phdr_pmem_ptr [i],NULL,NULL))
-        {
-           DEBUG_PRINT_ERROR("\nERROR:Free_q is full");
-           return OMX_ErrorInsufficientResources;
-        }
-        }
-   }
-    else if(port == OMX_CORE_OUTPUT_PORT_INDEX)
+    if(port == OMX_CORE_INPUT_PORT_INDEX && m_inp_bPopulated &&
+       BITMASK_PRESENT(&m_flags,OMX_COMPONENT_INPUT_ENABLE_PENDING))
     {
-      error = use_output_buffer(hComp,bufferHdr,port,appData,bytes,buffer); //not tested
+      BITMASK_CLEAR((&m_flags),OMX_COMPONENT_INPUT_ENABLE_PENDING);
+      post_event(OMX_CommandPortEnable,
+          OMX_CORE_INPUT_PORT_INDEX,
+          OMX_COMPONENT_GENERATE_EVENT);
     }
-    else
+    else if(port == OMX_CORE_OUTPUT_PORT_INDEX && m_out_bPopulated &&
+            BITMASK_PRESENT(&m_flags,OMX_COMPONENT_OUTPUT_ENABLE_PENDING))
     {
-      DEBUG_PRINT_ERROR("Error: Invalid Port Index received %d\n",(int)port);
-      error = OMX_ErrorBadPortIndex;
+      BITMASK_CLEAR((&m_flags),OMX_COMPONENT_OUTPUT_ENABLE_PENDING);
+      post_event(OMX_CommandPortEnable,
+                 OMX_CORE_OUTPUT_PORT_INDEX,
+                 OMX_COMPONENT_GENERATE_EVENT);
     }
-    DEBUG_PRINT_LOW("Use Buffer: port %u, buffer %p, eRet %d", port, *bufferHdr, error);
-
-    if(error == OMX_ErrorNone)
-    {
-      if(allocate_done())
-      {
-        if(BITMASK_PRESENT(&m_flags,OMX_COMPONENT_IDLE_PENDING))
-        {
-          // Send the callback now
-          BITMASK_CLEAR((&m_flags),OMX_COMPONENT_IDLE_PENDING);
-          post_event(OMX_CommandStateSet,OMX_StateIdle,
-                             OMX_COMPONENT_GENERATE_EVENT);
-        }
-      }
-      if(port == OMX_CORE_INPUT_PORT_INDEX && m_inp_bPopulated)
-      {
-        if(BITMASK_PRESENT(&m_flags,OMX_COMPONENT_INPUT_ENABLE_PENDING))
-        {
-          BITMASK_CLEAR((&m_flags),OMX_COMPONENT_INPUT_ENABLE_PENDING);
-          post_event(OMX_CommandPortEnable,
-              OMX_CORE_INPUT_PORT_INDEX,
-              OMX_COMPONENT_GENERATE_EVENT);
-        }
-
-      }
-      else if(port == OMX_CORE_OUTPUT_PORT_INDEX && m_out_bPopulated)
-      {
-        if(BITMASK_PRESENT(&m_flags,OMX_COMPONENT_OUTPUT_ENABLE_PENDING))
-        {
-          BITMASK_CLEAR((&m_flags),OMX_COMPONENT_OUTPUT_ENABLE_PENDING);
-          post_event(OMX_CommandPortEnable,
-                     OMX_CORE_OUTPUT_PORT_INDEX,
-                     OMX_COMPONENT_GENERATE_EVENT);
-        }
-      }
-    }
-    return error;
+  }
+  return error;
 }
 
 OMX_ERRORTYPE omx_vdec::free_input_buffer(unsigned int bufferindex,
@@ -4429,6 +4256,8 @@ OMX_ERRORTYPE  omx_vdec::empty_this_buffer(OMX_IN OMX_HANDLETYPE         hComp,
      {
        nBufferIndex = buffer - m_inp_heap_ptr;
        m_inp_mem_ptr[nBufferIndex].nFilledLen = m_inp_heap_ptr[nBufferIndex].nFilledLen;
+       m_inp_mem_ptr[nBufferIndex].nTimeStamp = m_inp_heap_ptr[nBufferIndex].nTimeStamp;
+       m_inp_mem_ptr[nBufferIndex].nFlags = m_inp_heap_ptr[nBufferIndex].nFlags;
        buffer = &m_inp_mem_ptr[nBufferIndex];
        DEBUG_PRINT_LOW("Non-Arbitrary mode - buffer address is: malloc %p, pmem%p in Index %d, buffer %p of size %d",
                          &m_inp_heap_ptr[nBufferIndex], &m_inp_mem_ptr[nBufferIndex],nBufferIndex, buffer, buffer->nFilledLen);
@@ -6044,14 +5873,14 @@ bool omx_vdec::align_pmem_buffers(int pmem_fd, OMX_U32 buffer_size,
   struct pmem_allocation allocation;
   allocation.size = buffer_size;
   allocation.align = clip2(alignment);
-  DEBUG_PRINT_ERROR("\n allocation.align %d allocation.size %lu", allocation.align, allocation.size);
   if (allocation.align < 4096)
   {
     allocation.align = 4096;
   }
   if (ioctl(pmem_fd, PMEM_ALLOCATE_ALIGNED, &allocation) < 0)
   {
-    DEBUG_PRINT_ERROR("\n Aligment failed with pmem driver");
+    DEBUG_PRINT_ERROR("\n Aligment(%u) failed with pmem driver Sz(%lu)",
+      allocation.align, allocation.size);
     return false;
   }
   return true;

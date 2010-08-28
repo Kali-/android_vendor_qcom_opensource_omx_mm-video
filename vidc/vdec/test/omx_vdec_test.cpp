@@ -492,8 +492,8 @@ void* fbd_thread(void* pArg)
   long unsigned act_time = 0, display_time = 0;
   struct timeval t_avsync = {0, 0}, base_avsync = {0, 0};
   int canDisplay = 1, contigous_drop_frame = 0, bytes_written = 0, ret = 0;
-  long int base_timestamp = 0, lastTimestamp = 0, render_time = 10e3, lipsync = 15e3;
-  OMX_BUFFERHEADERTYPE *pBuffer;
+  long int base_timestamp = 0, lastTimestamp = 0, render_time = 5e3, lipsync = 15e3;
+  OMX_BUFFERHEADERTYPE *pBuffer = NULL, *pPrevBuff = NULL;
   while(currentStatus != INVALID_STATE)
   {
 
@@ -520,11 +520,13 @@ void* fbd_thread(void* pArg)
     }
     pthread_mutex_unlock(&enable_lock);
 
+    pPrevBuff = pBuffer;
     pthread_mutex_lock(&fbd_lock);
-    pBuffer = (OMX_BUFFERHEADERTYPE *) pop(fbd_queue);
+    pBuffer = (OMX_BUFFERHEADERTYPE *)pop(fbd_queue);
     pthread_mutex_unlock(&fbd_lock);
     if (pBuffer == NULL)
     {
+      pBuffer = pPrevBuff;
       DEBUG_PRINT("Error - No pBuffer to dequeue\n");
       continue;
     }
@@ -665,10 +667,10 @@ void* fbd_thread(void* pArg)
         }
         pthread_mutex_unlock(&fbd_lock);
     }
-    else
+    else if (pPrevBuff)
     {
         pthread_mutex_lock(&fbd_lock);
-        OMX_FillThisBuffer(dec_handle, pBuffer);
+        OMX_FillThisBuffer(dec_handle, pPrevBuff);
         free_op_buf_cnt--;
         pthread_mutex_unlock(&fbd_lock);
     }
@@ -2088,17 +2090,20 @@ static OMX_ERRORTYPE use_buffer ( OMX_COMPONENTTYPE *dec_handle,
         return OMX_ErrorInsufficientResources;
      }
 
-    for(bufCnt=0; bufCnt < bufCntMin; ++bufCnt) {
-        // allocate input buffers
+    for(bufCnt=0; bufCnt < bufCntMin; ++bufCnt)
+    {
+      // allocate input buffers
       DEBUG_PRINT("OMX_UseBuffer No %d %d \n", bufCnt, bufSize);
       pvirt = (OMX_U8*) malloc (bufSize);
-      if(pvirt == NULL){
+      if(pvirt == NULL)
+      {
         DEBUG_PRINT_ERROR("\n pvirt Allocation failed ");
         return OMX_ErrorInsufficientResources;
-     }
+      }
       error = OMX_UseBuffer(dec_handle, &((*pBufHdrs)[bufCnt]),
                               nPortIndex, NULL, bufSize, pvirt);
-       }
+      DEBUG_PRINT("OMX_UseBuffer No %d %p \n", bufCnt, (*pBufHdrs)[bufCnt]);
+    }
     return error;
 }
 
