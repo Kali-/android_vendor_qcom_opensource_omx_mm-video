@@ -1149,7 +1149,7 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
    }
    else
    {
-       QTV_MSG_PRIO(QTVDIAG_GENERAL, QTVDIAG_PRIO_ERROR, "OMX_VDEC:: Comp Init failed in \
+       QTV_MSG_PRIO(QTVDIAG_GENERAL, QTVDIAG_PRIO_MED, "OMX_VDEC:: Comp Init failed in \
            getting value for the Android property [persist.omxvideo.arb-bytes]");
    }
 
@@ -1162,7 +1162,7 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
    }
    else
    {
-       QTV_MSG_PRIO(QTVDIAG_GENERAL, QTVDIAG_PRIO_ERROR, "OMX_VDEC:: Comp Init failed in \
+       QTV_MSG_PRIO(QTVDIAG_GENERAL, QTVDIAG_PRIO_MED, "OMX_VDEC:: Comp Init failed in \
            getting value for the Android property [persist.omxvideo.arb-bytes-vc1]");
    }
 
@@ -1175,7 +1175,7 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
    }
    else
    {
-       QTV_MSG_PRIO(QTVDIAG_GENERAL, QTVDIAG_PRIO_ERROR, "OMX_VDEC:: Comp Init failed in \
+       QTV_MSG_PRIO(QTVDIAG_GENERAL, QTVDIAG_PRIO_MED, "OMX_VDEC:: Comp Init failed in \
            getting value for the Android property [persist.omxvideo.accsubframe]");
    }
 #endif
@@ -2000,7 +2000,7 @@ bool omx_vdec::execute_output_flush(void)
              Dequeue();
       }
    }
-   if (m_vdec) {
+   if (m_vdec && m_vdec->is_commit_memory) {
       /* . Execute the decoder flush */
       QTV_MSG_PRIO(QTVDIAG_GENERAL, QTVDIAG_PRIO_MED,
               "\n *** Calling vdec_flush ***  \n");

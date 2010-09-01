@@ -74,7 +74,7 @@ MP4_Utils::MP4_Utils()
    }
    else
    {
-       QTV_MSG_PRIO(QTVDIAG_GENERAL, QTVDIAG_PRIO_ERROR, "MP4_Utils:: Constr failed in \
+       QTV_MSG_PRIO(QTVDIAG_GENERAL, QTVDIAG_PRIO_MED, "MP4_Utils:: Constr failed in \
            getting value for the Android property [persist.omxvideo.profilecheck]");
    }
 
@@ -87,7 +87,7 @@ MP4_Utils::MP4_Utils()
    }
    else
    {
-       QTV_MSG_PRIO(QTVDIAG_GENERAL, QTVDIAG_PRIO_ERROR, "MP4_Utils:: Constr failed in \
+       QTV_MSG_PRIO(QTVDIAG_GENERAL, QTVDIAG_PRIO_MED, "MP4_Utils:: Constr failed in \
            getting value for the Android property [persist.omxvideo.levelcheck]");
    }
 #endif
