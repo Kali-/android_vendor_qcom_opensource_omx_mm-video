@@ -161,12 +161,18 @@ void vdec_frame_cb_handler(void *vdec_context,
 
 #if LOG_YUV_FRAMES
             if (pYUVFile) {
-               int size =
-                   dec->ctxt->width *
-                   dec->ctxt->height * 1.5;
-               fwritex(dec->ctxt->outputBuffer[index].
-                  buffer.base, size, pYUVFile);
-            }
+                  int size=dec->ctxt->width *  dec->ctxt->height;
+    
+                  if (dec->ctxt->color_format == QOMX_COLOR_FormatYVU420PackedSemiPlanar32m4ka) 
+                  {  
+                     size = ( size + 4095) & ~4095;
+                     size += 2* (((dec->ctxt->width >> 1) + 31) & ~31)*(((dec->ctxt->height >> 1) + 31) & ~31);
+                  }
+                  else
+                     size = size * 1.5;
+
+                  fwritex(dec->ctxt->outputBuffer[index].buffer.base, size, pYUVFile);
+             }
 #endif
             memcpy(&dec->ctxt->outputBuffer[index].
                    frameDetails, pFrame,

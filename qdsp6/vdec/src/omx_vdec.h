@@ -447,9 +447,10 @@ class omx_vdec:public qc_omx_component, public omx_vdec_inpbuf {
        if (m_color_format == QOMX_COLOR_FormatYVU420PackedSemiPlanar32m4ka) {
          buffer_size = (m_port_height * m_port_width + 4095) & ~4095;
          chroma_height = ((m_port_height >> 1) + 31) & ~31;
-         chroma_width = 2 * ((m_port_width >> 1) + 31) & ~31;
+         chroma_width = 2 * (((m_port_width >> 1) + 31) & ~31);
          buffer_size += (chroma_height * chroma_width) + getExtraDataSize();
-       } else {
+       } 
+       else {
           buffer_size = m_port_height * m_port_width * 3/2  + getExtraDataSize();
        }
        return buffer_size;
