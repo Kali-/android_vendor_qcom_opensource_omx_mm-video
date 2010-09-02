@@ -927,7 +927,9 @@ int main(int argc, char **argv)
       else if (codec_format_option == CODEC_FORMAT_DIVX)
       {
           printf(" 3--> DivX 4, 5, 6 clip (.cmp)\n");
+#ifdef MAX_RES_1080P
           printf(" 4--> DivX 3.11 clip \n");
+#endif
       }
       fflush(stdin);
       scanf("%d", &file_type_option);
@@ -1033,7 +1035,9 @@ int main(int argc, char **argv)
           case FILE_TYPE_RCV:
           case FILE_TYPE_VC1:
           case FILE_TYPE_DIVX_4_5_6:
+#ifdef MAX_RES_1080P
           case FILE_TYPE_DIVX_311:
+#endif
           {
               nalSize = 0;
               if ((file_type_option == FILE_TYPE_264_NAL_SIZE_LENGTH) ||
@@ -1330,9 +1334,11 @@ int run_tests()
   else if(file_type_option == FILE_TYPE_DIVX_4_5_6) {
     Read_Buffer = Read_Buffer_From_DivX_4_5_6_File;
   }
+#ifdef MAX_RES_1080P
   else if(file_type_option == FILE_TYPE_DIVX_311) {
     Read_Buffer = Read_Buffer_From_DivX_311_File;
   }
+#endif
   else if(file_type_option == FILE_TYPE_RCV) {
     Read_Buffer = Read_Buffer_From_RCV_File;
   }
@@ -1351,7 +1357,9 @@ int run_tests()
     case FILE_TYPE_RCV:
     case FILE_TYPE_VC1:
     case FILE_TYPE_DIVX_4_5_6:
+#ifdef MAX_RES_1080P
       case FILE_TYPE_DIVX_311:
+#endif
       if(Init_Decoder()!= 0x00)
       {
         DEBUG_PRINT_ERROR("Error - Decoder Init failed\n");
@@ -1542,18 +1550,24 @@ int Init_Decoder()
     {
       strncpy(vdecCompNames, "OMX.qcom.video.decoder.h263", 28);
     }
-    else if (codec_format_option == CODEC_FORMAT_VC1)
+    else if (file_type_option == FILE_TYPE_VC1)
     {
       strncpy(vdecCompNames, "OMX.qcom.video.decoder.vc1", 27);
+    }
+    else if (file_type_option == FILE_TYPE_RCV)
+    {
+      strncpy(vdecCompNames, "OMX.qcom.video.decoder.wmv", 27);
     }
     else if (file_type_option == FILE_TYPE_DIVX_4_5_6)
     {
       strncpy(vdecCompNames, "OMX.qcom.video.decoder.divx", 28);
     }
+#ifdef MAX_RES_1080P
     else if (file_type_option == FILE_TYPE_DIVX_311)
     {
       strncpy(vdecCompNames, "OMX.qcom.video.decoder.divx311", 31);
     }
+#endif
     else
     {
       DEBUG_PRINT_ERROR("Error: Unsupported codec %d\n", codec_format_option);
@@ -1659,7 +1673,9 @@ int Play_Decoder()
       case FILE_TYPE_PICTURE_START_CODE:
       case FILE_TYPE_RCV:
       case FILE_TYPE_VC1:
+#ifdef MAX_RES_1080P
       case FILE_TYPE_DIVX_311:
+#endif
       {
         inputPortFmt.nFramePackingFormat = OMX_QCOM_FramePacking_OnlyOneCompleteFrame;
         break;
@@ -1693,7 +1709,7 @@ int Play_Decoder()
         printf ("\nDec: Expect Input Port\n");
         return -1;
     }
-
+#ifdef MAX_RES_1080P
     if( (codec_format_option == CODEC_FORMAT_DIVX) &&
         (file_type_option == FILE_TYPE_DIVX_311) ) {
 
@@ -1716,6 +1732,7 @@ int Play_Decoder()
             sliceheight = height;
             stride = width;
     }
+#endif
 
     bufCnt = 0;
     portFmt.format.video.nFrameHeight = height;
