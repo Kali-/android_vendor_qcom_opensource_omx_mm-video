@@ -1258,7 +1258,7 @@ bool parseWxH(char *str, OMX_U32 *width, OMX_U32 *height)
                  *height = h;
                  }
 #else
-              if ((w * h >> 8) <= 8100)
+              if ((w * h >> 8) <= 8160)
               {
                  parseOK = true;
                  *width = w;
