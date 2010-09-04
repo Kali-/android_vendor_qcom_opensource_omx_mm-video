@@ -1552,7 +1552,7 @@ int Init_Decoder()
     {
       strncpy(vdecCompNames, "OMX.qcom.video.decoder.h263", 28);
     }
-    else if (file_type_option == FILE_TYPE_VC1)
+    else if (codec_format_option == CODEC_FORMAT_VC1)
     {
       strncpy(vdecCompNames, "OMX.qcom.video.decoder.vc1", 27);
     }
