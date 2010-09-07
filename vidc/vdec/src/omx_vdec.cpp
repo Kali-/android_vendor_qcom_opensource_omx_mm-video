@@ -2344,14 +2344,19 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
       if(OMX_DirOutput == portDefn->eDir)
       {
           DEBUG_PRINT_LOW("set_parameter: OMX_IndexParamPortDefinition OP port\n");
-          if ( portDefn->nBufferCountActual > drv_ctx.op_buf.mincount &&
+          if ( portDefn->nBufferCountActual >= drv_ctx.op_buf.mincount &&
                portDefn->nBufferSize ==  drv_ctx.op_buf.buffer_size )
           {
               drv_ctx.op_buf.actualcount = portDefn->nBufferCountActual;
               eRet = set_buffer_req(&drv_ctx.op_buf);
           }
           else
+          {
+              DEBUG_PRINT_ERROR("ERROR: OP Requirements(#%d: %u) Requested(#%d: %u)\n",
+                drv_ctx.op_buf.mincount, drv_ctx.op_buf.buffer_size,
+                portDefn->nBufferCountActual, portDefn->nBufferSize);
               eRet = OMX_ErrorBadParameter;
+          }
       }
       else if(OMX_DirInput == portDefn->eDir)
       {
@@ -2385,15 +2390,20 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
                    eRet = get_buffer_req(&drv_ctx.op_buf);
              }
          }
-         else if (portDefn->nBufferCountActual > drv_ctx.ip_buf.mincount
+         else if (portDefn->nBufferCountActual >= drv_ctx.ip_buf.mincount
                   && portDefn->nBufferSize == drv_ctx.ip_buf.buffer_size)
          {
-           drv_ctx.ip_buf.actualcount = portDefn->nBufferCountActual;
-           drv_ctx.ip_buf.buffer_size = portDefn->nBufferSize;
-           eRet = set_buffer_req(&drv_ctx.ip_buf);
+             drv_ctx.ip_buf.actualcount = portDefn->nBufferCountActual;
+             drv_ctx.ip_buf.buffer_size = portDefn->nBufferSize;
+             eRet = set_buffer_req(&drv_ctx.ip_buf);
          }
          else
-           eRet = OMX_ErrorBadParameter;
+         {
+             DEBUG_PRINT_ERROR("ERROR: IP Requirements(#%d: %u) Requested(#%d: %u)\n",
+               drv_ctx.ip_buf.mincount, drv_ctx.ip_buf.buffer_size,
+               portDefn->nBufferCountActual, portDefn->nBufferSize);
+             eRet = OMX_ErrorBadParameter;
+         }
       }
       else if (portDefn->eDir ==  OMX_DirMax)
       {
