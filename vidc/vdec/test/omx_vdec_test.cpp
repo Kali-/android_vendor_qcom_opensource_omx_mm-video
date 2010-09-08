@@ -201,6 +201,8 @@ OMX_PORT_PARAM_TYPE portParam;
 OMX_ERRORTYPE error;
 OMX_COLOR_FORMATTYPE color_fmt;
 static bool input_use_buffer = false,output_use_buffer = false;
+QOMX_VIDEO_DECODER_PICTURE_ORDER picture_order;
+
 #ifdef MAX_RES_1080P
 unsigned int color_fmt_type = 1;
 #else
@@ -250,7 +252,7 @@ unsigned int timestampInterval = 33333;
 codec_format  codec_format_option;
 file_type     file_type_option;
 freeHandle_test freeHandle_option;
-int nalSize;
+int nalSize = 0;
 int sent_disabled = 0;
 int waitForPortSettingsChanged = 1;
 test_status currentStatus = GOOD_STATE;
@@ -899,6 +901,7 @@ int main(int argc, char **argv)
     int num=0;
     int outputOption = 0;
     int test_option = 0;
+    int pic_order = 0;
     OMX_ERRORTYPE result;
 
     if (argc < 2)
@@ -996,65 +999,37 @@ int main(int argc, char **argv)
     {
       outputOption = atoi(argv[4]);
       test_option = atoi(argv[5]);
-      if (argc > 6)
+      int param[6] = {0, 0, 0, 0xFF, 0xFF, 0xFF}; // nal, disp, rt, (fps), col, pic_order
+      int next_arg = 6, idx = 0;
+      while (argc > next_arg)
       {
-        nalSize = atoi(argv[6]);
-      }
-      else
-      {
-        nalSize = 0;
-      }
-
-      if(argc > 7)
-      {
-        displayWindow = atoi(argv[7]);
-        if(displayWindow > 0)
+        if (strlen(argv[next_arg]) > 2)
         {
-            printf(" Curently display window 0 only supported; ignoring other values\n");
-            displayWindow = 0;
+          strncpy(seq_file_name, argv[next_arg],strlen(argv[next_arg]) + 1);
+          next_arg = argc;
+        }
+        else
+          param[idx++] = atoi(argv[next_arg++]);
+      }
+      idx = 0;
+      nalSize = param[idx++];
+      displayWindow = param[idx++];
+      if (displayWindow > 0)
+        printf("Only entire display window supported! Ignoring value\n");
+      realtime_display = param[idx++];
+      if (realtime_display)
+      {
+        takeYuvLog = 0;
+        if(param[idx] != 0xFF)
+        {
+          fps = param[idx++];
+          timestampInterval = 1e6 / fps;
         }
       }
-      else
-      {
-        displayWindow = 0;
-      }
-
-      if(argc > 8)
-      {
-          realtime_display = atoi(argv[8]);
-      }
-
-      if(realtime_display)
-      {
-          takeYuvLog = 0;
-          if(argc > 9)
-          {
-              fps = atoi(argv[9]);
-              timestampInterval = 1000000/fps;
-          }
-          if(argc > 10)
-          {
-              strncpy(seq_file_name, argv[10], strlen(argv[10])+1);
-          }
-          if(argc > 11)
-          {
-              color_fmt_type = atoi(argv[11]);
-          }
-      }
-      else
-      {
-          if(argc > 9)
-          {
-              strncpy(seq_file_name, argv[9], strlen(argv[9])+1);
-          }
-          if(argc > 10)
-          {
-              color_fmt_type = atoi(argv[10]);
-          }
-      }
-      height=144;width=176; // Assume Default as QCIF
-      sliceheight = 144;
-      stride = 176;
+      color_fmt_type = (param[idx] != 0xFF)? param[idx++] : color_fmt_type;
+      pic_order = (param[idx] != 0xFF)? param[idx++] : 0;
+      sliceheight = height = 144;
+      stride = width = 176;
       printf("Executing DynPortReconfig QCIF 144 x 176 \n");
     }
     else
@@ -1178,7 +1153,20 @@ int main(int argc, char **argv)
       fflush(stdin);
       scanf("%d", &color_fmt_type);
       fflush(stdin);
+
+      printf(" *********************************************\n");
+      printf(" Output picture order option: \n");
+      printf(" *********************************************\n");
+      printf(" 0 --> Display order\n 1 --> Decode order\n");
+      fflush(stdin);
+      scanf("%d", &pic_order);
+      fflush(stdin);
     }
+
+    CONFIG_VERSION_SIZE(picture_order);
+    picture_order.eOutputPictureOrder = QOMX_VIDEO_DISPLAY_ORDER;
+    if (pic_order == 1)
+      picture_order.eOutputPictureOrder = QOMX_VIDEO_DECODE_ORDER;
 
     if (outputOption == 0)
     {
@@ -1840,9 +1828,20 @@ int Play_Decoder()
         DEBUG_PRINT_ERROR("\n Error in retrieving supported color formats");
         return -1;
     }
-
-    DEBUG_PRINT("\nVideo format, height = %d", portFmt.format.video.nFrameHeight);
-    DEBUG_PRINT("\nVideo format, height = %d\n", portFmt.format.video.nFrameWidth);
+#ifdef MAX_RES_720P
+    picture_order.nPortIndex = 1;
+    DEBUG_PRINT("\nSet picture order\n");
+    if(OMX_SetParameter(dec_handle,
+	   (OMX_INDEXTYPE)OMX_QcomIndexParamVideoDecoderPictureOrder,
+       (OMX_PTR)&picture_order) != OMX_ErrorNone)
+    {
+        DEBUG_PRINT_ERROR("\n ERROR: Setting picture order!");
+        return -1;
+    }
+#endif
+    DEBUG_PRINT("\nVideo format: W x H (%d x %d)",
+      portFmt.format.video.nFrameWidth,
+      portFmt.format.video.nFrameHeight);
     if(codec_format_option == CODEC_FORMAT_H264)
     {
         OMX_VIDEO_CONFIG_NALSIZE naluSize;
@@ -2672,7 +2671,7 @@ static int Read_Buffer_From_VC1_File(OMX_BUFFERHEADERTYPE  *pBufHdr)
 
 static int Read_Buffer_From_DivX_4_5_6_File(OMX_BUFFERHEADERTYPE  *pBufHdr)
 {
-#define MAX_NO_B_FRMS 3 // Number of non-b-frames packed in each buffer
+#define MAX_NO_B_FRMS 1 // Number of non-b-frames packed in each buffer
 #define N_PREV_FRMS_B 1 // Number of previous non-b-frames packed
                         // with a set of consecutive b-frames
 #define FRM_ARRAY_SIZE (MAX_NO_B_FRMS + N_PREV_FRMS_B)
