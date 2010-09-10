@@ -91,6 +91,7 @@ extern "C" {
   OMX_API void * get_omx_component_factory_fn(void);
 }
 
+//#define OMX_VDEC_PERF
 
 #ifdef _ANDROID_
     using namespace android;
@@ -143,6 +144,7 @@ extern "C" {
 #define OMX_CORE_WVGA_HEIGHT         480
 #define OMX_CORE_WVGA_WIDTH          800
 
+#define VALID_TS(ts) ((ts < LLONG_MAX)? true : false)
 
 struct video_driver_context
 {
@@ -157,10 +159,9 @@ struct video_driver_context
     struct vdec_bufferpayload *ptr_inputbuffer;
     struct vdec_bufferpayload *ptr_outputbuffer;
     struct vdec_output_frameinfo *ptr_respbuffer;
+    struct vdec_framerate frame_rate;
     char kind[128];
 };
-
-class OmxUtils;
 
 // OMX video decoder class
 class omx_vdec: public qc_omx_component
@@ -467,6 +468,8 @@ private:
     OMX_ERRORTYPE set_buffer_req(vdec_allocatorproperty *buffer_prop);
     OMX_ERRORTYPE start_port_reconfig();
     void append_interlace_extradata(OMX_BUFFERHEADERTYPE *buffer);
+    void adjust_timestamp(OMX_S64 &act_timestamp);
+    void set_frame_rate(OMX_S64 act_timestamp, bool min_delta = false);
 
     bool align_pmem_buffers(int pmem_fd, OMX_U32 buffer_size,
                             OMX_U32 alignment);
@@ -589,13 +592,19 @@ private:
     FILE *m_device_file_ptr;
     enum vc1_profile_type m_vc1_profile;
 
-    bool valid_prev_ts;
-    long int prev_frame_ts;
-    unsigned int frame_interval;
-    unsigned int frame_rate;
+    OMX_S64 prev_ts;
+    bool rst_prev_ts;
+    OMX_U32 frm_int;
+    OMX_U32 frm_int_top;
+    OMX_U32 frm_int_bot;
+
     struct vdec_allocatorproperty op_buf_rcnfg;
     bool in_reconfig;
     OMX_NATIVE_WINDOWTYPE m_display_id;
+#ifdef OMX_VDEC_PERF
+    perf_metrics fps_metrics;
+    perf_metrics dec_time;
+#endif
 };
 
 #endif // __OMX_VDEC_H__
