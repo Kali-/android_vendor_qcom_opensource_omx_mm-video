@@ -198,6 +198,7 @@ struct ProfileType
    OMX_U32 nFramerate;
    char* cInFileName;
    char* cOutFileName;
+   OMX_U32 nUserProfile;
 };
 
 enum MsgId
@@ -417,6 +418,8 @@ result = OMX_SetParameter(m_hHandle,
                              &qPortDefnType);
 
 #endif
+   if (!m_sProfile.nUserProfile) // profile not set by user, go ahead with table calculation
+   {
    //validate the ht,width,fps,bitrate and set the appropriate profile and level
    if(m_sProfile.eCodec == OMX_VIDEO_CodingMPEG4)
    {
@@ -459,7 +462,12 @@ result = OMX_SetParameter(m_hHandle,
      E("\n Error: Unsupported profile/level\n");
      return OMX_ErrorNone;
    }
-
+   }
+   else // Profile set by user!
+   {
+      eProfile = m_sProfile.nUserProfile;
+      eLevel = 0;
+   }
    if (m_sProfile.eCodec == OMX_VIDEO_CodingH263)
    {
       D("Configuring H263...");
@@ -1317,13 +1325,13 @@ void parseArgs(int argc, char** argv)
    {//263
       m_eMode = MODE_FILE_ENCODE;
 
-      if(argc < 9 || argc > 11)
+      if(argc < 9 || argc > 12)
       {
           usage(argv[0]);
       }
       else
       {
-         if ((argc == 10))
+         if (argc > 9)
          {
            m_sProfile.eControlRate = OMX_Video_ControlRateVariable;
             int RC = atoi(argv[9]);
@@ -1356,11 +1364,13 @@ void parseArgs(int argc, char** argv)
             }
          }
 
-         if (argc == 11)
+         if (argc > 10)
          {
+            int profile_argi = 10;
             if(!strcmp(argv[3], "H264") || !strcmp(argv[3], "h264"))
             {
-               E("\nSetting AVCSliceMode ... ");
+               profile_argi = 11;
+               D("\nSetting AVCSliceMode ... ");
                int AVCSliceMode = atoi(argv[10]);
                switch(AVCSliceMode)
                {
@@ -1382,10 +1392,21 @@ void parseArgs(int argc, char** argv)
                   break;
               }
             }
-            else
+            if (profile_argi < argc)
             {
-               E("SliceMode support only for H.264 codec");
-               usage(argv[0]);
+               if (!strncmp(argv[profile_argi], "0x", 2) || !strncmp(argv[profile_argi], "0x", 2))
+               {
+                  m_sProfile.nUserProfile = strtoul(argv[profile_argi], NULL, 16);
+               }
+               else
+               {
+                  m_sProfile.nUserProfile = strtoul(argv[profile_argi], NULL, 10);
+               }
+               if (!m_sProfile.nUserProfile || m_sProfile.nUserProfile == ULONG_MAX)
+               {
+                  E("invalid specified Profile %s, using default", argv[profile_argi]);
+                  m_sProfile.nUserProfile = 0;
+               }
             }
          }
       }
