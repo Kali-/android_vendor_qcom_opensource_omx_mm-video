@@ -159,6 +159,10 @@ void vdec_frame_cb_handler(void *vdec_context,
                      "vdec: callback status good frame, cnt: %d\n",
                      nGoodFrameCnt);
 
+            if(pFrame ->nPercentConcealedMacroblocks > 0)
+               QTV_MSG_PRIO1(QTVDIAG_GENERAL, QTVDIAG_PRIO_ERROR,
+               "***nPercentConcealedMacroblocks %d",pFrame ->nPercentConcealedMacroblocks);
+
 #if LOG_YUV_FRAMES
             if (pYUVFile) {
                   int size=dec->ctxt->width *  dec->ctxt->height;
@@ -788,10 +792,49 @@ struct VDecoder *vdec_open(struct vdec_context *ctxt)
       goto fail_open;
    }
 
+#if LOG_YUV_FRAMES
+#ifdef T_WINNT
+   pYUVFile = fopen("../debug/yuvframes.yuv", "wb");
+#elif _ANDROID_
+   pYUVFile = fopen("/data/yuvframes.yuv", "wb");
+#else
+   pYUVFile = fopen("yuvframes.yuv", "wb");
+#endif
+   if(!pYUVFile) {
+      QTV_MSG_PRIO(QTVDIAG_GENERAL, QTVDIAG_PRIO_ERROR,
+          "vdec: error: Unable to open file to log YUV frames.");
+   }
+#endif /* LOG_YUV_FRAMES */
+
+#if LOG_INPUT_BUFFERS
+#ifdef T_WINNT
+   pInputFile = fopen("../debug/inputbuffers.264", "wb");
+#elif _ANDROID_
+   pInputFile = fopen("/data/inputbuffers.264", "wb");
+#else
+   pInputFile = fopen("inputbuffers.264", "wb");
+#endif
+   if(!pInputFile) {
+      QTV_MSG_PRIO(QTVDIAG_GENERAL, QTVDIAG_PRIO_ERROR,
+          "vdec: error: Unable to open file to log Input buffers.");
+   }
+
+#endif /* LOG_INPUT_BUFFERS */
+
+
    init.seq_header = dec->ctxt->sequenceHeader;
    init.seq_len = dec->ctxt->sequenceHeaderLen;
    if(init.seq_len > VDEC_MAX_SEQ_HEADER_SIZE)
      init.seq_len = VDEC_MAX_SEQ_HEADER_SIZE;
+
+#if LOG_INPUT_BUFFERS
+   if(pInputFile) {
+      fwritex((uint8 *) init.seq_header, init.seq_len, pInputFile);
+      QTV_MSG_PRIO1(QTVDIAG_GENERAL, QTVDIAG_PRIO_ERROR,
+                           "seq head length %d\n", init.seq_len);
+   }
+#endif
+
    init.width = dec->ctxt->width;
 
    init.height = dec->ctxt->height;
@@ -902,35 +945,6 @@ struct VDecoder *vdec_open(struct vdec_context *ctxt)
             dec->decReq2.bufferSize);
    dec->ctxt->numOutputBuffers =
           dec->ctxt->outputReq.numMinBuffers;
-
-#if LOG_YUV_FRAMES
-#ifdef T_WINNT
-   pYUVFile = fopen("../debug/yuvframes.yuv", "wb");
-#elif _ANDROID_
-   pYUVFile = fopen("/data/yuvframes.yuv", "wb");
-#else
-   pYUVFile = fopen("yuvframes.yuv", "wb");
-#endif
-   if(!pYUVFile) {
-      QTV_MSG_PRIO(QTVDIAG_GENERAL, QTVDIAG_PRIO_ERROR,
-          "vdec: error: Unable to open file to log YUV frames.");
-   }
-#endif /* LOG_YUV_FRAMES */
-
-#if LOG_INPUT_BUFFERS
-#ifdef T_WINNT
-   pInputFile = fopen("../debug/inputbuffers.264", "wb");
-#elif _ANDROID_
-   pInputFile = fopen("/data/inputbuffers.264", "wb");
-#else
-   pInputFile = fopen("inputbuffers.264", "wb");
-#endif
-   if(!pInputFile) {
-      QTV_MSG_PRIO(QTVDIAG_GENERAL, QTVDIAG_PRIO_ERROR,
-          "vdec: error: Unable to open file to log Input buffers.");
-   }
-
-#endif /* LOG_INPUT_BUFFERS */
 
    return dec;
 

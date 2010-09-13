@@ -192,6 +192,7 @@ OMX_ERRORTYPE error;
 
 static int fb_fd = -1;
 static struct fb_var_screeninfo vinfo;
+static struct fb_fix_screeninfo finfo;
 void render_fb(struct OMX_BUFFERHEADERTYPE *pBufHdr);
 
 /************************************************************************/
@@ -735,15 +736,6 @@ int main(int argc, char **argv)
            outputOption = atoi(argv[4]);
            test_option = atoi(argv[5]);
            displayWindow = atoi(argv[6]);
-           if(displayWindow > 4)
-           {
-               printf(" display window 0-4 only supported forcing it to 0 \n");
-               displayWindow = 0;
-           }
-           else
-           {
-             displayWindow = 0;
-           }
 
            if ((file_type_option != FILE_TYPE_ARBITRARY_BYTES) && (argc > 7))
            {
@@ -764,15 +756,6 @@ int main(int argc, char **argv)
            outputOption = atoi(argv[5]);
            test_option = atoi(argv[6]);
            displayWindow = atoi(argv[7]);
-           if(displayWindow > 4)
-           {
-               printf(" display window 0-4 only supported forcing it to 0 \n");
-               displayWindow = 0;
-           }
-           else
-           {
-             displayWindow = 0;
-           }
 
            if ((file_type_option != FILE_TYPE_ARBITRARY_BYTES) && (argc > 8))
            {
@@ -1009,6 +992,11 @@ int main(int argc, char **argv)
       }
 
       if (ioctl(fb_fd, FBIOGET_VSCREENINFO, &vinfo) < 0) {
+          printf("[omx_vdec_test] - ERROR - can't retrieve vscreenInfo!\n");
+          close(fb_fd);
+          return -1;
+      }
+      if (ioctl(fb_fd, FBIOGET_FSCREENINFO, &finfo) < 0) {
           printf("[omx_vdec_test] - ERROR - can't retrieve vscreenInfo!\n");
           close(fb_fd);
           return -1;
@@ -1920,6 +1908,15 @@ static void do_freeHandle_and_clean_up(bool isDueToError)
 {
     int bufCnt = 0;
 
+    if(isDueToError)
+    {
+       QTV_MSG_PRIO(QTVDIAG_GENERAL,QTVDIAG_PRIO_MED,"Moving the decoder to idle state \n");
+       OMX_SendCommand(dec_handle, OMX_CommandStateSet, OMX_StateIdle,0);
+
+       QTV_MSG_PRIO(QTVDIAG_GENERAL,QTVDIAG_PRIO_MED,"Moving the decoder to loaded state \n");
+       OMX_SendCommand(dec_handle, OMX_CommandStateSet, OMX_StateLoaded,0);
+    }
+
     for(bufCnt=0; bufCnt < input_buf_cnt; ++bufCnt)
     {
         OMX_FreeBuffer(dec_handle, 0, pInputBufHdrs[bufCnt]);
@@ -1985,11 +1982,6 @@ static void do_freeHandle_and_clean_up(bool isDueToError)
       close(fbiopan_pipe[0]);
     if(fbiopan_pipe[1])
       close(fbiopan_pipe[1]);
-
-    pthread_join(fbd_thread_id, NULL);
-    pthread_join(ebd_thread_id, NULL);
-    pthread_join(fbiopan_thread_id, NULL);
-
 
     printf("*****************************************\n");
     if (isDueToError)
@@ -2563,7 +2555,7 @@ void render_fb(struct OMX_BUFFERHEADERTYPE *pBufHdr)
     }
 
     if (pExtraCodecData)
-       QTV_MSG_PRIO1(QTVDIAG_GENERAL,QTVDIAG_PRIO_ERROR,"Extra Data Codec Data TimeStamp %d\n",pExtraCodecData->h264ExtraData.seiTimeStamp);
+       QTV_MSG_PRIO1(QTVDIAG_GENERAL,QTVDIAG_PRIO_LOW,"Extra Data Codec Data TimeStamp %d\n",pExtraCodecData->h264ExtraData.seiTimeStamp);
 
     if (pExtraFrameDimension)
     {
@@ -2631,7 +2623,7 @@ void render_fb(struct OMX_BUFFERHEADERTYPE *pBufHdr)
     QTV_MSG_PRIO2(QTVDIAG_GENERAL,QTVDIAG_PRIO_MED,
                   "pmemOffset %d pmemID %d\n",e->src.offset,e->src.memory_id);
 
-    e->dst.width  = vinfo.xres;
+    e->dst.width = (finfo.line_length * 8) / (vinfo.bits_per_pixel);
     e->dst.height = vinfo.yres;
 
     e->dst.format = MDP_RGBA_8888;
@@ -2734,7 +2726,7 @@ void* fbiopan_thread(void* pArg)
 
     if(ioctl(fb_fd, FBIOPAN_DISPLAY, &vinfo) < 0)
     {
-      QTV_MSG_PRIO(QTVDIAG_GENERAL,QTVDIAG_PRIO_ERROR,"FBIOPAN_DISPLAY: Failed\n");
+      QTV_MSG_PRIO(QTVDIAG_GENERAL,QTVDIAG_PRIO_LOW,"FBIOPAN_DISPLAY: Failed\n");
     }
 
     QTV_MSG_PRIO(QTVDIAG_GENERAL,QTVDIAG_PRIO_MED,"render_fb complete!\n");
