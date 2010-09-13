@@ -52,11 +52,11 @@ REFERENCES
 //#include <sys/time.h>
 #include <time.h>
 #include <sys/ioctl.h>
+#include <limits.h>
 #include <string.h>
 //#include <sys/stat.h>
 #include "OMX_QCOMExtns.h"
 #include "OMX_Core.h"
-
 
 #define QCOM_EXT 1
 
