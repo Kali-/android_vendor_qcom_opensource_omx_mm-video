@@ -6845,7 +6845,8 @@ OMX_ERRORTYPE omx_vdec::component_deinit(OMX_IN OMX_HANDLETYPE hComp) {
      // Clear the strong reference
      m_heap_ptr.clear();
    }
-#endif // _ANDROID_    omx_vdec_free_output_port_memory();
+#endif // _ANDROID_
+omx_vdec_free_output_port_memory();
 
    return OMX_ErrorNone;
 }
@@ -10000,3 +10001,4 @@ bool omx_vdec::find_new_frame_ap_vc1(OMX_IN OMX_U8 * buffer,
             "find_new_frame_ap_vc1  %d\n", isNewFrame);
    return true;
 }
+
