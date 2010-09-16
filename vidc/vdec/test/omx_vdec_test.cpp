@@ -72,6 +72,7 @@ extern "C" {
 #include <inttypes.h>
 #include <linux/msm_mdp.h>
 #include <linux/fb.h>
+#include <sys/time.h>
 
 /************************************************************************/
 /*              #DEFINES                            */
