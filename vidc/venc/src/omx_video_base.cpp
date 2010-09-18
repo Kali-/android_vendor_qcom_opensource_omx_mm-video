@@ -591,6 +591,7 @@ void omx_video::process_event_cb(void *ctxt, unsigned char id)
         DEBUG_PRINT_LOW("\n OMX_COMPONENT_GENERATE_STOP_DONE msg");
         if(pThis->m_pCallbacks.EventHandler)
         {
+          pThis->complete_pending_buffer_done_cbs();
           if(BITMASK_PRESENT(&pThis->m_flags,OMX_COMPONENT_IDLE_PENDING))
           {
             // Send the callback now
