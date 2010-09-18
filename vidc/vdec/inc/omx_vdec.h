@@ -285,8 +285,7 @@ public:
                                 OMX_U32              port,
                                 OMX_PTR              appData,
                                 void *               eglImage);
-
-
+    void complete_pending_buffer_done_cbs();
 
     struct video_driver_context drv_ctx;
     int  m_pipe_in;
@@ -489,7 +488,6 @@ private:
         x = x + 1;
         return x;
     }
-
     inline void omx_report_error ()
     {
         DEBUG_PRINT_ERROR("\nERROR: Sending OMX_EventError to Client");

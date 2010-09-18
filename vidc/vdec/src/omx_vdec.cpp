@@ -693,6 +693,7 @@ void omx_vdec::process_event_cb(void *ctxt, unsigned char id)
             }
             else
             {
+              pThis->complete_pending_buffer_done_cbs();
               if(BITMASK_PRESENT(&pThis->m_flags,OMX_COMPONENT_PAUSE_PENDING))
               {
                 DEBUG_PRINT_LOW("\n OMX_COMPONENT_GENERATE_PAUSE_DONE nofity");
@@ -745,6 +746,7 @@ void omx_vdec::process_event_cb(void *ctxt, unsigned char id)
             }
             else
             {
+              pThis->complete_pending_buffer_done_cbs();
               if(BITMASK_PRESENT(&pThis->m_flags,OMX_COMPONENT_IDLE_PENDING))
               {
                 DEBUG_PRINT_LOW("\n OMX_COMPONENT_GENERATE_STOP_DONE Success");
@@ -6206,6 +6208,7 @@ void omx_vdec::append_interlace_extradata(OMX_BUFFERHEADERTYPE *buffer)
   pExtra->data[0] = 0;
 }
 
+
 OMX_ERRORTYPE omx_vdec::allocate_output_headers()
 {
   OMX_ERRORTYPE eRet = OMX_ErrorNone;
@@ -6332,4 +6335,75 @@ OMX_ERRORTYPE omx_vdec::allocate_output_headers()
     eRet =  OMX_ErrorInsufficientResources;
   }
   return eRet;
+}
+
+void omx_vdec::complete_pending_buffer_done_cbs()
+{
+  unsigned p1;
+  unsigned p2;
+  unsigned ident;
+  omx_cmd_queue tmp_q, pending_bd_q;
+  pthread_mutex_lock(&m_lock);
+  // pop all pending GENERATE FDB from ftb queue
+  while (m_ftb_q.m_size)
+  {
+    m_ftb_q.pop_entry(&p1,&p2,&ident);
+    if(ident == OMX_COMPONENT_GENERATE_FBD)
+    {
+      pending_bd_q.insert_entry(p1,p2,ident);
+    }
+    else
+    {
+      tmp_q.insert_entry(p1,p2,ident);
+    }
+  }
+  //return all non GENERATE FDB to ftb queue
+  while(tmp_q.m_size)
+  {
+    tmp_q.pop_entry(&p1,&p2,&ident);
+    m_ftb_q.insert_entry(p1,p2,ident);
+  }
+  // pop all pending GENERATE EDB from etb queue
+  while (m_etb_q.m_size)
+  {
+    m_etb_q.pop_entry(&p1,&p2,&ident);
+    if(ident == OMX_COMPONENT_GENERATE_EBD)
+    {
+      pending_bd_q.insert_entry(p1,p2,ident);
+    }
+    else
+    {
+      tmp_q.insert_entry(p1,p2,ident);
+    }
+  }
+  //return all non GENERATE FDB to etb queue
+  while(tmp_q.m_size)
+  {
+    tmp_q.pop_entry(&p1,&p2,&ident);
+    m_etb_q.insert_entry(p1,p2,ident);
+  }
+  pthread_mutex_unlock(&m_lock);
+  // process all pending buffer dones
+  while(pending_bd_q.m_size)
+  {
+    pending_bd_q.pop_entry(&p1,&p2,&ident);
+    switch(ident)
+    {
+      case OMX_COMPONENT_GENERATE_EBD:
+        if(empty_buffer_done(&m_cmp, (OMX_BUFFERHEADERTYPE *)p1) != OMX_ErrorNone)
+        {
+          DEBUG_PRINT_ERROR("\nERROR: empty_buffer_done() failed!\n");
+          omx_report_error ();
+        }
+        break;
+
+      case OMX_COMPONENT_GENERATE_FBD:
+        if(fill_buffer_done(&m_cmp, (OMX_BUFFERHEADERTYPE *)p1) != OMX_ErrorNone )
+        {
+          DEBUG_PRINT_ERROR("\nERROR: fill_buffer_done() failed!\n");
+          omx_report_error ();
+        }
+        break;
+    }
+  }
 }
