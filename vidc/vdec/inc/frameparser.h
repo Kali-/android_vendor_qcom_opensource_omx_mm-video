@@ -83,6 +83,7 @@ private:
    unsigned char *start_code;
    unsigned char *mask_code;
    unsigned char last_byte_h263;
+   unsigned char last_byte;
 
    /*Variables for NAL Length Parsing*/
    enum state_nal_parse state_nal;

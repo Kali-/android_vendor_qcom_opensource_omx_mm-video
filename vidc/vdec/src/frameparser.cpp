@@ -44,8 +44,8 @@ static unsigned char MPEG4_mask_code[4] = {0xFF,0xFF,0xFF,0xFF};
 static unsigned char H263_start_code[4] = {0x00,0x00,0x80,0x00};
 static unsigned char H263_mask_code[4] = {0xFF,0xFF,0xFC,0x00};
 
-static unsigned char VC1_AP_start_code[4] = {0x00,0x00,0x01,0x0D};
-static unsigned char VC1_AP_mask_code[4] = {0xFF,0xFF,0xFF,0xFF};
+static unsigned char VC1_AP_start_code[4] = {0x00,0x00,0x01,0x0C};
+static unsigned char VC1_AP_mask_code[4] = {0xFF,0xFF,0xFF,0xFE};
 
 frame_parse::frame_parse():parse_state(A0),
                            last_byte_h263(0),
@@ -164,6 +164,10 @@ int frame_parse::parse_sc_frame ( OMX_BUFFERHEADERTYPE *source,
         else
         {
             memcpy (pdest,start_code,4);
+            if (start_code == VC1_AP_start_code)
+            {
+                pdest[3] = last_byte;
+            }
             dest->nFilledLen += 4;
             pdest += 4;
         }
@@ -183,6 +187,7 @@ int frame_parse::parse_sc_frame ( OMX_BUFFERHEADERTYPE *source,
              if ((*psource & mask_code [3]) == start_code [3])
              {
                parse_state = A4;
+               last_byte =  *psource;
                source->nFilledLen--;
                source->nOffset++;
                psource++;
@@ -382,6 +387,7 @@ int frame_parse::parse_sc_frame ( OMX_BUFFERHEADERTYPE *source,
       case A3:
           if ((psource [parsed_length] & mask_code [3]) == start_code [3])
           {
+            last_byte = psource [parsed_length];
             parsed_length++;
             parse_state = A4;
           }
