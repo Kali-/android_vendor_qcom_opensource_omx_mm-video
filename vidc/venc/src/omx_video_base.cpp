@@ -2590,6 +2590,7 @@ OMX_ERRORTYPE  omx_video::allocate_output_buffer(
 
       *bufferHdr = (m_out_mem_ptr + i );
       (*bufferHdr)->pBuffer = (OMX_U8 *)m_pOutput_pmem[i].buffer;
+      (*bufferHdr)->pAppPrivate = appData;
 
       BITMASK_SET(&m_out_bm_count,i);
 
