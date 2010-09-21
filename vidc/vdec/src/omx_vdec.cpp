@@ -52,6 +52,15 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <sys/mman.h>
 #endif //_ANDROID_
 
+#ifdef _ANDROID_
+#undef USE_EGL_IMAGE_GPU
+#endif
+
+#ifdef USE_EGL_IMAGE_GPU
+#include <EGL/egl.h>
+#include <EGL/eglQCOM.h>
+#endif
+
 #ifdef INPUT_BUFFER_LOG
 FILE *inputBufferFile1;
 char inputfilename [] = "/data/input-bitstream.\0\0\0\0";
@@ -303,6 +312,8 @@ omx_vdec::omx_vdec(): m_state(OMX_StateInvalid),
                       frame_interval(~((unsigned int)0)),
                       frame_rate(DEFAULT_FPS),
                       m_in_alloc_cnt(0),
+                      m_display_id(NULL),
+                      ouput_egl_buffers(false),
 #ifdef _ANDROID_
                       m_heap_ptr(NULL),
 #endif
@@ -2008,7 +2019,7 @@ OMX_ERRORTYPE omx_vdec::get_supported_profile_level_for_720p(OMX_VIDEO_PARAM_PRO
   OMX_ERRORTYPE eRet = OMX_ErrorNone;
   if(!profileLevelType)
     return OMX_ErrorBadParameter;
- 
+
   if(profileLevelType->nPortIndex == 0) {
     if (!strncmp(drv_ctx.kind, "OMX.qcom.video.decoder.avc",OMX_MAX_STRINGNAME_SIZE))
     {
@@ -2503,6 +2514,7 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
       if(OMX_DirOutput == portDefn->eDir)
       {
           DEBUG_PRINT_LOW("set_parameter: OMX_IndexParamPortDefinition OP port\n");
+          m_display_id = portDefn->format.video.pNativeWindow;
           if ( portDefn->nBufferCountActual >= drv_ctx.op_buf.mincount &&
                portDefn->nBufferSize ==  drv_ctx.op_buf.buffer_size )
           {
@@ -3143,209 +3155,111 @@ OMX_ERRORTYPE  omx_vdec::use_output_buffer(
   OMX_ERRORTYPE eRet = OMX_ErrorNone;
   OMX_BUFFERHEADERTYPE       *bufHdr= NULL; // buffer header
   unsigned                         i= 0; // Temporary counter
+  struct vdec_ioctl_msg ioctl_msg = {NULL,NULL};
+  struct vdec_setbuffer_cmd setbuffers;
 
-  if(!m_out_mem_ptr)
-  {
-    DEBUG_PRINT_HIGH("\n Use o/p buffer case - Header List allocation");
-    output_use_buffer = true;
-    int nBufHdrSize        = 0;
-    int nPlatformEntrySize = 0;
-    int nPlatformListSize  = 0;
-    int nPMEMInfoSize = 0;
-    OMX_QCOM_PLATFORM_PRIVATE_LIST      *pPlatformList;
-    OMX_QCOM_PLATFORM_PRIVATE_ENTRY     *pPlatformEntry;
-    OMX_QCOM_PLATFORM_PRIVATE_PMEM_INFO *pPMEMInfo;
+  if (!m_out_mem_ptr) {
+    eRet = allocate_output_headers();
+  }
 
-    DEBUG_PRINT_LOW("Setting First Output Buffer(%d)\n",
-      drv_ctx.op_buf.actualcount);
-    nBufHdrSize        = drv_ctx.op_buf.actualcount *
-                         sizeof(OMX_BUFFERHEADERTYPE);
-
-    nPMEMInfoSize      = drv_ctx.op_buf.actualcount *
-                         sizeof(OMX_QCOM_PLATFORM_PRIVATE_PMEM_INFO);
-    nPlatformListSize  = drv_ctx.op_buf.actualcount *
-                         sizeof(OMX_QCOM_PLATFORM_PRIVATE_LIST);
-    nPlatformEntrySize = drv_ctx.op_buf.actualcount *
-                         sizeof(OMX_QCOM_PLATFORM_PRIVATE_ENTRY);
-
-    DEBUG_PRINT_LOW("TotalBufHdr %d BufHdrSize %d PMEM %d PL %d\n",nBufHdrSize,
-                         sizeof(OMX_BUFFERHEADERTYPE),
-                         nPMEMInfoSize,
-                         nPlatformListSize);
-    DEBUG_PRINT_LOW("PE %d bmSize %d \n",nPlatformEntrySize,
-                         m_out_bm_count);
-
-    /*
-     * Memory for output side involves the following:
-     * 1. Array of Buffer Headers
-     * 2. Platform specific information List
-     * 3. Platform specific Entry List
-     * 4. PMem Information entries
-     * 5. Bitmask array to hold the buffer allocation details
-     * In order to minimize the memory management entire allocation
-     * is done in one step.
-     */
-    m_out_mem_ptr = (OMX_BUFFERHEADERTYPE  *)calloc(nBufHdrSize,1);
-    // Alloc mem for platform specific info
-    char *pPtr=NULL;
-    pPtr = (char*) calloc(nPlatformListSize + nPlatformEntrySize +
-                                     nPMEMInfoSize,1);
-    drv_ctx.ptr_outputbuffer = (struct vdec_bufferpayload *) \
-      calloc (sizeof(struct vdec_bufferpayload),
-      drv_ctx.op_buf.actualcount);
-    drv_ctx.ptr_respbuffer = (struct vdec_output_frameinfo  *)\
-      calloc (sizeof (struct vdec_output_frameinfo),
-      drv_ctx.op_buf.actualcount);
-
-    if(m_out_mem_ptr && pPtr && drv_ctx.ptr_outputbuffer
-       && drv_ctx.ptr_respbuffer)
-    {
-      bufHdr          =  m_out_mem_ptr;
-      m_platform_list = (OMX_QCOM_PLATFORM_PRIVATE_LIST *)(pPtr);
-      m_platform_entry= (OMX_QCOM_PLATFORM_PRIVATE_ENTRY *)
-                        (((char *) m_platform_list)  + nPlatformListSize);
-      m_pmem_info     = (OMX_QCOM_PLATFORM_PRIVATE_PMEM_INFO *)
-                        (((char *) m_platform_entry) + nPlatformEntrySize);
-      pPlatformList   = m_platform_list;
-      pPlatformEntry  = m_platform_entry;
-      pPMEMInfo       = m_pmem_info;
-
-      DEBUG_PRINT_LOW("Memory Allocation Succeeded for OUT port%p\n",m_out_mem_ptr);
-
-      // Settting the entire storage nicely
-      DEBUG_PRINT_LOW("bHdr %p OutMem %p PE %p\n",bufHdr, m_out_mem_ptr,pPlatformEntry);
-      DEBUG_PRINT_LOW(" Pmem Info = %p \n",pPMEMInfo);
-      for(i=0; i < drv_ctx.op_buf.actualcount ; i++)
+  if (eRet == OMX_ErrorNone) {
+    for(i=0; i< drv_ctx.op_buf.actualcount; i++) {
+      if(BITMASK_ABSENT(&m_out_bm_count,i))
       {
-        bufHdr->nSize              = sizeof(OMX_BUFFERHEADERTYPE);
-        bufHdr->nVersion.nVersion  = OMX_SPEC_VERSION;
-        // Set the values when we determine the right HxW param
-        bufHdr->nAllocLen          = bytes;
-        bufHdr->nFilledLen         = 0;
-        bufHdr->pAppPrivate        = appData;
-        bufHdr->nOutputPortIndex   = OMX_CORE_OUTPUT_PORT_INDEX;
-        // Platform specific PMEM Information
-        // Initialize the Platform Entry
-        //DEBUG_PRINT_LOW("Initializing the Platform Entry for %d\n",i);
-        pPlatformEntry->type       = OMX_QCOM_PLATFORM_PRIVATE_PMEM;
-        pPlatformEntry->entry      = pPMEMInfo;
-        // Initialize the Platform List
-        pPlatformList->nEntries    = 1;
-        pPlatformList->entryList   = pPlatformEntry;
-        // Keep pBuffer NULL till vdec is opened
-        bufHdr->pBuffer            = NULL;
-
-        pPMEMInfo->offset          =  0;
-        pPMEMInfo->pmem_fd = 0;
-        bufHdr->pPlatformPrivate = pPlatformList;
-
-        drv_ctx.ptr_outputbuffer[i].pmem_fd = -1;
-
-        /*Create a mapping between buffers*/
-        bufHdr->pOutputPortPrivate = &drv_ctx.ptr_respbuffer[i];
-        drv_ctx.ptr_respbuffer[i].client_data = (void *) \
-                                            &drv_ctx.ptr_outputbuffer[i];
-        // Move the buffer and buffer header pointers
-        bufHdr++;
-        pPMEMInfo++;
-        pPlatformEntry++;
-        pPlatformList++;
+        break;
       }
-    }
-    else
-    {
-      DEBUG_PRINT_ERROR("Output buf mem alloc failed[0x%x][0x%x]\n",\
-                                        m_out_mem_ptr, pPtr);
-      if(m_out_mem_ptr)
-      {
-        free(m_out_mem_ptr);
-        m_out_mem_ptr = NULL;
-      }
-      if(pPtr)
-      {
-        free(pPtr);
-        pPtr = NULL;
-      }
-      if(drv_ctx.ptr_outputbuffer)
-      {
-        free(drv_ctx.ptr_outputbuffer);
-        drv_ctx.ptr_outputbuffer = NULL;
-      }
-      if(drv_ctx.ptr_respbuffer)
-      {
-        free(drv_ctx.ptr_respbuffer);
-        drv_ctx.ptr_respbuffer = NULL;
-      }
-      eRet =  OMX_ErrorInsufficientResources;
     }
   }
 
-  for(i=0; i< drv_ctx.op_buf.actualcount; i++)
-  {
-    if(BITMASK_ABSENT(&m_out_bm_count,i))
-    {
-      break;
-    }
+  if(i >= drv_ctx.op_buf.actualcount) {
+    eRet = OMX_ErrorInsufficientResources;
   }
 
-  if (eRet == OMX_ErrorNone)
-  {
-    if(i < drv_ctx.op_buf.actualcount)
-    {
-      drv_ctx.ptr_outputbuffer[i].pmem_fd = \
-        open (PMEM_DEVICE,O_RDWR);
-
-      if (drv_ctx.ptr_outputbuffer[i].pmem_fd < 0)
-      {
-        return OMX_ErrorInsufficientResources;
-      }
-
-      if(drv_ctx.ptr_outputbuffer[i].pmem_fd == 0)
-      {
+  if (eRet == OMX_ErrorNone) {
+    if (!ouput_egl_buffers) {
         drv_ctx.ptr_outputbuffer[i].pmem_fd = \
           open (PMEM_DEVICE,O_RDWR);
 
-        if (drv_ctx.ptr_outputbuffer[i].pmem_fd < 0)
-        {
+        if (drv_ctx.ptr_outputbuffer[i].pmem_fd < 0) {
           return OMX_ErrorInsufficientResources;
         }
-      }
 
-      if(!align_pmem_buffers(drv_ctx.ptr_outputbuffer[i].pmem_fd,
-        drv_ctx.op_buf.buffer_size,
-        drv_ctx.op_buf.alignment))
-      {
-        DEBUG_PRINT_ERROR("\n align_pmem_buffers() failed");
-        close(drv_ctx.ptr_outputbuffer[i].pmem_fd);
-        return OMX_ErrorInsufficientResources;
-      }
+        if(drv_ctx.ptr_outputbuffer[i].pmem_fd == 0)
+        {
+          drv_ctx.ptr_outputbuffer[i].pmem_fd = \
+            open (PMEM_DEVICE,O_RDWR);
+          if (drv_ctx.ptr_outputbuffer[i].pmem_fd < 0) {
+            return OMX_ErrorInsufficientResources;
+          }
+        }
 
-      drv_ctx.ptr_outputbuffer[i].bufferaddr =
-        (unsigned char *)mmap(NULL, drv_ctx.op_buf.buffer_size,
-        PROT_READ|PROT_WRITE, MAP_SHARED,
-        drv_ctx.ptr_outputbuffer[i].pmem_fd,0);
+        if(!align_pmem_buffers(drv_ctx.ptr_outputbuffer[i].pmem_fd,
+          drv_ctx.op_buf.buffer_size,
+          drv_ctx.op_buf.alignment))
+        {
+          DEBUG_PRINT_ERROR("\n align_pmem_buffers() failed");
+          close(drv_ctx.ptr_outputbuffer[i].pmem_fd);
+          return OMX_ErrorInsufficientResources;
+        }
 
-      if (drv_ctx.ptr_outputbuffer[i].bufferaddr == MAP_FAILED)
-      {
-        return OMX_ErrorInsufficientResources;
-      }
-      drv_ctx.ptr_outputbuffer[i].offset = 0;
-      m_pmem_info[i].offset = drv_ctx.ptr_outputbuffer[i].offset;
-      m_pmem_info[i].pmem_fd = drv_ctx.ptr_outputbuffer[i].pmem_fd;
+        drv_ctx.ptr_outputbuffer[i].bufferaddr =
+          (unsigned char *)mmap(NULL, drv_ctx.op_buf.buffer_size,
+          PROT_READ|PROT_WRITE, MAP_SHARED,
+          drv_ctx.ptr_outputbuffer[i].pmem_fd,0);
 
-      // found an empty buffer at i
-      *bufferHdr = (m_out_mem_ptr + i );
-      (*bufferHdr)->pBuffer = buffer;
-      (*bufferHdr)->pAppPrivate = appData;
-      BITMASK_SET(&m_out_bm_count,i);
+        if (drv_ctx.ptr_outputbuffer[i].bufferaddr == MAP_FAILED) {
+          return OMX_ErrorInsufficientResources;
+        }
+        drv_ctx.ptr_outputbuffer[i].offset = 0;
+     }
+     else {
+        if (!appData || !bytes || !buffer) {
+          DEBUG_PRINT_ERROR("\n Bad parameters for use buffer in EGL image case");
+          return OMX_ErrorBadParameter;
+        }
+
+        OMX_QCOM_PLATFORM_PRIVATE_LIST *pmem_list;
+        OMX_QCOM_PLATFORM_PRIVATE_PMEM_INFO *pmem_info;
+        pmem_list = (OMX_QCOM_PLATFORM_PRIVATE_LIST*) appData;
+        if (!pmem_list->entryList || !pmem_list->entryList->entry ||
+            !pmem_list->nEntries ||
+            pmem_list->entryList->type != OMX_QCOM_PLATFORM_PRIVATE_PMEM) {
+          DEBUG_PRINT_ERROR("\n Pmem info not valid in use buffer");
+          return OMX_ErrorBadParameter;
+        }
+        pmem_info = (OMX_QCOM_PLATFORM_PRIVATE_PMEM_INFO *)
+                    pmem_list->entryList->entry;
+        drv_ctx.ptr_outputbuffer[i].pmem_fd = pmem_info->pmem_fd;
+        drv_ctx.ptr_outputbuffer[i].offset = pmem_info->offset;
+        drv_ctx.ptr_outputbuffer[i].bufferaddr = buffer;
+        drv_ctx.ptr_outputbuffer[i].mmaped_size =
+        drv_ctx.ptr_outputbuffer[i].buffer_len = drv_ctx.op_buf.buffer_size;
     }
-    else
-    {
-      DEBUG_PRINT_ERROR("All the Output Buffers have been Allocated ; Returning Insufficient \n");
-      eRet = OMX_ErrorInsufficientResources;
-    }
+     m_pmem_info[i].offset = drv_ctx.ptr_outputbuffer[i].offset;
+     m_pmem_info[i].pmem_fd = drv_ctx.ptr_outputbuffer[i].pmem_fd;
+
+     setbuffers.buffer_type = VDEC_BUFFER_TYPE_OUTPUT;
+     memcpy (&setbuffers.buffer,&drv_ctx.ptr_outputbuffer[i],
+             sizeof (vdec_bufferpayload));
+     ioctl_msg.in  = &setbuffers;
+     ioctl_msg.out = NULL;
+
+     DEBUG_PRINT_LOW("\n Set the Output Buffer Idx: %d Addr: %x", i,
+                     drv_ctx.ptr_outputbuffer[i]);
+     if (ioctl (drv_ctx.video_driver_fd,VDEC_IOCTL_SET_BUFFER,
+          &ioctl_msg) < 0)
+     {
+       DEBUG_PRINT_ERROR("\n Set output buffer failed");
+       return OMX_ErrorInsufficientResources;
+     }
+     // found an empty buffer at i
+     *bufferHdr = (m_out_mem_ptr + i );
+     (*bufferHdr)->nAllocLen = drv_ctx.op_buf.buffer_size;
+     (*bufferHdr)->pBuffer = buffer;
+     (*bufferHdr)->pAppPrivate = appData;
+     BITMASK_SET(&m_out_bm_count,i);
+
   }
-
   return eRet;
 }
 
@@ -3578,7 +3492,7 @@ OMX_ERRORTYPE omx_vdec::free_output_buffer(OMX_BUFFERHEADERTYPE *bufferHdr)
           &ioctl_msg) < 0)
       DEBUG_PRINT_ERROR("\nRelease output buffer failed in VCD");
 
-    if (drv_ctx.ptr_outputbuffer[0].pmem_fd > 0)
+    if (drv_ctx.ptr_outputbuffer[0].pmem_fd > 0 && !ouput_egl_buffers)
     {
        DEBUG_PRINT_LOW("\n unmap the output buffer fd = %d",
                     drv_ctx.ptr_outputbuffer[0].pmem_fd);
@@ -4865,8 +4779,59 @@ OMX_ERRORTYPE  omx_vdec::use_EGL_image(OMX_IN OMX_HANDLETYPE                hCom
                                           OMX_IN OMX_PTR                     appData,
                                           OMX_IN void*                      eglImage)
 {
-    DEBUG_PRINT_ERROR("Error : use_EGL_image:  Not Implemented \n");
-    return OMX_ErrorNotImplemented;
+  OMX_QCOM_PLATFORM_PRIVATE_LIST pmem_list;
+  OMX_QCOM_PLATFORM_PRIVATE_ENTRY pmem_entry;
+  OMX_QCOM_PLATFORM_PRIVATE_PMEM_INFO pmem_info;
+
+#ifdef USE_EGL_IMAGE_GPU
+   PFNEGLQUERYIMAGEQUALCOMMPROC egl_queryfunc;
+   EGLint fd = -1, offset = 0;
+#else
+   int fd = -1, offset = 0;
+#endif
+   LOGE("\nuse EGL image support for decoder");
+   if (!bufferHdr || !eglImage|| port != OMX_CORE_OUTPUT_PORT_INDEX) {
+     DEBUG_PRINT_ERROR("\n ");
+   }
+#ifdef USE_EGL_IMAGE_GPU
+   if(m_display_id == NULL) {
+        DEBUG_PRINT_ERROR("Display ID is not set by IL client \n");
+        return OMX_ErrorInsufficientResources;
+   }
+   egl_queryfunc = (PFNEGLQUERYIMAGEQUALCOMMPROC)
+     eglGetProcAddress("eglQueryImageKHR");
+   egl_queryfunc(m_display_id, eglImage, EGL_BUFFER_HANDLE_QCOM,
+            &fd);
+    egl_queryfunc(m_display_id, eglImage, EGL_BUFFER_OFFSET_QCOM,
+          &offset);
+#else //with OMX test app
+    struct temp_egl {
+        int pmem_fd;
+        int offset;
+    };
+    struct temp_egl *temp_egl_id;
+    temp_egl_id = (struct temp_egl *)eglImage;
+    fd = temp_egl_id->pmem_fd;
+    offset = temp_egl_id->offset;
+#endif
+    if (fd < 0) {
+        DEBUG_PRINT_ERROR("Improper pmem fd by EGL client %d  \n",fd);
+        return OMX_ErrorInsufficientResources;
+   }
+   pmem_info.pmem_fd = (OMX_U32) fd;
+   pmem_info.offset = (OMX_U32) offset;
+   pmem_entry.entry = (void *) &pmem_info;
+   pmem_entry.type = OMX_QCOM_PLATFORM_PRIVATE_PMEM;
+   pmem_list.entryList = &pmem_entry;
+   pmem_list.nEntries = 1;
+   ouput_egl_buffers = true;
+   if (OMX_ErrorNone != use_buffer(hComp,bufferHdr, port,
+       (void *)&pmem_list, drv_ctx.op_buf.buffer_size,
+        (OMX_U8 *)eglImage)) {
+     DEBUG_PRINT_ERROR("use buffer call failed for egl image\n");
+     return OMX_ErrorInsufficientResources;
+   }
+   return OMX_ErrorNone;
 }
 
 /* ======================================================================
@@ -6032,6 +5997,7 @@ void omx_vdec::free_output_buffer_header()
 {
   DEBUG_PRINT_HIGH("\n ALL output buffers are freed/released");
   output_use_buffer = false;
+  ouput_egl_buffers = false;
   if (m_out_mem_ptr)
   {
     free (m_out_mem_ptr);
@@ -6233,4 +6199,132 @@ void omx_vdec::append_interlace_extradata(OMX_BUFFERHEADERTYPE *buffer)
   pExtra->eType = OMX_ExtraDataNone;
   pExtra->nDataSize = 0;
   pExtra->data[0] = 0;
+}
+
+OMX_ERRORTYPE omx_vdec::allocate_output_headers()
+{
+  OMX_ERRORTYPE eRet = OMX_ErrorNone;
+  OMX_BUFFERHEADERTYPE *bufHdr = NULL;
+  unsigned i= 0;
+
+  if(!m_out_mem_ptr) {
+    DEBUG_PRINT_HIGH("\n Use o/p buffer case - Header List allocation");
+    int nBufHdrSize        = 0;
+    int nPlatformEntrySize = 0;
+    int nPlatformListSize  = 0;
+    int nPMEMInfoSize = 0;
+    OMX_QCOM_PLATFORM_PRIVATE_LIST      *pPlatformList;
+    OMX_QCOM_PLATFORM_PRIVATE_ENTRY     *pPlatformEntry;
+    OMX_QCOM_PLATFORM_PRIVATE_PMEM_INFO *pPMEMInfo;
+
+    DEBUG_PRINT_LOW("Setting First Output Buffer(%d)\n",
+      drv_ctx.op_buf.actualcount);
+    nBufHdrSize        = drv_ctx.op_buf.actualcount *
+                         sizeof(OMX_BUFFERHEADERTYPE);
+
+    nPMEMInfoSize      = drv_ctx.op_buf.actualcount *
+                         sizeof(OMX_QCOM_PLATFORM_PRIVATE_PMEM_INFO);
+    nPlatformListSize  = drv_ctx.op_buf.actualcount *
+                         sizeof(OMX_QCOM_PLATFORM_PRIVATE_LIST);
+    nPlatformEntrySize = drv_ctx.op_buf.actualcount *
+                         sizeof(OMX_QCOM_PLATFORM_PRIVATE_ENTRY);
+
+    DEBUG_PRINT_LOW("TotalBufHdr %d BufHdrSize %d PMEM %d PL %d\n",nBufHdrSize,
+                         sizeof(OMX_BUFFERHEADERTYPE),
+                         nPMEMInfoSize,
+                         nPlatformListSize);
+    DEBUG_PRINT_LOW("PE %d bmSize %d \n",nPlatformEntrySize,
+                         m_out_bm_count);
+    m_out_mem_ptr = (OMX_BUFFERHEADERTYPE  *)calloc(nBufHdrSize,1);
+    // Alloc mem for platform specific info
+    char *pPtr=NULL;
+    pPtr = (char*) calloc(nPlatformListSize + nPlatformEntrySize +
+                                     nPMEMInfoSize,1);
+    drv_ctx.ptr_outputbuffer = (struct vdec_bufferpayload *) \
+      calloc (sizeof(struct vdec_bufferpayload),
+      drv_ctx.op_buf.actualcount);
+    drv_ctx.ptr_respbuffer = (struct vdec_output_frameinfo  *)\
+      calloc (sizeof (struct vdec_output_frameinfo),
+      drv_ctx.op_buf.actualcount);
+
+    if(m_out_mem_ptr && pPtr && drv_ctx.ptr_outputbuffer
+       && drv_ctx.ptr_respbuffer)
+    {
+      bufHdr          =  m_out_mem_ptr;
+      m_platform_list = (OMX_QCOM_PLATFORM_PRIVATE_LIST *)(pPtr);
+      m_platform_entry= (OMX_QCOM_PLATFORM_PRIVATE_ENTRY *)
+                        (((char *) m_platform_list)  + nPlatformListSize);
+      m_pmem_info     = (OMX_QCOM_PLATFORM_PRIVATE_PMEM_INFO *)
+                        (((char *) m_platform_entry) + nPlatformEntrySize);
+      pPlatformList   = m_platform_list;
+      pPlatformEntry  = m_platform_entry;
+      pPMEMInfo       = m_pmem_info;
+
+      DEBUG_PRINT_LOW("Memory Allocation Succeeded for OUT port%p\n",m_out_mem_ptr);
+
+      // Settting the entire storage nicely
+      DEBUG_PRINT_LOW("bHdr %p OutMem %p PE %p\n",bufHdr,
+                      m_out_mem_ptr,pPlatformEntry);
+      DEBUG_PRINT_LOW(" Pmem Info = %p \n",pPMEMInfo);
+      for(i=0; i < drv_ctx.op_buf.actualcount ; i++)
+      {
+        bufHdr->nSize              = sizeof(OMX_BUFFERHEADERTYPE);
+        bufHdr->nVersion.nVersion  = OMX_SPEC_VERSION;
+        // Set the values when we determine the right HxW param
+        bufHdr->nAllocLen          = 0;
+        bufHdr->nFilledLen         = 0;
+        bufHdr->pAppPrivate        = NULL;
+        bufHdr->nOutputPortIndex   = OMX_CORE_OUTPUT_PORT_INDEX;
+        pPlatformEntry->type       = OMX_QCOM_PLATFORM_PRIVATE_PMEM;
+        pPlatformEntry->entry      = pPMEMInfo;
+        // Initialize the Platform List
+        pPlatformList->nEntries    = 1;
+        pPlatformList->entryList   = pPlatformEntry;
+        // Keep pBuffer NULL till vdec is opened
+        bufHdr->pBuffer            = NULL;
+        pPMEMInfo->offset          =  0;
+        pPMEMInfo->pmem_fd = 0;
+        bufHdr->pPlatformPrivate = pPlatformList;
+        drv_ctx.ptr_outputbuffer[i].pmem_fd = -1;
+        /*Create a mapping between buffers*/
+        bufHdr->pOutputPortPrivate = &drv_ctx.ptr_respbuffer[i];
+        drv_ctx.ptr_respbuffer[i].client_data = (void *) \
+                                            &drv_ctx.ptr_outputbuffer[i];
+        // Move the buffer and buffer header pointers
+        bufHdr++;
+        pPMEMInfo++;
+        pPlatformEntry++;
+        pPlatformList++;
+      }
+    }
+    else
+    {
+      DEBUG_PRINT_ERROR("Output buf mem alloc failed[0x%x][0x%x]\n",\
+                                        m_out_mem_ptr, pPtr);
+      if(m_out_mem_ptr)
+      {
+        free(m_out_mem_ptr);
+        m_out_mem_ptr = NULL;
+      }
+      if(pPtr)
+      {
+        free(pPtr);
+        pPtr = NULL;
+      }
+      if(drv_ctx.ptr_outputbuffer)
+      {
+        free(drv_ctx.ptr_outputbuffer);
+        drv_ctx.ptr_outputbuffer = NULL;
+      }
+      if(drv_ctx.ptr_respbuffer)
+      {
+        free(drv_ctx.ptr_respbuffer);
+        drv_ctx.ptr_respbuffer = NULL;
+      }
+      eRet =  OMX_ErrorInsufficientResources;
+    }
+  } else {
+    eRet =  OMX_ErrorInsufficientResources;
+  }
+  return eRet;
 }

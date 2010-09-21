@@ -426,12 +426,16 @@ private:
                                    OMX_PTR                appData,
                                    OMX_U32                bytes,
                                    OMX_U8                 *buffer);
+
 #ifdef MAX_RES_720P
     OMX_ERRORTYPE get_supported_profile_level_for_720p(OMX_VIDEO_PARAM_PROFILELEVELTYPE *profileLevelType);
 #endif
 #ifdef MAX_RES_1080P
     OMX_ERRORTYPE get_supported_profile_level_for_1080p(OMX_VIDEO_PARAM_PROFILELEVELTYPE *profileLevelType);
 #endif
+
+
+    OMX_ERRORTYPE allocate_output_headers();
 
     bool execute_omx_flush(OMX_U32);
     bool execute_output_flush();
@@ -529,6 +533,7 @@ private:
     bool output_flush_progress;
     bool input_use_buffer;
     bool output_use_buffer;
+    bool ouput_egl_buffers;
     int pending_input_buffers;
     int pending_output_buffers;
     // bitmask array size for output side
@@ -591,6 +596,7 @@ private:
     unsigned int frame_rate;
     struct vdec_allocatorproperty op_buf_rcnfg;
     bool in_reconfig;
+    OMX_NATIVE_WINDOWTYPE m_display_id;
 };
 
 #endif // __OMX_VDEC_H__
