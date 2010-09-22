@@ -2601,6 +2601,19 @@ void render_fb(struct OMX_BUFFERHEADERTYPE *pBufHdr)
 	e->src.height = portFmt.format.video.nSliceHeight;
     }
 
+    if (is_yamato)
+    {   int i1,yamato_chroma_offset;
+        int nv21_chroma_offset=e->src.width * e->src.height;
+        int yamato_chroma_w=2*(((e->src.width >> 1) + 31) & ~31);
+        yamato_chroma_offset = ( nv21_chroma_offset + 4095) & ~4095;
+
+        for (i1 = 0; i1 < e->src.height>>1; i1++)
+        {
+            memcpy(&pBufHdr->pBuffer[nv21_chroma_offset],&pBufHdr->pBuffer[yamato_chroma_offset],e->src.width);
+            nv21_chroma_offset+=e->src.width; yamato_chroma_offset+=yamato_chroma_w;
+        }
+    }
+
     e->src.format = MDP_Y_CBCR_H2V2;
     if(is_use_egl_image) {
       e->src.offset = egl_info->offset;

@@ -2318,15 +2318,7 @@ OMX_ERRORTYPE omx_vdec::get_parameter(OMX_IN OMX_HANDLETYPE hComp,
                portDefn->nBufferCountMin =
                    m_out_buf_count;
             }
-            extraDataSize = getExtraDataSize();
-            if (m_color_format == QOMX_COLOR_FormatYVU420PackedSemiPlanar32m4ka) {
-               portDefn->nBufferSize = (m_port_width * m_port_height + 4095) & ~4095;
-               chroma_height = ((m_port_height >> 1) + 31) & ~31;
-               chroma_width = 2 * ((m_port_width >> 1) + 31) & ~31;
-               portDefn->nBufferSize += (chroma_height * chroma_width) + extraDataSize;
-            } else {
-               portDefn->nBufferSize = m_port_height * m_port_width * 3/2  + extraDataSize;
-            }
+            portDefn->nBufferSize = get_output_buffer_size();
             portDefn->format.video.eColorFormat =
                 m_color_format;
             portDefn->format.video.eCompressionFormat =
@@ -9779,7 +9771,7 @@ void omx_vdec::fill_extradata(OMX_INOUT OMX_BUFFERHEADERTYPE * pBufHdr,
    m_dec_width = frameDetails->nDecPicWidth;
    m_dec_height = frameDetails->nDecPicHeight;
 
-   pBufHdr->nFilledLen = m_dec_width * m_dec_height * 3 / 2;
+   pBufHdr->nFilledLen = get_output_buffer_size() - getExtraDataSize();
    addr = (uint32) (pBufHdr->pBuffer + pBufHdr->nFilledLen);
    // align to a 4 byte boundary
    addr = (addr + 3) & (~3);
