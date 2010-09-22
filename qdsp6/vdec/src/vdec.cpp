@@ -921,6 +921,14 @@ struct VDecoder *vdec_open(struct vdec_context *ctxt)
       dec->ctxt->outputReq.numMinBuffers = init.buf_req->output.bufnum_min;
       dec->ctxt->outputReq.numMaxBuffers = init.buf_req->output.bufnum_max;
    }
+   /*for VC1 QDSP6 requires 4 output buffers, but Android surface flinger
+     holds 2 buffers due to this it is causing some issues, to resolve it
+     arm vdec allocates two more o/p buffers.*/
+   if (!strncmp(dec->ctxt->kind, "OMX.qcom.video.decoder.vc1",OMX_MAX_STRINGNAME_SIZE))
+            dec->ctxt->outputReq.numMinBuffers = init.buf_req->output.bufnum_min+2;
+   else
+            dec->ctxt->outputReq.numMinBuffers = init.buf_req->output.bufnum_min;
+
    dec->ctxt->outputReq.bufferSize = init.buf_req->output.bufsize;
    QTV_MSG_PRIO2(QTVDIAG_GENERAL, QTVDIAG_PRIO_MED,
             "vdec_open input numbuf= %d and bufsize= %d\n",
