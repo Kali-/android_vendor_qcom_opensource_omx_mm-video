@@ -6339,6 +6339,13 @@ RETURN VALUE
    unsigned int ret = 0;
    QTV_MSG_PRIO(QTVDIAG_GENERAL, QTVDIAG_PRIO_MED,
            "omx_vdec::push_pending_buffer_proxy\n");
+
+   if (m_event_port_settings_sent == true) {
+         QTV_MSG_PRIO(QTVDIAG_GENERAL, QTVDIAG_PRIO_HIGH,
+                 "push_pending_buffers_proxy - m_event_port_settings_sent == true\n");
+         return 0;
+      }
+
    while (is_pending()) {
       // If both buffers are pending try to push the first one
       int pend_idx = get_first_pending_index();
