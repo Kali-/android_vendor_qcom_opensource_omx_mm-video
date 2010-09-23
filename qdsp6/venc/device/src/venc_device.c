@@ -52,6 +52,357 @@ struct venc_pmem_buffer
 };
 static int ven_ref;
 
+/**
+ * @brief Max bitrate for MPEG4 level 0
+ */
+#define  VEN_MPEG4_L0_MAX_BIT_RATE    (64 * 1000)      // 64k
+
+/**
+ * @brief Max bitrate for MPEG4 level 0b
+ */
+#define  VEN_MPEG4_L0B_MAX_BIT_RATE   (128 * 1000)     // 128k
+
+/**
+ * @brief Max bitrate for MPEG4 level 1
+ */
+#define  VEN_MPEG4_L1_MAX_BIT_RATE    (64 * 1000)      // 64k
+
+/**
+ * @brief Max bitrate for MPEG4 level 2
+ */
+#define  VEN_MPEG4_L2_MAX_BIT_RATE    (128 * 1000)     // 128k
+
+/**
+ * @brief Max bitrate for MPEG4 level 3
+ */
+#define  VEN_MPEG4_L3_MAX_BIT_RATE    (384 * 1000)     // 384k
+
+/**
+ * @brief Max bitrate for MPEG4 level 4a
+ */
+#define  VEN_MPEG4_L4A_MAX_BIT_RATE   (4000 * 1000)    // 4000k
+
+/**
+ * @brief Max bitrate for MPEG4 level 5
+ */
+#define  VEN_MPEG4_L5_MAX_BIT_RATE    (8000 * 1000)    // 8000k
+
+/**
+ * @brief Max bitrate for MPEG4 level 6
+ */
+#define  VEN_MPEG4_L6_MAX_BIT_RATE    (12000 * 1000)   // 12000k
+
+/**
+ * @brief Max bitrate for H264 level 1
+ */
+#define VEN_H264_L1_MAX_BIT_RATE       (64 * 1000)
+
+/**
+ * @brief Max bitrate for H264 level 1b
+ */
+#define VEN_H264_L1B_MAX_BIT_RATE      (128 * 1000)
+
+/**
+ * @brief Max bitrate for H264 level 1.1
+ */
+#define VEN_H264_L1P1_MAX_BIT_RATE     (192 * 1000)
+
+/**
+ * @brief Max bitrate for H264 level 1.2
+ */
+#define VEN_H264_L1P2_MAX_BIT_RATE     (384 * 1000)
+
+/**
+ * @brief Max bitrate for H264 level 1.3
+ */
+#define VEN_H264_L1P3_MAX_BIT_RATE     (768 * 1000)
+
+/**
+ * @brief Max bitrate for H264 level 2
+ */
+#define VEN_H264_L2_MAX_BIT_RATE       (2000 * 1000)
+
+/**
+ * @brief Max bitrate for H264 level 2.1
+ */
+#define VEN_H264_L2P1_MAX_BIT_RATE     (4000 * 1000)
+
+/**
+ * @brief Max bitrate for H264 level 2.2
+ */
+#define VEN_H264_L2P2_MAX_BIT_RATE     (4000 * 1000)
+
+/**
+ * @brief Max bitrate for H264 level 3
+ */
+#define VEN_H264_L3_MAX_BIT_RATE       (10000 * 1000)
+
+/**
+ * @brief Max bitrate for H264 level 3.1
+ */
+#define VEN_H264_L3P1_MAX_BIT_RATE     (14000 * 1000)
+
+/**
+ * @brief Max number of mbs for H264 level 1
+ */
+#define VEN_H264_L1_MAX_MB       99
+
+/**
+ * @brief Max number of mbs for H264 level 1b
+ */
+#define VEN_H264_L1B_MAX_MB      99
+
+/**
+ * @brief Max number of mbs for H264 level 1.1
+ */
+#define VEN_H264_L1P1_MAX_MB     396
+
+/**
+ * @brief Max number of mbs for H264 level 1.2
+ */
+#define VEN_H264_L1P2_MAX_MB     396
+
+/**
+ * @brief Max number of mbs for H264 level 1.3
+ */
+#define VEN_H264_L1P3_MAX_MB     396
+
+/**
+ * @brief Max number of mbs for H264 level 2
+ */
+#define VEN_H264_L2_MAX_MB       396
+
+/**
+ * @brief Max number of mbs for H264 level 2.1
+ */
+#define VEN_H264_L2P1_MAX_MB     792
+
+/**
+ * @brief Max number of mbs for H264 level 2.2
+ */
+#define VEN_H264_L2P2_MAX_MB     1620
+
+/**
+ * @brief Max number of mbs for H264 level 3
+ */
+#define VEN_H264_L3_MAX_MB       1620
+
+/**
+ * @brief Max number of mbs for H264 level 3.1
+ */
+#define VEN_H264_L3P1_MAX_MB     3600
+
+
+/**
+ * @brief used in validate params to return the error state along with log msg
+ */
+#define VEN_INVAL_PARAM(msg)        \
+{                                   \
+   QC_OMX_MSG_ERROR(msg);     \
+   result = VENC_S_EFAIL;        \
+}
+
+typedef int int32;
+typedef unsigned char boolean;
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////
+boolean Ven_ValidateLevel(int32 eCodec,
+                       int32 nFrameWidth,
+                       int32 nFrameHeight,
+                       int32 nTargetBitrate,
+                       int32 eLevel,
+                       int32 eRCMode)
+{
+   int32 result = 0;
+   boolean condition = 0;
+
+   if (eCodec == VEN_CODEC_MPEG4)
+   {
+      switch (eLevel)
+      {
+         case VEN_LEVEL_MPEG4_0:
+            condition = (nTargetBitrate > VEN_MPEG4_L0_MAX_BIT_RATE && eRCMode != VEN_RC_OFF);
+            condition = condition || !VEN_FRAME_SIZE_IN_RANGE(nFrameWidth, nFrameHeight, VEN_QCIF_DX, VEN_QCIF_DY);
+            if (condition)
+            {
+               VEN_INVAL_PARAM("invalid config for level 0");
+            }
+            break;
+
+         case VEN_LEVEL_MPEG4_0B:
+            condition = (nTargetBitrate > VEN_MPEG4_L0B_MAX_BIT_RATE && eRCMode != VEN_RC_OFF);
+            condition = condition || !VEN_FRAME_SIZE_IN_RANGE(nFrameWidth, nFrameHeight, VEN_QCIF_DX, VEN_QCIF_DY);
+            if (condition)
+            {
+               VEN_INVAL_PARAM("invalid config for level 0B");
+            }
+            break;
+
+         case VEN_LEVEL_MPEG4_1:
+            condition = (nTargetBitrate > VEN_MPEG4_L1_MAX_BIT_RATE && eRCMode != VEN_RC_OFF);
+            condition = condition || !VEN_FRAME_SIZE_IN_RANGE(nFrameWidth, nFrameHeight, VEN_QCIF_DX, VEN_QCIF_DY);
+            if (condition)
+            {
+               VEN_INVAL_PARAM("invalid config for level 1");
+            }
+            break;
+
+         case VEN_LEVEL_MPEG4_2:
+            condition = (nTargetBitrate > VEN_MPEG4_L2_MAX_BIT_RATE && eRCMode != VEN_RC_OFF);
+            condition = condition || !VEN_FRAME_SIZE_IN_RANGE(nFrameWidth, nFrameHeight, VEN_CIF_DX, VEN_CIF_DY);
+            if (condition)
+            {
+               VEN_INVAL_PARAM("invalid config for level 2");
+            }
+            break;
+
+         case VEN_LEVEL_MPEG4_3:
+            condition = (nTargetBitrate > VEN_MPEG4_L3_MAX_BIT_RATE && eRCMode != VEN_RC_OFF);
+            condition = condition || !VEN_FRAME_SIZE_IN_RANGE(nFrameWidth, nFrameHeight, VEN_CIF_DX, VEN_CIF_DY);
+            if (condition)
+            {
+               VEN_INVAL_PARAM("invalid config for level 3");
+            }
+            break;
+
+         case VEN_LEVEL_MPEG4_4A:
+            condition = (nTargetBitrate > VEN_MPEG4_L4A_MAX_BIT_RATE && eRCMode != VEN_RC_OFF);
+            condition = condition || !VEN_FRAME_SIZE_IN_RANGE(nFrameWidth, nFrameHeight, VEN_VGA_DX, VEN_VGA_DY);
+            if (condition)
+            {
+               VEN_INVAL_PARAM("invalid config for level 4A");
+            }
+            break;
+
+         case VEN_LEVEL_MPEG4_5:
+            condition = (nTargetBitrate > VEN_MPEG4_L5_MAX_BIT_RATE && eRCMode != VEN_RC_OFF);
+            condition = condition || !VEN_FRAME_SIZE_IN_RANGE(nFrameWidth, nFrameHeight, VEN_PAL_DX, VEN_PAL_DY);
+            if (condition)
+            {
+               VEN_INVAL_PARAM("invalid config for level 5");
+            }
+            break;
+
+         case VEN_LEVEL_MPEG4_6:
+            condition = (nTargetBitrate > VEN_MPEG4_L6_MAX_BIT_RATE && eRCMode != VEN_RC_OFF);
+            condition = condition || !VEN_FRAME_SIZE_IN_RANGE(nFrameWidth, nFrameHeight, VEN_HD720P_DX, VEN_HD720P_DY);
+            if (condition)
+            {
+               VEN_INVAL_PARAM("invalid config for level 6");
+            }
+            break;
+
+         default:
+            VEN_INVAL_PARAM("invalid level");
+            break;
+      }
+   }
+   else if (eCodec == VEN_CODEC_H264)
+   {
+      int32 numMBs = nFrameWidth * nFrameHeight / 256;
+
+      switch (eLevel)
+      {
+         case VEN_LEVEL_H264_1:
+            condition = (nTargetBitrate > VEN_H264_L1_MAX_BIT_RATE && eRCMode != VEN_RC_OFF);
+            condition = condition || numMBs > VEN_H264_L1_MAX_MB;
+            if (condition)
+            {
+               VEN_INVAL_PARAM("invalid config for level 1");
+            }
+            break;
+
+         case VEN_LEVEL_H264_1B:
+            condition = (nTargetBitrate > VEN_H264_L1B_MAX_BIT_RATE && eRCMode != VEN_RC_OFF);
+            condition = condition || numMBs > VEN_H264_L1B_MAX_MB;
+            if (condition)
+            {
+               VEN_INVAL_PARAM("invalid config for level 1b");
+            }
+            break;
+
+         case VEN_LEVEL_H264_1P1:
+            condition = (nTargetBitrate > VEN_H264_L1P1_MAX_BIT_RATE && eRCMode != VEN_RC_OFF);
+            condition = condition || numMBs > VEN_H264_L1P1_MAX_MB;
+            if (condition)
+            {
+               VEN_INVAL_PARAM("invalid config for level 1.1");
+            }
+            break;
+
+         case VEN_LEVEL_H264_1P2:
+            condition = (nTargetBitrate > VEN_H264_L1P2_MAX_BIT_RATE && eRCMode != VEN_RC_OFF);
+            condition = condition || numMBs > VEN_H264_L1P2_MAX_MB;
+            if (condition)
+            {
+               VEN_INVAL_PARAM("invalid config for level 1.2");
+            }
+            break;
+
+         case VEN_LEVEL_H264_1P3:
+            condition = (nTargetBitrate > VEN_H264_L1P3_MAX_BIT_RATE && eRCMode != VEN_RC_OFF);
+            condition = condition || numMBs > VEN_H264_L1P3_MAX_MB;
+            if (condition)
+            {
+               VEN_INVAL_PARAM("invalid config for level 1.3");
+            }
+            break;
+
+         case VEN_LEVEL_H264_2:
+            condition = (nTargetBitrate > VEN_H264_L2_MAX_BIT_RATE && eRCMode != VEN_RC_OFF);
+            condition = condition || numMBs > VEN_H264_L2_MAX_MB;
+            if (condition)
+            {
+               VEN_INVAL_PARAM("invalid config for level 2");
+            }
+            break;
+
+         case VEN_LEVEL_H264_2P1:
+            condition = (nTargetBitrate > VEN_H264_L2P1_MAX_BIT_RATE && eRCMode != VEN_RC_OFF);
+            condition = condition || numMBs > VEN_H264_L2P1_MAX_MB;
+            if (condition)
+            {
+               VEN_INVAL_PARAM("invalid config for level 2.1");
+            }
+            break;
+
+         case VEN_LEVEL_H264_2P2:
+            condition = (nTargetBitrate > VEN_H264_L2P2_MAX_BIT_RATE && eRCMode != VEN_RC_OFF);
+            condition = condition || numMBs > VEN_H264_L2P2_MAX_MB;
+            if (condition)
+            {
+               VEN_INVAL_PARAM("invalid config for level 2.2");
+            }
+            break;
+
+         case VEN_LEVEL_H264_3:
+            condition = (nTargetBitrate > VEN_H264_L3_MAX_BIT_RATE && eRCMode != VEN_RC_OFF);
+            condition = condition || numMBs > VEN_H264_L3_MAX_MB;
+            if (condition)
+            {
+               VEN_INVAL_PARAM("invalid config for level 3");
+            }
+            break;
+
+         case VEN_LEVEL_H264_3P1:
+            condition = (nTargetBitrate > VEN_H264_L3P1_MAX_BIT_RATE && eRCMode != VEN_RC_OFF);
+            condition = condition || numMBs > VEN_H264_L3P1_MAX_MB;
+            if (condition)
+            {
+               VEN_INVAL_PARAM("invalid config for level 3.1");
+            }
+            break;
+
+         default:
+            VEN_INVAL_PARAM("invalid level");
+            break;
+      }
+   }
+
+    return result;
+}
+
+
 /**************************************************************************
  * @brief Set buffer properties based on current config
  *************************************************************************/
@@ -311,9 +662,377 @@ static void ven_change_codec(struct ven_device * dvenc)
 /**************************************************************************
  * @brief Validate the given encoder configuration
  *************************************************************************/
-static int ven_validate_config(struct ven_config_type* pconfig)
+static int ven_validate_config(struct ven_config_type* pConfig)
 {
-  return 0;
+  int32 result = 0;
+
+   unsigned long minQp = 1;
+   unsigned long maxQp = 31;
+   boolean condition = 0;
+
+   result = Ven_ValidateLevel(pConfig->base_config.codec_type,
+                       pConfig->base_config.input_width,
+                       pConfig->base_config.input_height,
+                       pConfig->bitrate.target_bitrate,
+                       pConfig->profile_level.level,
+                       pConfig->rate_control.rc_mode);
+
+   // verify input width and height, width must be greater than height
+   condition = pConfig->base_config.input_width == 0 ||
+               pConfig->base_config.input_height ==  0;
+   if (condition)
+   {
+      VEN_INVAL_PARAM("invalid input width or height");
+   }
+
+   // verify non-zero width and height
+   condition = pConfig->base_config.dvs_width == 0 ||
+               pConfig->base_config.dvs_height ==  0;
+   if (condition)
+   {
+      VEN_INVAL_PARAM("invalid dvs width or height");
+   }
+
+   // verify codec
+   condition = pConfig->base_config.codec_type !=  VEN_CODEC_MPEG4 &&
+               pConfig->base_config.codec_type !=  VEN_CODEC_H263 &&
+               pConfig->base_config.codec_type !=  VEN_CODEC_H264;
+   if (condition)
+   {
+      VEN_INVAL_PARAM("invalid codec");
+   }
+
+   // non-zero fps, also protect against div by zero
+   condition = pConfig->base_config.fps_num == 0 ||
+               pConfig->base_config.fps_den == 0;
+   if (condition)
+   {
+      VEN_INVAL_PARAM("invalid fps numerator or denominator");
+   }
+
+   // non-zero bitrate
+   condition = pConfig->base_config.target_bitrate == 0 &&
+               pConfig->rate_control.rc_mode != VEN_RC_OFF;
+   if (condition)
+   {
+      VEN_INVAL_PARAM("invalid bitrate");
+   }
+
+   // must be nv21 yuv format (refer to 4cc color formats)
+   if (pConfig->base_config.input_format != VEN_INPUTFMT_NV21)
+   {
+      VEN_INVAL_PARAM("invalid yuv format");
+   }
+
+   // verify rate control flavor
+   condition = pConfig->rate_control.rc_mode != VEN_RC_OFF &&
+               pConfig->rate_control.rc_mode != VEN_RC_VBR_VFR &&
+               pConfig->rate_control.rc_mode != VEN_RC_VBR_CFR &&
+               pConfig->rate_control.rc_mode != VEN_RC_CBR_VFR;
+   if (condition)
+   {
+      VEN_INVAL_PARAM("invalid rc flavor");
+   }
+
+   // For MMS mode only VBR VFR is valid
+   //condition = (pConfig->sEncMode.nEncoderMode == VEN_MODE_MMS) && 
+   //            (pConfig->rate_control.rc_mode != VEN_RC_VBR_VFR);
+   //if (condition)
+   //{
+   //   VEN_INVAL_PARAM("invalid rc flavor for MMS enc mode");
+   //}   
+   
+   // VBR CFR is only valid for resolutions less than or equal to wqvga
+   //if (pConfig->rate_control.rc_mode == VEN_RC_CBR_VFR)
+   //{
+   //   condition = pConfig->base_config.input_width > VEN_WQVGA_DX ||
+   //               pConfig->base_config.input_width > VEN_WVQGA_DY;
+   //   if (condition)
+   //   {
+   //      VEN_INVAL_PARAM("VEN_RC_VBR_CFR is only valid for small frames");
+   //   }
+   //}
+
+   // non-zero fps, also protect against div by zero
+   condition = pConfig->frame_rate.fps_numerator == 0 ||
+               pConfig->frame_rate.fps_denominator == 0;
+   if (condition)
+   {
+      VEN_INVAL_PARAM("invalid fps numerator or denominator");
+   }
+
+   // ir only valid for qcif
+   //condition = pConfig->intra_refresh.ir_mode == VEN_IR_RANDOM ||
+   //            pConfig->intra_refresh.ir_mode == VEN_IR_CYCLIC;
+   //if (condition)
+   //{
+   //  condition = (pConfig->base_config.dvs_width == VEN_QCIF_DX &&
+   //               pConfig->base_config.dvs_height == VEN_QCIF_DY) || 
+   //               (pConfig->base_config.dvs_width == VEN_QCIF_DY &&
+   //               pConfig->base_config.dvs_height == VEN_QCIF_DX);
+   //  if (!condition)
+   //  {
+   //    VEN_INVAL_PARAM("intra refresh is only valid for qcif");
+   //  } 
+   //}
+
+   // validate intra period, we don't support all iframes
+   if (pConfig->intra_period.num_pframes == 0)
+   {
+      VEN_INVAL_PARAM("we dont support all iframes");
+   }
+
+   // validate QPs
+   if (pConfig->base_config.codec_type == VEN_CODEC_H264)
+   {
+      maxQp = 51;
+   }
+   if (pConfig->rate_control.rc_mode == VEN_RC_OFF)
+   {
+      condition = pConfig->session_qp.iframe_qp < minQp ||
+                  pConfig->session_qp.pframe_qp < minQp ||
+                  pConfig->session_qp.iframe_qp > maxQp ||
+                  pConfig->session_qp.pframe_qp > maxQp;
+      if (condition)
+      {
+         VEN_INVAL_PARAM("invalid session QPs");
+      }
+   }
+   else
+   {
+      condition = pConfig->qp_range.max_qp < minQp ||
+                  pConfig->qp_range.min_qp < minQp ||
+                  pConfig->qp_range.max_qp > maxQp ||
+                  pConfig->qp_range.min_qp > maxQp ||
+                  pConfig->qp_range.min_qp > pConfig->qp_range.max_qp;
+      if (condition)
+      {
+         VEN_INVAL_PARAM("invalid qp range");
+      }
+   }
+#if 0
+   // verify slice configuration
+   if (pConfig->multi_slice.mslice_mode == VEN_MSLICE_CNT_MB)
+   {
+      unsigned long numMBs = (pConfig->base_config.input_width / 16) *
+                             (pConfig->base_config.input_height / 16);
+
+      condition = pConfig->multi_slice.mslice_size == 0 ||
+                  pConfig->multi_slice.mslice_size > numMBs;
+      if (condition)
+      {
+         VEN_INVAL_PARAM("invalid slice MBs");
+      }
+   }
+   else if (pConfig->multi_slice.mslice_mode == VEN_MSLICE_CNT_BYTE)
+   {
+      if (pConfig->multi_slice.mslice_size == 0)
+      {
+         VEN_INVAL_PARAM("invalid slice bytes");
+      }
+   }
+   else if (pConfig->multi_slice.mslice_mode != VEN_MSLICE_OFF &&
+            pConfig->multi_slice.mslice_mode != VEN_MSLICE_GOB)
+   {
+      VEN_INVAL_PARAM("invalid slice flavor");
+   }
+
+   //if (pConfig->multi_slice.mslice_mode == VEN_MSLICE_OFF)
+   //{
+   //   // Disable the slice info
+   //   VEN_MSG_HIGH("Disabling extra data when slicing is off",0,0,0);
+   //   pConfig->sExtraData.nEnableVideoExtraData = 0;
+   //}
+#endif   
+   // codec-specific validation
+   if (pConfig->base_config.codec_type == VEN_CODEC_MPEG4)
+   {
+      // validate profile / level
+      if (pConfig->profile.profile != VEN_PROFILE_MPEG4_SP)
+      {
+         VEN_INVAL_PARAM("invalid profile specified");
+      }
+
+      switch (pConfig->profile_level.level)
+      {
+         case VEN_LEVEL_MPEG4_0:
+         case VEN_LEVEL_MPEG4_0B:
+         case VEN_LEVEL_MPEG4_1:
+         case VEN_LEVEL_MPEG4_2:
+         case VEN_LEVEL_MPEG4_3:
+         case VEN_LEVEL_MPEG4_4A:
+         case VEN_LEVEL_MPEG4_5:
+         case VEN_LEVEL_MPEG4_6:
+            break;
+         default:
+            VEN_INVAL_PARAM("invalid level specified");
+            break;
+      }
+#if 0
+      // gob is only valid for h263
+      if (pConfig->multi_slice.mslice_mode == VEN_MSLICE_GOB)
+      {
+         VEN_INVAL_PARAM("invalid slice flavor for mpeg4");
+      }
+      // ER is only valid for resolutions less than or equal to wqvga
+      if (pConfig->multi_slice.mslice_mode != VEN_MSLICE_OFF)
+      {
+         condition = pConfig->base_config.input_width > VEN_WQVGA_DX ||
+                     pConfig->base_config.input_height > VEN_WVQGA_DY;
+         if (condition)
+         {
+            VEN_INVAL_PARAM("slicing only valid for small frames");
+         }
+      }
+#endif
+      // non-zero time resolution
+      if (pConfig->vop_timing.vop_time_resolution == 0)
+      {
+         VEN_INVAL_PARAM("invalid time inc res");
+      }
+
+      // validate enums
+      condition = pConfig->ac_prediction.status != 0 &&
+                  pConfig->ac_prediction.status != 1;
+      if (condition)
+      {
+         VEN_INVAL_PARAM("invalid ac prediction boolean");
+      }
+
+      // validate enums
+      condition = pConfig->short_header.status != 0 &&
+                  pConfig->short_header.status != 1;
+      if (condition)
+      {
+         VEN_INVAL_PARAM("invalid short header boolean");
+      }
+
+      // validate enums
+      condition = pConfig->data_partition.status != 0 &&
+                  pConfig->data_partition.status != 1;
+      if (condition)
+      {
+         VEN_INVAL_PARAM("invalid data partition boolean");
+      }
+
+      // dp only valid for resolutions less than or equal to wqvga
+      if (pConfig->data_partition.status == 1)
+      {
+         condition = pConfig->base_config.input_width > VEN_WQVGA_DX ||
+                     pConfig->base_config.input_height > VEN_WVQGA_DY;
+         if (condition)
+         {
+            VEN_INVAL_PARAM("dp only valid for small frames");
+         }
+      }
+
+      // hec only valid for resolutions less than or equal to wqvga
+      if (pConfig->hec_interval.header_extension > 0)
+      {
+         condition = pConfig->base_config.input_width > VEN_WQVGA_DX ||
+                     pConfig->base_config.input_height > VEN_WVQGA_DY;
+         if (condition)
+         {
+            VEN_INVAL_PARAM("hec only valid for resolutions less than or equal to wqvga");
+         }
+      }
+   }
+   else if (pConfig->base_config.codec_type == VEN_CODEC_H263)
+   {
+      // validate profile / level
+      if (pConfig->profile.profile != VEN_PROFILE_H263_BASELINE)
+      {
+         VEN_INVAL_PARAM("invalid profile specified");
+      }
+
+      switch (pConfig->profile_level.level)
+      {
+         case VEN_LEVEL_H263_10:
+         case VEN_LEVEL_H263_20:
+         case VEN_LEVEL_H263_30:
+         case VEN_LEVEL_H263_40:
+         case VEN_LEVEL_H263_45:
+         case VEN_LEVEL_H263_50:
+         case VEN_LEVEL_H263_60:
+         case VEN_LEVEL_H263_70:
+            break;
+         default:
+            VEN_INVAL_PARAM("invalid level specified");
+            break;
+      }
+#if 0
+      // we don't support annex k
+      condition = pConfig->multi_slice.mslice_mode == VEN_MSLICE_CNT_BYTE ||
+                  pConfig->multi_slice.mslice_mode == VEN_MSLICE_CNT_MB;
+      if (condition)
+      {
+         VEN_INVAL_PARAM("invalid slice flavor for h263");
+      }
+#endif
+      // make sure no mp4 params are configured for h263
+      condition = pConfig->ac_prediction.status != 0 ||
+                  pConfig->short_header.status != 0 ||
+                  pConfig->data_partition.status != 0 ||
+                  pConfig->hec_interval.header_extension != 0;
+      if (condition)
+      {
+         VEN_INVAL_PARAM("mpeg4 params can't be set for h263");
+      }
+   }
+   else if (pConfig->base_config.codec_type == VEN_CODEC_H264)
+   {
+      // validate profile / level
+      if (pConfig->profile.profile != VEN_PROFILE_H264_BASELINE)
+      {
+         VEN_INVAL_PARAM("invalid profile specified");
+      }
+
+      switch (pConfig->profile_level.level)
+      {
+         case VEN_LEVEL_H264_1:
+         case VEN_LEVEL_H264_1B:
+         case VEN_LEVEL_H264_1P1:
+         case VEN_LEVEL_H264_1P2:
+         case VEN_LEVEL_H264_1P3:
+         case VEN_LEVEL_H264_2:
+         case VEN_LEVEL_H264_2P1:
+         case VEN_LEVEL_H264_2P2:
+         case VEN_LEVEL_H264_3:
+         case VEN_LEVEL_H264_3P1:
+            break;
+         default:
+            VEN_INVAL_PARAM("invalid level specified");
+            break;
+      }
+#if 0
+      // gob is only valid for h263
+      if (pConfig->multi_slice.mslice_mode == VEN_MSLICE_GOB)
+      {
+         VEN_INVAL_PARAM("invalid slice flavor for h264");
+      }
+      // ER is only valid for resolutions less than or equal to CIF
+      if (pConfig->multi_slice.mslice_mode != VEN_MSLICE_OFF)
+      {
+         condition = pConfig->base_config.input_width > VEN_CIF_DX ||
+                     pConfig->base_config.input_height > VEN_CIF_DY;
+         if (condition)
+         {
+            VEN_INVAL_PARAM("slicing only valid for resolutions less than or equal to CIF");
+         }
+      }
+#endif
+      // make sure no mp4 params are configured for h264
+      condition = pConfig->ac_prediction.status != 0 ||
+                  pConfig->short_header.status != 0 ||
+                  pConfig->data_partition.status != 0 ||
+                  pConfig->hec_interval.header_extension != 0;
+      if (condition)
+      {
+         VEN_INVAL_PARAM("mpeg4 params can't be set for h264");
+      }
+   }
+
+    return result;
 }
 
 /**************************************************************************
@@ -412,7 +1131,13 @@ static int ven_translate_config(struct ven_config_type* psrc,
      ret = VENC_S_EFAIL;
      return ret;
   }
-
+  
+  ret = ven_validate_config(psrc);
+  if (ret != 0)
+  {
+    QC_OMX_MSG_ERROR( "%s: validate config parameters failed\n", __func__);
+    return ret;
+  }
   memset(pcommon, 0, sizeof(*pcommon));
   memset(pcodec, 0, sizeof(*pcodec));
 
