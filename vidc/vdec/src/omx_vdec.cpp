@@ -4714,6 +4714,11 @@ OMX_ERRORTYPE  omx_vdec::component_deinit(OMX_IN OMX_HANDLETYPE hComp)
     }
     free_input_buffer_header();
     free_output_buffer_header();
+    if(h264_scratch.pBuffer)
+    {
+        free(h264_scratch.pBuffer);
+        h264_scratch.pBuffer = NULL;
+    }
     if(m_platform_list)
     {
         free(m_platform_list);
