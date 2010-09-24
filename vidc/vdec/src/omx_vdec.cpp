@@ -4959,7 +4959,7 @@ OMX_ERRORTYPE  omx_vdec::use_EGL_image(OMX_IN OMX_HANDLETYPE                hCom
 #else
    int fd = -1, offset = 0;
 #endif
-   LOGE("\nuse EGL image support for decoder");
+   DEBUG_PRINT_HIGH("\nuse EGL image support for decoder");
    if (!bufferHdr || !eglImage|| port != OMX_CORE_OUTPUT_PORT_INDEX) {
      DEBUG_PRINT_ERROR("\n ");
    }
@@ -5771,8 +5771,9 @@ OMX_ERRORTYPE omx_vdec::push_input_sc_codec(OMX_HANDLETYPE hComp)
       {
         pdest_frame->nFlags = mp4h263_flags;
         generate_eos = OMX_FALSE;
+      } else {
+        pdest_frame->nFlags &= ~OMX_BUFFERFLAG_EOS;
       }
-
 
       /*Push the frame to the Decoder*/
       if (empty_this_buffer_proxy(hComp,pdest_frame) != OMX_ErrorNone)
@@ -5808,8 +5809,8 @@ OMX_ERRORTYPE omx_vdec::push_input_sc_codec(OMX_HANDLETYPE hComp)
     {
       if (pdest_frame)
       {
-        pdest_frame->nTimeStamp = psource_frame->nTimeStamp;
-        pdest_frame->nFlags = psource_frame->nFlags;
+        pdest_frame->nTimeStamp = mp4h263_timestamp;
+        pdest_frame->nFlags = mp4h263_flags | psource_frame->nFlags;
         DEBUG_PRINT_LOW("\n Frame Found start Decoding Size =%d TimeStamp = %x",
                      pdest_frame->nFilledLen,pdest_frame->nTimeStamp);
         DEBUG_PRINT_LOW("\n Found a frame size = %d number = %d",
@@ -5855,16 +5856,15 @@ OMX_ERRORTYPE omx_vdec::push_input_h264 (OMX_HANDLETYPE hComp)
   unsigned address,p2,id;
   OMX_BOOL isNewFrame = OMX_FALSE;
   OMX_BOOL generate_ebd = OMX_TRUE;
-  OMX_BOOL skip_parsing = OMX_FALSE;
 
   if (h264_scratch.pBuffer == NULL)
   {
     DEBUG_PRINT_ERROR("\nERROR:H.264 Scratch Buffer not allocated");
     return OMX_ErrorBadParameter;
   }
-  DEBUG_PRINT_LOW("\n push_input_h264: h264_scratch.nFilledLen %d "
+  DEBUG_PRINT_LOW("\n Pending h264_scratch.nFilledLen %d "
       "look_ahead_nal %d", h264_scratch.nFilledLen, look_ahead_nal);
-  DEBUG_PRINT_LOW("\n pdest_frame->nFilledLen %d",pdest_frame->nFilledLen);
+  DEBUG_PRINT_LOW("\n Pending pdest_frame->nFilledLen %d",pdest_frame->nFilledLen);
   if (h264_scratch.nFilledLen && look_ahead_nal)
   {
     look_ahead_nal = false;
@@ -5879,153 +5879,136 @@ OMX_ERRORTYPE omx_vdec::push_input_h264 (OMX_HANDLETYPE hComp)
     }
     else
     {
-      DEBUG_PRINT_ERROR("\nERROR:Destination buffer overflow for H264");
+      DEBUG_PRINT_ERROR("\n Error:1: Destination buffer overflow for H264");
+      return OMX_ErrorBadParameter;
+    }
+  }
+  if (nal_length == 0)
+  {
+    DEBUG_PRINT_LOW("\n Zero NAL, hence parse using start code");
+    if (m_frame_parser.parse_sc_frame(psource_frame,
+        &h264_scratch,&partial_frame) == -1)
+    {
+      DEBUG_PRINT_ERROR("\n Error In Parsing Return Error");
+      return OMX_ErrorBadParameter;
+    }
+  }
+  else
+  {
+    DEBUG_PRINT_LOW("\n Non-zero NAL length clip, hence parse with NAL size %d ",nal_length);
+    if (m_frame_parser.parse_h264_nallength(psource_frame,
+        &h264_scratch,&partial_frame) == -1)
+    {
+      DEBUG_PRINT_ERROR("\n Error In Parsing NAL size, Return Error");
       return OMX_ErrorBadParameter;
     }
   }
 
-  if(psource_frame->nFlags & OMX_BUFFERFLAG_EOS)
+  if (partial_frame == 0)
   {
-    DEBUG_PRINT_LOW("\n EOS rxd!! No parsing required");
-    skip_parsing = OMX_TRUE;
-    if ((pdest_frame->nAllocLen - pdest_frame->nFilledLen) >=
-         psource_frame->nFilledLen)
+    if (nal_count == 0 && h264_scratch.nFilledLen == 0)
     {
-      memcpy ((pdest_frame->pBuffer + pdest_frame->nFilledLen),
-              (psource_frame->pBuffer+psource_frame->nOffset),
-              psource_frame->nFilledLen);
-      pdest_frame->nFilledLen += psource_frame->nFilledLen;
-      psource_frame->nFilledLen = 0;
+      DEBUG_PRINT_LOW("\n First NAL with Zero Length, hence Skip");
+      nal_count++;
+      h264_scratch.nTimeStamp = psource_frame->nTimeStamp;
+      h264_scratch.nFlags = psource_frame->nFlags;
     }
     else
     {
-      DEBUG_PRINT_ERROR("\nERROR:Destination buffer overflow for H264");
-      return OMX_ErrorBadParameter;
-    }
-  }
-
-  if(!skip_parsing)
-  {
-    if (nal_length == 0)
-    {
-      DEBUG_PRINT_LOW("\n Zero NAL, hence parse using start code");
-      if (m_frame_parser.parse_sc_frame(psource_frame,
-          &h264_scratch,&partial_frame) == -1)
+      DEBUG_PRINT_LOW("\n Parsed New NAL Length = %d",h264_scratch.nFilledLen);
+      if(h264_scratch.nFilledLen)
       {
-        DEBUG_PRINT_ERROR("\n Error In Parsing Return Error");
-        return OMX_ErrorBadParameter;
-      }
-    }
-    else
-    {
-      DEBUG_PRINT_LOW("\n Non-zero NAL length clip, hence parse with NAL size %d ",nal_length);
-      if (m_frame_parser.parse_h264_nallength(psource_frame,
-          &h264_scratch,&partial_frame) == -1)
-      {
-        DEBUG_PRINT_ERROR("\n Error In Parsing NAL size, Return Error");
-        return OMX_ErrorBadParameter;
-      }
-    }
-
-    if (partial_frame == 0)
-    {
-
-      if (nal_count == 0 && h264_scratch.nFilledLen == 0)
-      {
-        DEBUG_PRINT_LOW("\n First NAL with Zero Length, hence Skip");
+        m_frame_parser.mutils->isNewFrame(&h264_scratch, 0, isNewFrame, &extradata_parser);
         nal_count++;
-        h264_scratch.nTimeStamp = psource_frame->nTimeStamp;
-        h264_scratch.nFlags = psource_frame->nFlags;
+      }
+
+      if (!isNewFrame)
+      {
+        if ( (pdest_frame->nAllocLen - pdest_frame->nFilledLen) >=
+            h264_scratch.nFilledLen)
+        {
+          DEBUG_PRINT_LOW("\n Not a NewFrame Copy into Dest len %d",
+              h264_scratch.nFilledLen);
+          memcpy ((pdest_frame->pBuffer + pdest_frame->nFilledLen),
+              h264_scratch.pBuffer,h264_scratch.nFilledLen);
+          pdest_frame->nFilledLen += h264_scratch.nFilledLen;
+          h264_scratch.nFilledLen = 0;
+        }
+        else
+        {
+          DEBUG_PRINT_LOW("\n Error:2: Destination buffer overflow for H264");
+          return OMX_ErrorBadParameter;
+        }
       }
       else
       {
-        DEBUG_PRINT_LOW("\n Parsed New NAL Length = %d",h264_scratch.nFilledLen);
-        m_frame_parser.mutils->isNewFrame(&h264_scratch, 0, isNewFrame, &extradata_parser);
-        nal_count++;
+        look_ahead_nal = true;
+        pdest_frame->nTimeStamp = h264_scratch.nTimeStamp;
+        pdest_frame->nFlags = h264_scratch.nFlags;
+        h264_scratch.nTimeStamp = psource_frame->nTimeStamp;
+        h264_scratch.nFlags = psource_frame->nFlags;
 
-        if (!isNewFrame)
+        DEBUG_PRINT_LOW("\n Frame Found start Decoding Size =%d TimeStamp = %x",
+                     pdest_frame->nFilledLen,pdest_frame->nTimeStamp);
+        DEBUG_PRINT_LOW("\n Found a frame size = %d number = %d",
+                     pdest_frame->nFilledLen,frame_count++);
+
+        if (pdest_frame->nFilledLen == 0)
         {
+          DEBUG_PRINT_LOW("\n Copy the Current Frame since and push it");
+          look_ahead_nal = false;
           if ( (pdest_frame->nAllocLen - pdest_frame->nFilledLen) >=
-              h264_scratch.nFilledLen)
+               h264_scratch.nFilledLen)
           {
-            DEBUG_PRINT_LOW("\n Not a NewFrame Copy into Dest len %d",
-                h264_scratch.nFilledLen);
             memcpy ((pdest_frame->pBuffer + pdest_frame->nFilledLen),
-                h264_scratch.pBuffer,h264_scratch.nFilledLen);
+                    h264_scratch.pBuffer,h264_scratch.nFilledLen);
             pdest_frame->nFilledLen += h264_scratch.nFilledLen;
             h264_scratch.nFilledLen = 0;
           }
           else
           {
-            DEBUG_PRINT_LOW("\n Destination buffer overflow for H264");
+            DEBUG_PRINT_ERROR("\n Error:3: Destination buffer overflow for H264");
             return OMX_ErrorBadParameter;
           }
         }
         else
         {
-          look_ahead_nal = true;
-          pdest_frame->nTimeStamp = h264_scratch.nTimeStamp;
-          pdest_frame->nFlags = h264_scratch.nFlags;
-          h264_scratch.nTimeStamp = psource_frame->nTimeStamp;
-          h264_scratch.nFlags = psource_frame->nFlags;
-
-          DEBUG_PRINT_LOW("\n Frame Found start Decoding Size =%d TimeStamp = %x",
-                       pdest_frame->nFilledLen,pdest_frame->nTimeStamp);
-          DEBUG_PRINT_LOW("\n Found a frame size = %d number = %d",
-                       pdest_frame->nFilledLen,frame_count++);
-
-          if (pdest_frame->nFilledLen == 0)
+          if(psource_frame->nFilledLen || h264_scratch.nFilledLen)
           {
-            DEBUG_PRINT_LOW("\n Copy the Current Frame since and push it");
-            look_ahead_nal = false;
-            if ( (pdest_frame->nAllocLen - pdest_frame->nFilledLen) >=
-                 h264_scratch.nFilledLen)
-            {
-              memcpy ((pdest_frame->pBuffer + pdest_frame->nFilledLen),
-                      h264_scratch.pBuffer,h264_scratch.nFilledLen);
-              pdest_frame->nFilledLen += h264_scratch.nFilledLen;
-              h264_scratch.nFilledLen = 0;
-            }
-            else
-            {
-              DEBUG_PRINT_ERROR("\nERROR:Destination buffer overflow for H264");
-              return OMX_ErrorBadParameter;
-            }
+            DEBUG_PRINT_LOW("\n Reset the EOS Flag");
+            pdest_frame->nFlags &= ~OMX_BUFFERFLAG_EOS;
           }
-          else
+          /*Push the frame to the Decoder*/
+          if (empty_this_buffer_proxy(hComp,pdest_frame) != OMX_ErrorNone)
           {
-            /*Push the frame to the Decoder*/
-            if (empty_this_buffer_proxy(hComp,pdest_frame) != OMX_ErrorNone)
-            {
-              return OMX_ErrorBadParameter;
-            }
-            //frame_count++;
-            pdest_frame = NULL;
-            if (m_input_free_q.m_size)
-            {
-              m_input_free_q.pop_entry(&address,&p2,&id);
-              pdest_frame = (OMX_BUFFERHEADERTYPE *) address;
-              DEBUG_PRINT_LOW("\n Pop the next pdest_buffer %p",pdest_frame);
-              pdest_frame->nFilledLen = 0;
-            }
+            return OMX_ErrorBadParameter;
+          }
+          //frame_count++;
+          pdest_frame = NULL;
+          if (m_input_free_q.m_size)
+          {
+            m_input_free_q.pop_entry(&address,&p2,&id);
+            pdest_frame = (OMX_BUFFERHEADERTYPE *) address;
+            DEBUG_PRINT_LOW("\n Pop the next pdest_buffer %p",pdest_frame);
+            pdest_frame->nFilledLen = 0;
           }
         }
       }
     }
-    else
+  }
+  else
+  {
+    DEBUG_PRINT_LOW("\n Not a Complete Frame, pdest_frame->nFilledLen %d",pdest_frame->nFilledLen);
+    /*Check if Destination Buffer is full*/
+    if (h264_scratch.nAllocLen ==
+        h264_scratch.nFilledLen + h264_scratch.nOffset)
     {
-      DEBUG_PRINT_LOW("\n Not a Complete Frame, pdest_frame->nFilledLen %d",pdest_frame->nFilledLen);
-      /*Check if Destination Buffer is full*/
-      if (h264_scratch.nAllocLen ==
-          h264_scratch.nFilledLen + h264_scratch.nOffset)
-      {
-        DEBUG_PRINT_ERROR("\nERROR: Frame Not found though Destination Filled");
-        return OMX_ErrorStreamCorrupt;
-      }
+      DEBUG_PRINT_ERROR("\nERROR: Frame Not found though Destination Filled");
+      return OMX_ErrorStreamCorrupt;
     }
   }
 
-  if (psource_frame->nFilledLen == 0)
+  if (!psource_frame->nFilledLen)
   {
     DEBUG_PRINT_LOW("\n Buffer Consumed return source %p back to client",psource_frame);
 
@@ -6044,11 +6027,11 @@ OMX_ERRORTYPE omx_vdec::push_input_h264 (OMX_HANDLETYPE hComp)
         }
         else
         {
-          DEBUG_PRINT_ERROR("\nERROR:Destination buffer overflow for H264");
+          DEBUG_PRINT_ERROR("\nERROR:4: Destination buffer overflow for H264");
           return OMX_ErrorBadParameter;
         }
-        pdest_frame->nTimeStamp = psource_frame->nTimeStamp;
-        pdest_frame->nFlags = psource_frame->nFlags;
+        pdest_frame->nTimeStamp = h264_scratch.nTimeStamp;
+        pdest_frame->nFlags = h264_scratch.nFlags | psource_frame->nFlags;
 
         DEBUG_PRINT_LOW("\n pdest_frame->nFilledLen =%d TimeStamp = %x",
                      pdest_frame->nFilledLen,pdest_frame->nTimeStamp);
@@ -6068,18 +6051,18 @@ OMX_ERRORTYPE omx_vdec::push_input_h264 (OMX_HANDLETYPE hComp)
         generate_ebd = OMX_FALSE;
       }
     }
-    if(generate_ebd)
+  }
+  if(generate_ebd && !psource_frame->nFilledLen)
+  {
+    m_cb.EmptyBufferDone (hComp,m_app_data,psource_frame);
+    psource_frame = NULL;
+    if (m_input_pending_q.m_size)
     {
-      m_cb.EmptyBufferDone (hComp,m_app_data,psource_frame);
-      psource_frame = NULL;
-      if (m_input_pending_q.m_size)
-      {
-        DEBUG_PRINT_LOW("\n Pull Next source Buffer %p",psource_frame);
-        m_input_pending_q.pop_entry(&address,&p2,&id);
-        psource_frame = (OMX_BUFFERHEADERTYPE *) address;
-        DEBUG_PRINT_LOW("\nNext source Buffer flag %d src length %d",
-        psource_frame->nFlags,psource_frame->nFilledLen);
-      }
+      DEBUG_PRINT_LOW("\n Pull Next source Buffer %p",psource_frame);
+      m_input_pending_q.pop_entry(&address,&p2,&id);
+      psource_frame = (OMX_BUFFERHEADERTYPE *) address;
+      DEBUG_PRINT_LOW("\nNext source Buffer flag %d src length %d",
+      psource_frame->nFlags,psource_frame->nFilledLen);
     }
   }
   return OMX_ErrorNone;
