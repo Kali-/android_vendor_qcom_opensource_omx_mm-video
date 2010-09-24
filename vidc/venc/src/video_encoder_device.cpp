@@ -1847,6 +1847,9 @@ bool venc_dev::venc_set_ratectrl_cfg(OMX_VIDEO_CONTROLRATETYPE eControlRate)
   case OMX_Video_ControlRateConstantSkipFrames:
     ratectrl_cfg.rcmode = VEN_RC_CBR_VFR;
     break;
+  case OMX_Video_ControlRateConstant:
+    ratectrl_cfg.rcmode = VEN_RC_CBR_CFR;
+    break;
   default:
     status = false;
     break;
