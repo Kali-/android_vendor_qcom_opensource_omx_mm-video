@@ -144,7 +144,11 @@ extern "C" {
 #define OMX_CORE_WVGA_HEIGHT         480
 #define OMX_CORE_WVGA_WIDTH          800
 
-#define VALID_TS(ts) ((ts < LLONG_MAX)? true : false)
+enum port_indexes
+{
+    OMX_CORE_INPUT_PORT_INDEX        =0,
+    OMX_CORE_OUTPUT_PORT_INDEX       =1
+};
 
 struct video_driver_context
 {
@@ -357,12 +361,6 @@ private:
         OMX_COMPONENT_GENERATE_EOS_DONE = 0x14
     };
 
-    enum port_indexes
-    {
-        OMX_CORE_INPUT_PORT_INDEX        =0,
-        OMX_CORE_OUTPUT_PORT_INDEX       =1
-    };
-
     enum vc1_profile_type
     {
         VC1_SP_MP_RCV = 1,
@@ -427,7 +425,6 @@ private:
                                    OMX_PTR                appData,
                                    OMX_U32                bytes,
                                    OMX_U8                 *buffer);
-
 #ifdef MAX_RES_720P
     OMX_ERRORTYPE get_supported_profile_level_for_720p(OMX_VIDEO_PARAM_PROFILELEVELTYPE *profileLevelType);
 #endif
@@ -435,9 +432,7 @@ private:
     OMX_ERRORTYPE get_supported_profile_level_for_1080p(OMX_VIDEO_PARAM_PROFILELEVELTYPE *profileLevelType);
 #endif
 
-
     OMX_ERRORTYPE allocate_output_headers();
-
     bool execute_omx_flush(OMX_U32);
     bool execute_output_flush();
     bool execute_input_flush();
@@ -464,10 +459,9 @@ private:
 
     bool release_output_done();
     bool release_input_done();
-    OMX_ERRORTYPE get_buffer_req(vdec_allocatorproperty *buffer_prop, unsigned int extra_data = 0);
+    OMX_ERRORTYPE get_buffer_req(vdec_allocatorproperty *buffer_prop, bool verify_extradata = false);
     OMX_ERRORTYPE set_buffer_req(vdec_allocatorproperty *buffer_prop);
     OMX_ERRORTYPE start_port_reconfig();
-    void append_interlace_extradata(OMX_BUFFERHEADERTYPE *buffer);
     void adjust_timestamp(OMX_S64 &act_timestamp);
     void set_frame_rate(OMX_S64 act_timestamp, bool min_delta = false);
 
@@ -601,6 +595,7 @@ private:
     struct vdec_allocatorproperty op_buf_rcnfg;
     bool in_reconfig;
     OMX_NATIVE_WINDOWTYPE m_display_id;
+    extra_data_parser extradata_parser;
 #ifdef OMX_VDEC_PERF
     perf_metrics fps_metrics;
     perf_metrics dec_time;

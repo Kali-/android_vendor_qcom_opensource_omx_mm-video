@@ -642,12 +642,20 @@ void* fbd_thread(void* pArg)
         pExtra = (OMX_OTHER_EXTRADATATYPE *)
                  ((unsigned)(pBuffer->pBuffer + pBuffer->nOffset +
                   pBuffer->nFilledLen + 3)&(~3));
-        if (pExtra->eType == OMX_ExtraDataInterlaceFormat)
+        while(pExtra &&
+              (OMX_U8*)pExtra < (pBuffer->pBuffer + pBuffer->nAllocLen) &&
+              pExtra->eType != OMX_ExtraDataNone )
         {
-          pInterlaceFormat = (OMX_STREAMINTERLACEFORMAT *)pExtra->data;
-          DEBUG_PRINT("Buf(%p) TSmp(%ld) Off(%x) FLen(%x) XDPtr(%p) IntPtr(%p) Fmt(%x)",
-            pBuffer->pBuffer, (long int)pBuffer->nTimeStamp, pBuffer->nOffset, pBuffer->nFilledLen,
-            pExtra, pInterlaceFormat, pInterlaceFormat->nInterlaceFormats);
+          DEBUG_PRINT("ExtraData : pBuf(%p) BufTS(%lld) Type(%x) DataSz(%u)",
+               pBuffer, pBuffer->nTimeStamp, pExtra->eType, pExtra->nDataSize);
+          if (pExtra->eType == OMX_ExtraDataInterlaceFormat)
+          {
+            pInterlaceFormat = (OMX_STREAMINTERLACEFORMAT *)pExtra->data;
+            DEBUG_PRINT("Buf(%p) TSmp(%lld) Off(%x) FLen(%x) XDPtr(%p) IntPtr(%p) Fmt(%x)",
+              pBuffer->pBuffer, pBuffer->nTimeStamp, pBuffer->nOffset, pBuffer->nFilledLen,
+              pExtra, pInterlaceFormat, pInterlaceFormat->nInterlaceFormats);
+          }
+          pExtra = (OMX_OTHER_EXTRADATATYPE *) (((OMX_U8 *) pExtra) + pExtra->nSize);
         }
     }
 

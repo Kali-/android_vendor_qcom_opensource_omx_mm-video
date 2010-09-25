@@ -316,7 +316,7 @@ omx_vdec::omx_vdec(): m_state(OMX_StateInvalid),
                       in_reconfig(false)
 {
   /* Assumption is that , to begin with , we have all the frames with decoder */
-  DEBUG_PRINT_HIGH("\n In OMX vdec Constructor");
+  DEBUG_PRINT_HIGH("In OMX vdec Constructor");
 #ifdef OMX_VDEC_PERF
   dec_time.start();
 #endif
@@ -1077,7 +1077,7 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
         eRet = get_buffer_req(&drv_ctx.ip_buf);
 
     if (eRet == OMX_ErrorNone)
-        eRet = get_buffer_req(&drv_ctx.op_buf);
+        eRet = get_buffer_req(&drv_ctx.op_buf, true);
 
     m_state                   = OMX_StateLoaded;
 
@@ -1105,7 +1105,7 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
          }
          m_frame_parser.mutils->initialize_frame_checking_environment();
          m_frame_parser.mutils->allocate_rbsp_buffer (drv_ctx.ip_buf.buffer_size);
-         }
+      }
     }
 
     if(pipe(fds))
@@ -2547,7 +2547,7 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
           DEBUG_PRINT_LOW("set_parameter: OMX_IndexParamPortDefinition OP port\n");
           m_display_id = portDefn->format.video.pNativeWindow;
           if ( portDefn->nBufferCountActual >= drv_ctx.op_buf.mincount &&
-               portDefn->nBufferSize == drv_ctx.op_buf.buffer_size )
+               portDefn->nBufferSize ==  drv_ctx.op_buf.buffer_size )
           {
               drv_ctx.op_buf.actualcount = portDefn->nBufferCountActual;
               eRet = set_buffer_req(&drv_ctx.op_buf);
@@ -2589,7 +2589,7 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
                    eRet = OMX_ErrorUnsupportedSetting;
                }
                else
-                   eRet = get_buffer_req(&drv_ctx.op_buf);
+                   eRet = get_buffer_req(&drv_ctx.op_buf, true);
              }
          }
          else if (portDefn->nBufferCountActual >= drv_ctx.ip_buf.mincount
@@ -2624,20 +2624,21 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
 
       if(1 == portFmt->nPortIndex)
       {
+         enum vdec_output_fromat op_format;
          if(portFmt->eColorFormat == OMX_COLOR_FormatYUV420SemiPlanar)
-           drv_ctx.output_format = VDEC_YUV_FORMAT_NV12;
+           op_format = VDEC_YUV_FORMAT_NV12;
          else if(portFmt->eColorFormat ==
            QOMX_COLOR_FormatYUV420PackedSemiPlanar64x32Tile2m8ka)
-           drv_ctx.output_format = VDEC_YUV_FORMAT_TILE_4x2;
+           op_format = VDEC_YUV_FORMAT_TILE_4x2;
          else
            eRet = OMX_ErrorBadParameter;
 
-         if(eRet == OMX_ErrorNone)
+         if(eRet == OMX_ErrorNone && drv_ctx.output_format != op_format)
          {
            /*Set the output format*/
+           drv_ctx.output_format = op_format;
            ioctl_msg.in = &drv_ctx.output_format;
            ioctl_msg.out = NULL;
-
            if (ioctl(drv_ctx.video_driver_fd, VDEC_IOCTL_SET_OUTPUT_FORMAT,
                  (void*)&ioctl_msg) < 0)
            {
@@ -2645,7 +2646,7 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
              eRet = OMX_ErrorUnsupportedSetting;
            }
            else
-             eRet = get_buffer_req(&drv_ctx.op_buf);
+             eRet = get_buffer_req(&drv_ctx.op_buf, true);
          }
        }
     }
@@ -5284,10 +5285,18 @@ OMX_ERRORTYPE omx_vdec::fill_buffer_done(OMX_HANDLETYPE hComp,
     }
     else if (buffer->nFilledLen > 0)
     {
+      bool ts_in_metadata = false;
+      OMX_S64 original_timestamp = buffer->nTimeStamp;
+      ts_in_metadata = extradata_parser.parse_extradata(buffer,
+                       drv_ctx.decoder_format, drv_ctx.interlace);
       if (arbitrary_bytes)
-        adjust_timestamp(buffer->nTimeStamp);
-      if (drv_ctx.interlace != VDEC_InterlaceFrameProgressive)
-        append_interlace_extradata(buffer);
+        if (ts_in_metadata)
+          set_frame_rate(buffer->nTimeStamp);
+        else
+          adjust_timestamp(buffer->nTimeStamp);
+      else
+        // For frame mode metadata is processed but timestamp not changed
+        buffer->nTimeStamp = original_timestamp;
 #ifdef OMX_VDEC_PERF
       if (!proc_frms)
         fps_metrics.start();
@@ -5809,9 +5818,7 @@ OMX_ERRORTYPE omx_vdec::push_input_h264 (OMX_HANDLETYPE hComp)
       else
       {
         DEBUG_PRINT_LOW("\n Parsed New NAL Length = %d",h264_scratch.nFilledLen);
-
-        m_frame_parser.mutils->isNewFrame(h264_scratch.pBuffer,
-            h264_scratch.nFilledLen,0,isNewFrame);
+        m_frame_parser.mutils->isNewFrame(&h264_scratch, 0, isNewFrame, &extradata_parser);
         nal_count++;
 
         if (!isNewFrame)
@@ -6107,11 +6114,11 @@ void omx_vdec::free_input_buffer_header()
     }
 }
 
-OMX_ERRORTYPE omx_vdec::get_buffer_req(vdec_allocatorproperty *buffer_prop, unsigned int extra_data)
+OMX_ERRORTYPE omx_vdec::get_buffer_req(vdec_allocatorproperty *buffer_prop, bool verify_extradata)
 {
   struct vdec_ioctl_msg ioctl_msg = {NULL, NULL};
   OMX_ERRORTYPE eRet = OMX_ErrorNone;
-  unsigned int buf_size = 0;
+  unsigned int buf_size = 0, extra_data_size = 0;
   DEBUG_PRINT_LOW("GetBufReq IN: ActCnt(%d) Size(%d)",
     buffer_prop->actualcount, buffer_prop->buffer_size);
   ioctl_msg.in = NULL;
@@ -6124,9 +6131,27 @@ OMX_ERRORTYPE omx_vdec::get_buffer_req(vdec_allocatorproperty *buffer_prop, unsi
   }
   else
   {
+    if (verify_extradata)
+    {
+      if (drv_ctx.decoder_format == VDEC_CODECTYPE_H264) //Space for SEI extradata 
+      {
+        extra_data_size += (sizeof(OMX_OTHER_EXTRADATATYPE) +
+                            sizeof(OMX_QCOM_EXTRADATA_FRAMEINFO) + 3)&(~3);
+      }
+      if (drv_ctx.interlace != VDEC_InterlaceFrameProgressive) //Space for interlace extradata
+      {
+        DEBUG_PRINT_HIGH("Interlace format required! (%x)", drv_ctx.interlace);
+        extra_data_size += (sizeof(OMX_OTHER_EXTRADATATYPE) +
+                            sizeof(OMX_STREAMINTERLACEFORMAT) + 3)&(~3);
+      }
+    }
     buf_size = buffer_prop->buffer_size;
-    if (extra_data)
-      buf_size = ((buf_size + 3)&(~3)) + extra_data;
+    if (extra_data_size)
+    {
+      extra_data_size += sizeof(OMX_OTHER_EXTRADATATYPE); //Space for terminator
+      buf_size = ((buf_size + 3)&(~3)); //Align extradata start address to 64Bit
+    }
+    buf_size += extra_data_size;
     buf_size = (buf_size + buffer_prop->alignment - 1)&(~(buffer_prop->alignment - 1));
     DEBUG_PRINT_LOW("GetBufReq UPDATE: ActCnt(%d) Size(%d) BufSize(%d)",
       buffer_prop->actualcount, buffer_prop->buffer_size, buf_size);
@@ -6176,7 +6201,6 @@ OMX_ERRORTYPE omx_vdec::start_port_reconfig()
   struct vdec_ioctl_msg ioctl_msg = {NULL, NULL};
   struct vdec_picsize vid_res;
   OMX_ERRORTYPE eRet = OMX_ErrorNone;
-  unsigned int extra_data_size = 0;
   ioctl_msg.in = NULL;
   ioctl_msg.out = &vid_res;
   if (ioctl(drv_ctx.video_driver_fd, VDEC_IOCTL_GET_PICRES, &ioctl_msg))
@@ -6194,16 +6218,9 @@ OMX_ERRORTYPE omx_vdec::start_port_reconfig()
     }
     else
     {
-      if (drv_ctx.interlace != VDEC_InterlaceFrameProgressive)
-      {
-        DEBUG_PRINT_HIGH("Interlace format detected! (%x)", drv_ctx.interlace);
-        extra_data_size = (sizeof(OMX_OTHER_EXTRADATATYPE) +
-                           sizeof(OMX_STREAMINTERLACEFORMAT) + 3)&(~3) +
-                           sizeof(OMX_OTHER_EXTRADATATYPE);
-      }
       in_reconfig = true;
       op_buf_rcnfg.buffer_type = VDEC_BUFFER_TYPE_OUTPUT;
-      eRet = get_buffer_req(&op_buf_rcnfg, extra_data_size);
+      eRet = get_buffer_req(&op_buf_rcnfg, true);
       if (eRet == OMX_ErrorNone &&
          (vid_res.frame_height != drv_ctx.video_resolution.frame_height ||
           vid_res.frame_width != drv_ctx.video_resolution.frame_width ||
@@ -6219,41 +6236,6 @@ OMX_ERRORTYPE omx_vdec::start_port_reconfig()
     }
   }
   return eRet;
-}
-
-void omx_vdec::append_interlace_extradata(OMX_BUFFERHEADERTYPE *buffer)
-{
-  OMX_OTHER_EXTRADATATYPE *pExtra;
-  OMX_STREAMINTERLACEFORMAT *pInterlaceFormat;
-  buffer->nFlags |= OMX_BUFFERFLAG_EXTRADATA;
-  pExtra = (OMX_OTHER_EXTRADATATYPE *)
-           ((unsigned)(buffer->pBuffer + buffer->nOffset +
-            buffer->nFilledLen + 3)&(~3));
-  buffer->nFlags |= OMX_BUFFERFLAG_EXTRADATA;
-  pExtra->nSize = (sizeof(OMX_OTHER_EXTRADATATYPE) +
-                   sizeof(OMX_STREAMINTERLACEFORMAT) + 3)&(~3);
-  pExtra->nVersion.nVersion = OMX_SPEC_VERSION;
-  pExtra->nPortIndex = OMX_CORE_OUTPUT_PORT_INDEX;
-  pExtra->eType = (OMX_EXTRADATATYPE)OMX_ExtraDataInterlaceFormat;
-  pExtra->nDataSize = sizeof(OMX_STREAMINTERLACEFORMAT);
-  pInterlaceFormat = (OMX_STREAMINTERLACEFORMAT *)pExtra->data;
-  pInterlaceFormat->nSize = sizeof(OMX_STREAMINTERLACEFORMAT);
-  pInterlaceFormat->nVersion.nVersion = OMX_SPEC_VERSION;
-  pInterlaceFormat->nPortIndex = OMX_CORE_OUTPUT_PORT_INDEX;
-  pInterlaceFormat->bInterlaceFormat = OMX_TRUE;
-  if (drv_ctx.interlace == VDEC_InterlaceInterleaveFrameTopFieldFirst)
-    pInterlaceFormat->nInterlaceFormats = OMX_InterlaceInterleaveFrameTopFieldFirst;
-  else
-    pInterlaceFormat->nInterlaceFormats = OMX_InterlaceInterleaveFrameBottomFieldFirst;
-  DEBUG_PRINT_LOW("\n Buf(%p) TSmp(%ld) Off(%x) FLen(%x) XDPtr(%p) IntPtr(%p) Fmt(%x) SizeXD(%u) pExtra->data(%p)",
-    buffer->pBuffer, (long int)buffer->nTimeStamp, buffer->nOffset, buffer->nFilledLen,
-    pExtra, pInterlaceFormat, pInterlaceFormat->nInterlaceFormats, (OMX_STREAMINTERLACEFORMAT *)pExtra->data);
-  pExtra = pExtra + pExtra->nSize;
-  pExtra->nSize = sizeof(OMX_OTHER_EXTRADATATYPE);
-  pExtra->nVersion.nVersion = OMX_SPEC_VERSION;
-  pExtra->eType = OMX_ExtraDataNone;
-  pExtra->nDataSize = 0;
-  pExtra->data[0] = 0;
 }
 
 OMX_ERRORTYPE omx_vdec::allocate_output_headers()
