@@ -5479,7 +5479,8 @@ OMX_ERRORTYPE omx_vdec::
       m_current_frame->pBuffer = buffer->pBuffer + buffer->nOffset;
       m_current_frame->nOffset = 0;
       m_current_frame->nFilledLen = 0;
-      m_current_frame->nTimeStamp= 0;
+      m_current_frame->nTimeStamp = -1;
+
    }
 
    if (!m_vdec) {
@@ -8843,9 +8844,9 @@ OMX_ERRORTYPE omx_vdec::
             }
             dest->nFilledLen += copy_size;
             dest->nFlags = source->nFlags;
-            if(!dest->nTimeStamp)
+            if (-1 == dest->nTimeStamp)
             {
-               dest->nTimeStamp = source->nTimeStamp;
+                dest->nTimeStamp = source->nTimeStamp;
             }
             *isPartialFrame = false;
             m_is_copy_truncated = false;
@@ -9864,6 +9865,7 @@ void omx_vdec::fill_extradata(OMX_INOUT OMX_BUFFERHEADERTYPE * pBufHdr,
       /* (frame->timestamp & SEI_TRIGGER_BIT_VDEC) -> tells if we asked for sei math
        * frame->flags & SEI_TRIGGER_BIT_QDSP) -> dsp is succesfull,if this is zero
        */
+       pExtraCodecData->h264ExtraData.seiTimeStamp = 0;
 
       if(!(frame->timestamp & SEI_TRIGGER_BIT_VDEC) &&
          !(frame->flags & SEI_TRIGGER_BIT_QDSP))
