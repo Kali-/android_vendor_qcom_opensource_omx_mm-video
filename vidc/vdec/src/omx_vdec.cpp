@@ -870,24 +870,6 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
     return OMX_ErrorInsufficientResources;
   }
 
-#ifndef MULTI_DEC_INST
-  unsigned int instance_count = 0;
-  if (!is_fluid) {
-    ioctl_msg.out = &instance_count;
-    if (ioctl (drv_ctx.video_driver_fd,VDEC_IOCTL_GET_NUMBER_INSTANCES,
-               (void*)&ioctl_msg) < 0){
-        DEBUG_PRINT_ERROR("\n Instance Query Failed");
-        return OMX_ErrorInsufficientResources;
-    }
-    if (instance_count > 1) {
-      close(drv_ctx.video_driver_fd);
-      DEBUG_PRINT_ERROR("\n Reject Second instance of Decoder");
-      drv_ctx.video_driver_fd = -1;
-      return OMX_ErrorInsufficientResources;
-    }
-  }
-#endif
-
 #ifdef OUTPUT_BUFFER_LOG
   outputBufferFile1 = fopen (outputfilename, "ab");
 #endif
