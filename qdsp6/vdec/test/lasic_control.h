@@ -39,9 +39,6 @@ EXTERNALIZED FUNCTIONS
 
 
 INITIALIZATION AND SEQUENCING REQUIREMENTS
-
-Copyright(c) 2007 by QUALCOMM, Incorporated. All Rights Reserved. QUALCOMM
-Proprietary and Confidential.
 *====*====*====*====*====*====*====*====*====*====*====*====*====*====*====*/
 
 /* <EJECT> */
