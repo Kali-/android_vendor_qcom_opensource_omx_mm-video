@@ -1135,14 +1135,6 @@ uint32 MP4_Utils::parse_frames_in_chunk(const uint8* pBitstream,
       noOfVopsInSameChunk++;
       code = 0;
     }
-    else if (code == VOL_START_CODE)
-    {
-      frame_info[noOfVopsInSameChunk].offset = i-4;
-      frame_info[noOfVopsInSameChunk].vopType = NO_VOP;
-
-      noOfVopsInSameChunk++;
-      break;
-    }
     code <<= 8;
     code |= (0x000000FF & (pBitstream[i]));
   }
