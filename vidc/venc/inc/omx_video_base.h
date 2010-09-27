@@ -54,7 +54,7 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "OMX_QCOMExtns.h"
 #include "qc_omx_component.h"
 #include "omx_video_common.h"
-
+#include "extra_data_handler.h"
 
 #ifdef _ANDROID_
 using namespace android;
@@ -502,6 +502,7 @@ public:
   // to know whether Event Port Settings change has been triggered or not.
   bool m_event_port_settings_sent;
   OMX_U8                m_cRole[OMX_MAX_STRINGNAME_SIZE];
+  extra_data_handler extra_data_handle;
 };
 
 #endif // __OMX_VIDEO_BASE_H__

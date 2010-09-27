@@ -86,6 +86,7 @@ extern "C"{
 #include "mp4_utils.h"
 #endif
 #include <linux/android_pmem.h>
+#include "extra_data_handler.h"
 
 extern "C" {
   OMX_API void * get_omx_component_factory_fn(void);
@@ -656,6 +657,7 @@ private:
     perf_metrics fps_metrics;
     perf_metrics dec_time;
 #endif
+	extra_data_handler extra_data_handle;
 };
 
 #endif // __OMX_VDEC_H__

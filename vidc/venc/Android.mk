@@ -63,6 +63,7 @@ endif
 include $(CLEAR_VARS)
 
 libmm-venc-inc			:= $(LOCAL_PATH)/inc
+libmm-venc-inc                  += $(OMX_VIDEO_PATH)/vidc/common/inc
 libmm-venc-inc			+= $(TARGET_OUT_HEADERS)/mm-core/omxcore
 
 LOCAL_MODULE			:= libOmxVenc
@@ -74,6 +75,7 @@ LOCAL_SHARED_LIBRARIES		:= liblog libutils libbinder
 LOCAL_SRC_FILES		:= src/omx_video_base.cpp
 LOCAL_SRC_FILES		+= src/omx_video_encoder.cpp
 LOCAL_SRC_FILES		+= src/video_encoder_device.cpp
+LOCAL_SRC_FILES         += ../common/src/extra_data_handler.cpp
 
 include $(BUILD_SHARED_LIBRARY)
 

@@ -1102,6 +1102,20 @@ OMX_ERRORTYPE  omx_venc::set_config(OMX_IN OMX_HANDLETYPE      hComp,
       }
       break;
     }
+  case OMX_QcomIndexConfigVideoFramePackingArrangement:
+    {
+      if(m_sOutPortFormat.eCompressionFormat == OMX_VIDEO_CodingAVC)
+      {
+        OMX_QCOM_FRAME_PACK_ARRANGEMENT *configFmt =
+          (OMX_QCOM_FRAME_PACK_ARRANGEMENT *) configData;
+        extra_data_handle.set_frame_pack_data(configFmt);
+      }
+      else
+      {
+        DEBUG_PRINT_ERROR("ERROR: FramePackingData not supported for non AVC compression");
+      }
+      break;
+    }
   default:
     DEBUG_PRINT_ERROR("ERROR: unsupported index %d", (int) configIndex);
     break;

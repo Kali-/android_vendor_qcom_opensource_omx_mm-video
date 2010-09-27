@@ -65,6 +65,8 @@ include $(CLEAR_VARS)
 LOCAL_PATH:= $(ROOT_DIR)
 
 libmm-vdec-inc	        := $(LOCAL_PATH)/inc
+libmm-vdec-inc          += $(OMX_VIDEO_PATH)/vidc/common/inc
+
 libmm-vdec-inc	        += $(TARGET_OUT_HEADERS)/mm-core/omxcore
 
 LOCAL_MODULE		:= libOmxVdec
@@ -79,7 +81,7 @@ ifeq "$(findstring msm8660,$(TARGET_PRODUCT))" "msm8660"
 LOCAL_SRC_FILES         += src/mp4_utils.cpp
 endif
 LOCAL_SRC_FILES         += src/omx_vdec.cpp
-
+LOCAL_SRC_FILES         += ../common/src/extra_data_handler.cpp
 include $(BUILD_SHARED_LIBRARY)
 
 # ---------------------------------------------------------------------------------

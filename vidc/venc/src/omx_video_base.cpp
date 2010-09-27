@@ -3474,6 +3474,8 @@ OMX_ERRORTYPE omx_video::fill_buffer_done(OMX_HANDLETYPE hComp,
 
   pending_output_buffers--;
 
+  extra_data_handle.create_extra_data(buffer);
+
   /* For use buffer we need to copy the data */
   if(m_pCallbacks.FillBufferDone)
   {

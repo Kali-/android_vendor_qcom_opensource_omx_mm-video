@@ -66,6 +66,7 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 FILE *inputBufferFile1;
 char inputfilename [] = "/data/input-bitstream.\0\0\0\0";
 #endif
+
 #ifdef OUTPUT_BUFFER_LOG
 FILE *outputBufferFile1;
 char outputfilename [] = "/data/output.yuv";
@@ -2966,9 +2967,28 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
                               ((QOMX_ENABLETYPE *)paramData)->bEnable);
       break;
     case OMX_QcomIndexParamFrameInfoExtraData:
-      eRet = enable_extradata(OMX_FRAMEINFO_EXTRADATA,
-                              ((QOMX_ENABLETYPE *)paramData)->bEnable);
-      break;
+      {
+#ifdef MAX_RES_1080P
+        struct vdec_ioctl_msg ioctl_msg = {NULL, NULL};
+
+        drv_ctx.extradata = 0;
+        if (drv_ctx.decoder_format == VDEC_CODECTYPE_H264)
+            drv_ctx.extradata |= VDEC_EXTRADATA_SEI;
+
+        ioctl_msg.in = &drv_ctx.extradata;
+        ioctl_msg.out = NULL;
+        if (ioctl(drv_ctx.video_driver_fd, VDEC_IOCTL_SET_EXTRADATA,
+            (void*)&ioctl_msg) < 0)
+        {
+            DEBUG_PRINT_ERROR("\nSet extradata failed");
+            eRet = OMX_ErrorUnsupportedSetting;
+        }
+#else
+        eRet = enable_extradata(OMX_FRAMEINFO_EXTRADATA,
+                                ((QOMX_ENABLETYPE *)paramData)->bEnable);
+#endif
+       break;
+      }
     case OMX_QcomIndexParamInterlaceExtraData:
       eRet = enable_extradata(OMX_INTERLACE_EXTRADATA,
                               ((QOMX_ENABLETYPE *)paramData)->bEnable);
@@ -3060,6 +3080,13 @@ OMX_ERRORTYPE  omx_vdec::get_config(OMX_IN OMX_HANDLETYPE      hComp,
         (void)(ioctl(drv_ctx.video_driver_fd,
                VDEC_IOCTL_GET_NUMBER_INSTANCES,&ioctl_msg));
     break;
+    }
+  case OMX_QcomIndexConfigVideoFramePackingArrangement:
+    {
+      OMX_QCOM_FRAME_PACK_ARRANGEMENT *configFmt =
+        (OMX_QCOM_FRAME_PACK_ARRANGEMENT *) configData;
+      extra_data_handle.get_frame_pack_data(configFmt);
+      break;
     }
     default:
     {
@@ -5442,6 +5469,11 @@ OMX_ERRORTYPE omx_vdec::fill_buffer_done(OMX_HANDLETYPE hComp,
                   outputBufferFile1);
   }
 #endif
+
+  extra_data_handle.parse_extra_data(buffer);
+
+  /* For use buffer we need to copy the data */
+
   if (m_cb.FillBufferDone)
   {
     if (output_flush_progress)
@@ -5640,8 +5672,9 @@ int omx_vdec::async_message_process (void *context, void* message)
         omxhdr->nFilledLen = vdec_msg->msgdata.output_frame.len;
         omxhdr->nOffset = vdec_msg->msgdata.output_frame.offset;
         omxhdr->nTimeStamp = vdec_msg->msgdata.output_frame.time_stamp;
-        omxhdr->nFlags = vdec_msg->msgdata.output_frame.flags;
-        output_respbuf = (struct vdec_output_frameinfo *)
+        omxhdr->nFlags = (vdec_msg->msgdata.output_frame.flags);
+
+        output_respbuf = (struct vdec_output_frameinfo *)\
                           omxhdr->pOutputPortPrivate;
         output_respbuf->framesize.bottom =
           vdec_msg->msgdata.output_frame.framesize.bottom;
@@ -6821,8 +6854,8 @@ OMX_ERRORTYPE omx_vdec::enable_extradata(OMX_U32 requested_extradata, bool enabl
     driver_extradata |= ((requested_extradata & OMX_TIMEINFO_EXTRADATA)?
                           VDEC_EXTRADATA_VUI | VDEC_EXTRADATA_SEI : 0); //Required for time info
   }
-#endif
 
+#endif
   if (driver_extradata != drv_ctx.extradata)
   {
     client_extradata = requested_extradata;
