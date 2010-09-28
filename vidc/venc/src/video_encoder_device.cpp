@@ -118,6 +118,10 @@ static const unsigned int h263_profile_level_table[][5]=
     {1620,81000,16384000,OMX_VIDEO_H263Level70,OMX_VIDEO_H263ProfileBaseline},
     {0,0,0,0,0}
 };
+
+#define Log2(number, power)  { OMX_U32 temp = number; power = 0; while( (0 == (temp & 0x1)) &&  power < 16) { temp >>=0x1; power++; } }
+#define Q16ToFraction(q,num,den) { OMX_U32 power; Log2(q,power);  num = q >> power; den = 0x1 << (16 - power); }
+
 #ifdef INPUT_BUFFER_LOG
 FILE *inputBufferFile1;
 char inputfilename [] = "/data/input.yuv";
@@ -1730,12 +1734,6 @@ bool venc_dev::venc_set_target_bitrate(OMX_U32 nTargetBitrate)
   m_sVenc_cfg.targetbitrate = nTargetBitrate;
   bitrate.target_bitrate = nTargetBitrate;
   m_level_set = false;
-  if(venc_set_profile_level(0, 0))
-  {
-    DEBUG_PRINT_HIGH("\n %s(): Dynamic Profile/Level setting success",
-        __func__);
-  }
-
   return true;
 }
 
@@ -1746,23 +1744,8 @@ bool venc_dev::venc_set_encode_framerate(OMX_U32 encode_framerate)
 
   DEBUG_PRINT_LOW("\n venc_set_encode_framerate: framerate(Q16) = %u",
     encode_framerate);
-  frame_rate_cfg.fps_numerator = 30;
-  if((encode_framerate >> 16)== 30)
-  {
-    frame_rate_cfg.fps_denominator = 1;
-  }
-  else if((encode_framerate >>16) == 15)
-  {
-    frame_rate_cfg.fps_denominator = 2;
-  }
-  else if((encode_framerate >> 16)== 7.5)
-  {
-    frame_rate_cfg.fps_denominator = 4;
-  }
-  else
-  {
-    frame_rate_cfg.fps_denominator = 1;
-  }
+
+  Q16ToFraction(encode_framerate,frame_rate_cfg.fps_numerator,frame_rate_cfg.fps_denominator);
 
   ioctl_msg.in = (void*)&frame_rate_cfg;
   ioctl_msg.out = NULL;
@@ -1776,12 +1759,6 @@ bool venc_dev::venc_set_encode_framerate(OMX_U32 encode_framerate)
   m_sVenc_cfg.fps_den = frame_rate_cfg.fps_denominator;
   m_sVenc_cfg.fps_num = frame_rate_cfg.fps_numerator;
   m_level_set = false;
-  if(venc_set_profile_level(0, 0))
-  {
-    DEBUG_PRINT_HIGH("\n %s(): Dynamic Profile/Level setting success",
-        __func__);
-  }
-
   return true;
 }
 

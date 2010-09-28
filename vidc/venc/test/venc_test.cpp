@@ -182,6 +182,9 @@ static const unsigned int h263_profile_level_table[][5]=
     {0    , 0      , 0               , 0                       }
 };
 
+#define Log2(number, power)  { OMX_U32 temp = number; power = 0; while( (0 == (temp & 0x1)) &&  power < 16) { temp >>=0x1; power++; } }
+#define FractionToQ16(q,num,den) { OMX_U32 power; Log2(den,power); q = num << (16 - power); }
+
 //////////////////////////
 // TYPES
 //////////////////////////
@@ -195,7 +198,7 @@ struct ProfileType
    OMX_U32 nFrameHeight;
    OMX_U32 nFrameBytes;
    OMX_U32 nBitrate;
-   OMX_U32 nFramerate;
+   float nFramerate;
    char* cInFileName;
    char* cOutFileName;
    OMX_U32 nUserProfile;
@@ -400,7 +403,7 @@ OMX_ERRORTYPE ConfigureEncoder()
    portdef.format.video.nFrameWidth = m_sProfile.nFrameWidth;
    portdef.format.video.nFrameHeight = m_sProfile.nFrameHeight;
    portdef.format.video.nBitrate = m_sProfile.nBitrate;
-   portdef.format.video.xFramerate = m_sProfile.nFramerate << 16;
+   FractionToQ16(portdef.format.video.xFramerate,(int) (m_sProfile.nFramerate * 2),2);
    result = OMX_SetParameter(m_hHandle,
                              OMX_IndexParamPortDefinition,
                              &portdef);
@@ -578,7 +581,7 @@ result = OMX_SetParameter(m_hHandle,
                              &framerate);
    E("\n OMX_IndexParamVideoPortFormat Get Paramter port");
    CHK(result);
-   framerate.xFramerate = m_sProfile.nFramerate << 16;
+   FractionToQ16(framerate.xFramerate,(int) (m_sProfile.nFramerate * 2),2);
    result = OMX_SetParameter(m_hHandle,
                              OMX_IndexParamVideoPortFormat,
                              &framerate);
@@ -770,7 +773,7 @@ result = OMX_SetParameter(m_hHandle,
                           OMX_IndexConfigVideoFramerate,
                           &enc_framerate);
    CHK(result);
-   enc_framerate.xEncodeFramerate = m_sProfile.nFramerate << 16;
+   FractionToQ16(enc_framerate.xEncodeFramerate,(int) (m_sProfile.nFramerate * 2),2);
    result = OMX_SetConfig(m_hHandle,
                           OMX_IndexConfigVideoFramerate,
                           &enc_framerate);
@@ -1517,7 +1520,7 @@ void parseArgs(int argc, char** argv)
    if (m_eMode == MODE_DISPLAY ||
        m_eMode == MODE_PREVIEW)
    {
-      m_sProfile.nFramerate = atoi(argv[3]);
+      m_sProfile.nFramerate = atof(argv[3]);
       m_nFramePlay = atoi(argv[4]);
 
    }
@@ -1542,7 +1545,7 @@ void parseArgs(int argc, char** argv)
          usage(argv[0]);
       }
 
-      m_sProfile.nFramerate = atoi(argv[4]);
+      m_sProfile.nFramerate = atof(argv[4]);
       m_sProfile.nBitrate = atoi(argv[5]);
 //      m_sProfile.eControlRate = OMX_Video_ControlRateVariable;
       m_nFramePlay = atoi(argv[6]);
