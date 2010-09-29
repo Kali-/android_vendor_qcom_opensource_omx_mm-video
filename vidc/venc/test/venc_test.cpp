@@ -643,8 +643,25 @@ result = OMX_SetParameter(m_hHandle,
 //H264
 //      eResyncMarkerType = RESYNC_MARKER_BYTE;
 //      nResyncMarkerSpacing = 1920;
-      eResyncMarkerType = RESYNC_MARKER_MB;
-       nResyncMarkerSpacing = 50;
+
+      //nResyncMarkerSpacing sets the slice size in venc_set_multislice_cfg
+      //
+      //As of 9/24/10, it is known that the firmware has a bitstream
+      //corruption issue when RateControl and multislice are enabled for 720P
+      //So, disabling multislice for 720P when ratecontrol is enabled until
+      //the firmware issue is resolved.
+
+      if ( ( (m_sProfile.nFrameWidth == 1280) && (m_sProfile.nFrameHeight = 720) ) &&
+           (m_sProfile.eControlRate  != OMX_Video_ControlRateDisable) )
+      {
+         eResyncMarkerType = RESYNC_MARKER_NONE;
+         nResyncMarkerSpacing = 0;
+      }
+      else
+      {
+         eResyncMarkerType = RESYNC_MARKER_MB;
+          nResyncMarkerSpacing = 50;
+      }
    }
 
    OMX_VIDEO_PARAM_ERRORCORRECTIONTYPE errorCorrection; //OMX_IndexParamVideoErrorCorrection
