@@ -89,6 +89,7 @@ public:
 #define DEBUG_PRINT_HIGH
 #define DEBUG_PRINT_ERROR
 #endif // _ANDROID_
+
 //////////////////////////////////////////////////////////////////////////////
 //                       Module specific globals
 //////////////////////////////////////////////////////////////////////////////
@@ -411,7 +412,7 @@ public:
                    unsigned int p2,
                    unsigned int id
                  );
-
+  OMX_ERRORTYPE get_supported_profile_level(OMX_VIDEO_PARAM_PROFILELEVELTYPE *profileLevelType);
   inline void omx_report_error ()
   {
     m_state = OMX_StateInvalid;
