@@ -453,3 +453,51 @@ bool H264_Utils::isNewFrame(OMX_IN OMX_U8 *buffer,
     DEBUG_PRINT_LOW("get_h264_nal_type - newFrame value %d\n",isNewFrame);
     return eRet;
 }
+
+void perf_metrics::start()
+{
+  if (!active)
+  {
+    start_time = get_act_time();
+    active = true;
+  }
+}
+
+void perf_metrics::stop()
+{
+  OMX_U64 stop_time = get_act_time();
+  if (active)
+  {
+    proc_time += (stop_time - start_time);
+    active = false;
+  }
+}
+
+void perf_metrics::end(OMX_U32 units_cntr)
+{
+  stop();
+  DEBUG_PRINT_HIGH("--> Processing time : [%.2f] Sec", (float)proc_time / 1e6);
+  if (units_cntr)
+  {
+    DEBUG_PRINT_HIGH("--> Avrg proc time  : [%.2f] mSec", proc_time / (float)(units_cntr * 1e3));
+  }
+}
+
+void perf_metrics::reset()
+{
+  start_time = 0;
+  proc_time = 0;
+  active = false;
+}
+
+OMX_U64 perf_metrics::get_act_time()
+{
+  struct timeval act_time = {0, 0};
+  gettimeofday(&act_time, NULL);
+  return (act_time.tv_usec + act_time.tv_sec * 1e6);
+}
+
+OMX_U64 perf_metrics::processing_time_us()
+{
+  return proc_time;
+}

@@ -73,7 +73,6 @@ extern "C" {
 #include <inttypes.h>
 #include <linux/msm_mdp.h>
 #include <linux/fb.h>
-#include <sys/time.h>
 
 /************************************************************************/
 /*              #DEFINES                            */
@@ -523,10 +522,10 @@ void* ebd_thread(void* pArg)
 
 void* fbd_thread(void* pArg)
 {
-  long unsigned act_time = 0, display_time = 0;
+  long unsigned act_time = 0, display_time = 0, render_time = 5e3, lipsync = 15e3;
   struct timeval t_avsync = {0, 0}, base_avsync = {0, 0};
   int canDisplay = 1, contigous_drop_frame = 0, bytes_written = 0, ret = 0;
-  long int base_timestamp = 0, lastTimestamp = 0, render_time = 5e3, lipsync = 15e3;
+  OMX_S64 base_timestamp = 0, lastTimestamp = 0;
   OMX_BUFFERHEADERTYPE *pBuffer = NULL, *pPrevBuff = NULL;
   while(currentStatus != INVALID_STATE)
   {
@@ -567,16 +566,15 @@ void* fbd_thread(void* pArg)
     else if (pBuffer->nFilledLen > 0)
     {
       fbd_cnt++;
-      DEBUG_PRINT("%s: fbd_cnt(%d) \n", __FUNCTION__, fbd_cnt);
+      DEBUG_PRINT("%s: fbd_cnt(%d) Buf(%p) Timestamp(%lld)",
+        __FUNCTION__, fbd_cnt, pBuffer, pBuffer->nTimeStamp);
       canDisplay = 1;
       if (realtime_display)
       {
-        DEBUG_PRINT("%s: Buf(%p) Timestamp(%lld) \n",
-            __FUNCTION__, pBuffer, pBuffer->nTimeStamp);
         if (pBuffer->nTimeStamp != (lastTimestamp + timestampInterval))
         {
-            DEBUG_PRINT("Unexpected timestamp[%ld]! Expected[%ld]\n",
-                (long int)pBuffer->nTimeStamp, lastTimestamp + timestampInterval);
+            DEBUG_PRINT("Unexpected timestamp[%lld]! Expected[%lld]\n",
+                pBuffer->nTimeStamp, lastTimestamp + timestampInterval);
         }
         lastTimestamp = pBuffer->nTimeStamp;
         gettimeofday(&t_avsync, NULL);
@@ -584,16 +582,16 @@ void* fbd_thread(void* pArg)
         {
           display_time = 0;
           base_avsync = t_avsync;
-          base_timestamp = (long int)pBuffer->nTimeStamp;
-          DEBUG_PRINT("base_avsync Sec(%lu) uSec(%lu) base_timestamp(%ld)\n",
+          base_timestamp = pBuffer->nTimeStamp;
+          DEBUG_PRINT("base_avsync Sec(%lu) uSec(%lu) base_timestamp(%lld)",
               base_avsync.tv_sec, base_avsync.tv_usec, base_timestamp);
         }
         else
         {
           act_time = (t_avsync.tv_sec - base_avsync.tv_sec) * 1e6
                      + t_avsync.tv_usec - base_avsync.tv_usec;
-          display_time = (long int)pBuffer->nTimeStamp - base_timestamp;
-          DEBUG_PRINT("%s: act_time(%lu) display_time(%lu)\n",
+          display_time = pBuffer->nTimeStamp - base_timestamp;
+          DEBUG_PRINT("%s: act_time(%lu) display_time(%lu)",
               __FUNCTION__, act_time, display_time);
                //Frame rcvd on time
           if (((act_time + render_time) >= (display_time - lipsync) &&
@@ -763,7 +761,9 @@ OMX_ERRORTYPE EventHandler(OMX_IN OMX_HANDLETYPE hComponent,
             break;
 
         case OMX_EventError:
-            DEBUG_PRINT("OMX_EventError \n");
+            printf("*********************************************\n");
+            printf("Received OMX_EventError Event Command !\n");
+            printf("*********************************************\n");
             currentStatus = ERROR_STATE;
             if (OMX_ErrorInvalidState == (OMX_ERRORTYPE)nData1 ||
                 OMX_ErrorHardware == (OMX_ERRORTYPE)nData1)
@@ -903,6 +903,8 @@ int main(int argc, char **argv)
     int test_option = 0;
     int pic_order = 0;
     OMX_ERRORTYPE result;
+    sliceheight = height = 144;
+    stride = width = 176;
 
     if (argc < 2)
     {
@@ -912,11 +914,43 @@ int main(int argc, char **argv)
     }
 
     strncpy(in_filename, argv[1], strlen(argv[1])+1);
-
-    if(argc > 5)
+    if(argc > 2)
     {
       codec_format_option = (codec_format)atoi(argv[2]);
-      file_type_option = (file_type)atoi(argv[3]);
+      // file_type, out_op, tst_op, nal_sz, disp_win, rt_dis, (fps), color, pic_order
+      int param[9] = {2, 1, 1, 0, 0, 0, 0xFF, 0xFF, 0xFF};
+      int next_arg = 3, idx = 0;
+      while (argc > next_arg)
+      {
+        if (strlen(argv[next_arg]) > 2)
+        {
+          strncpy(seq_file_name, argv[next_arg],strlen(argv[next_arg]) + 1);
+          next_arg = argc;
+        }
+        else
+          param[idx++] = atoi(argv[next_arg++]);
+      }
+      idx = 0;
+      file_type_option = (file_type)param[idx++];
+      outputOption = param[idx++];
+      test_option = param[idx++];
+      nalSize = param[idx++];
+      displayWindow = param[idx++];
+      if (displayWindow > 0)
+        printf("Only entire display window supported! Ignoring value\n");
+      realtime_display = param[idx++];
+      if (realtime_display)
+      {
+        takeYuvLog = 0;
+        if(param[idx] != 0xFF)
+        {
+          fps = param[idx++];
+          timestampInterval = 1e6 / fps;
+        }
+      }
+      color_fmt_type = (param[idx] != 0xFF)? param[idx++] : color_fmt_type;
+      pic_order = (param[idx] != 0xFF)? param[idx++] : 0;
+      printf("Executing DynPortReconfig QCIF 144 x 176 \n");
     }
     else
     {
@@ -924,7 +958,6 @@ int main(int argc, char **argv)
       printf("To use it: ./mm-vdec-omx-test <clip location> <codec_type> \n");
       printf("           <input_type: 1. per AU(.dat), 2. arbitrary, 3.per NAL/frame>\n");
       printf("           <output_type> <test_case> <size_nal if H264>\n\n\n");
-
       printf(" *********************************************\n");
       printf(" ENTER THE TEST CASE YOU WOULD LIKE TO EXECUTE\n");
       printf(" *********************************************\n");
@@ -936,13 +969,11 @@ int main(int argc, char **argv)
       fflush(stdin);
       scanf("%d", &codec_format_option);
       fflush(stdin);
-
       if (codec_format_option > CODEC_FORMAT_MAX)
       {
           printf(" Wrong test case...[%d] \n", codec_format_option);
           return -1;
       }
-
       printf(" *********************************************\n");
       printf(" ENTER THE TEST CASE YOU WOULD LIKE TO EXECUTE\n");
       printf(" *********************************************\n");
@@ -971,111 +1002,15 @@ int main(int argc, char **argv)
       fflush(stdin);
       scanf("%d", &file_type_option);
       fflush(stdin);
-    }
-
-    if (file_type_option >= FILE_TYPE_COMMON_CODEC_MAX)
-    {
-      switch (codec_format_option)
+      if (codec_format_option == CODEC_FORMAT_H264 && file_type_option == 3)
       {
-        case CODEC_FORMAT_H264:
-          file_type_option = (file_type)(FILE_TYPE_START_OF_H264_SPECIFIC + file_type_option - FILE_TYPE_COMMON_CODEC_MAX);
-          break;
-        case CODEC_FORMAT_DIVX:
-          file_type_option = (file_type)(FILE_TYPE_START_OF_DIVX_SPECIFIC + file_type_option - FILE_TYPE_COMMON_CODEC_MAX);
-          break;
-        case CODEC_FORMAT_MP4:
-        case CODEC_FORMAT_H263:
-          file_type_option = (file_type)(FILE_TYPE_START_OF_MP4_SPECIFIC + file_type_option - FILE_TYPE_COMMON_CODEC_MAX);
-          break;
-        case CODEC_FORMAT_VC1:
-          file_type_option = (file_type)(FILE_TYPE_START_OF_VC1_SPECIFIC + file_type_option - FILE_TYPE_COMMON_CODEC_MAX);
-          break;
-        default:
-          printf("Error: Unknown code %d\n", codec_format_option);
-      }
-    }
-
-    if(argc > 5)
-    {
-      outputOption = atoi(argv[4]);
-      test_option = atoi(argv[5]);
-      int param[6] = {0, 0, 0, 0xFF, 0xFF, 0xFF}; // nal, disp, rt, (fps), col, pic_order
-      int next_arg = 6, idx = 0;
-      while (argc > next_arg)
-      {
-        if (strlen(argv[next_arg]) > 2)
+        printf(" Enter Nal length size [2 or 4] \n");
+        scanf("%d", &nalSize);
+        if (nalSize != 2 && nalSize != 4)
         {
-          strncpy(seq_file_name, argv[next_arg],strlen(argv[next_arg]) + 1);
-          next_arg = argc;
+          printf("Error - Can't pass NAL length size = %d\n", nalSize);
+          return -1;
         }
-        else
-          param[idx++] = atoi(argv[next_arg++]);
-      }
-      idx = 0;
-      nalSize = param[idx++];
-      displayWindow = param[idx++];
-      if (displayWindow > 0)
-        printf("Only entire display window supported! Ignoring value\n");
-      realtime_display = param[idx++];
-      if (realtime_display)
-      {
-        takeYuvLog = 0;
-        if(param[idx] != 0xFF)
-        {
-          fps = param[idx++];
-          timestampInterval = 1e6 / fps;
-        }
-      }
-      color_fmt_type = (param[idx] != 0xFF)? param[idx++] : color_fmt_type;
-      pic_order = (param[idx] != 0xFF)? param[idx++] : 0;
-      sliceheight = height = 144;
-      stride = width = 176;
-      printf("Executing DynPortReconfig QCIF 144 x 176 \n");
-    }
-    else
-    {
-      fps = 30;
-      switch(file_type_option)
-      {
-          case FILE_TYPE_DAT_PER_AU:
-          case FILE_TYPE_ARBITRARY_BYTES:
-          case FILE_TYPE_264_NAL_SIZE_LENGTH:
-          case FILE_TYPE_PICTURE_START_CODE:
-          case FILE_TYPE_RCV:
-          case FILE_TYPE_VC1:
-          case FILE_TYPE_DIVX_4_5_6:
-#ifdef MAX_RES_1080P
-          case FILE_TYPE_DIVX_311:
-#endif
-          {
-              nalSize = 0;
-              if ((file_type_option == FILE_TYPE_264_NAL_SIZE_LENGTH) ||
-                  ((codec_format_option == CODEC_FORMAT_H264) && (file_type_option == FILE_TYPE_ARBITRARY_BYTES)))
-              {
-                printf(" Enter Nal length size [2 or 4] \n");
-                if (file_type_option == FILE_TYPE_ARBITRARY_BYTES)
-                {
-                  printf(" Enter 0 if it is a start code based clip\n");
-                }
-                scanf("%d", &nalSize);
-                if ((file_type_option == FILE_TYPE_264_NAL_SIZE_LENGTH) &&
-                    (nalSize == 0))
-                {
-                  printf("Error - Can't pass NAL length size = 0\n");
-                  return -1;
-                }
-              }
-
-              height=144;width=176; // Assume Default as QCIF
-              printf("Executing DynPortReconfig QCIF 144 x 176 \n");
-              break;
-          }
-
-          default:
-          {
-              printf(" Wrong test case...[%d] \n",file_type_option);
-              return -1;
-          }
       }
 
       printf(" *********************************************\n");
@@ -1161,6 +1096,27 @@ int main(int argc, char **argv)
       fflush(stdin);
       scanf("%d", &pic_order);
       fflush(stdin);
+    }
+    if (file_type_option >= FILE_TYPE_COMMON_CODEC_MAX)
+    {
+      switch (codec_format_option)
+      {
+        case CODEC_FORMAT_H264:
+          file_type_option = (file_type)(FILE_TYPE_START_OF_H264_SPECIFIC + file_type_option - FILE_TYPE_COMMON_CODEC_MAX);
+          break;
+        case CODEC_FORMAT_DIVX:
+          file_type_option = (file_type)(FILE_TYPE_START_OF_DIVX_SPECIFIC + file_type_option - FILE_TYPE_COMMON_CODEC_MAX);
+          break;
+        case CODEC_FORMAT_MP4:
+        case CODEC_FORMAT_H263:
+          file_type_option = (file_type)(FILE_TYPE_START_OF_MP4_SPECIFIC + file_type_option - FILE_TYPE_COMMON_CODEC_MAX);
+          break;
+        case CODEC_FORMAT_VC1:
+          file_type_option = (file_type)(FILE_TYPE_START_OF_VC1_SPECIFIC + file_type_option - FILE_TYPE_COMMON_CODEC_MAX);
+          break;
+        default:
+          printf("Error: Unknown code %d\n", codec_format_option);
+      }
     }
 
     CONFIG_VERSION_SIZE(picture_order);
@@ -1439,7 +1395,6 @@ int run_tests()
     if(bOutputEosReached)
     {
       int bufCnt = 0;
-
       DEBUG_PRINT("Moving the decoder to idle state \n");
       OMX_SendCommand(dec_handle, OMX_CommandStateSet, OMX_StateIdle,0);
       wait_for_event();
@@ -1650,16 +1605,6 @@ int Init_Decoder()
         DEBUG_PRINT("portParam.nStartPortNumber:%d\n", portParam.nStartPortNumber);
     }
 
-    DEBUG_PRINT("Set parameter immediately followed by getparameter");
-    omxresult = OMX_SetParameter(dec_handle,
-                               OMX_IndexParamPortDefinition,
-                               &portFmt);
-
-    if(OMX_ErrorNone != omxresult)
-    {
-        DEBUG_PRINT_ERROR("ERROR - Set parameter failed");
-    }
-
     /* Set the compression format on i/p port */
     if (codec_format_option == CODEC_FORMAT_H264)
     {
@@ -1780,12 +1725,10 @@ int Play_Decoder()
     bufCnt = 0;
     portFmt.format.video.nFrameHeight = height;
     portFmt.format.video.nFrameWidth  = width;
-    OMX_SetParameter(dec_handle,OMX_IndexParamPortDefinition,
-                                                       (OMX_PTR)&portFmt);
-    OMX_GetParameter(dec_handle,OMX_IndexParamPortDefinition,
-                                                               &portFmt);
+    portFmt.format.video.xFramerate = fps;
+    OMX_SetParameter(dec_handle,OMX_IndexParamPortDefinition, (OMX_PTR)&portFmt);
+    OMX_GetParameter(dec_handle,OMX_IndexParamPortDefinition, &portFmt);
     DEBUG_PRINT("\nDec: New Min Buffer Count %d", portFmt.nBufferCountMin);
-
     CONFIG_VERSION_SIZE(videoportFmt);
 
     if(color_fmt_type == 0)
@@ -2671,20 +2614,12 @@ static int Read_Buffer_From_VC1_File(OMX_BUFFERHEADERTYPE  *pBufHdr)
 
 static int Read_Buffer_From_DivX_4_5_6_File(OMX_BUFFERHEADERTYPE  *pBufHdr)
 {
-#define MAX_NO_B_FRMS 1 // Number of non-b-frames packed in each buffer
+#define MAX_NO_B_FRMS 3 // Number of non-b-frames packed in each buffer
 #define N_PREV_FRMS_B 1 // Number of previous non-b-frames packed
                         // with a set of consecutive b-frames
 #define FRM_ARRAY_SIZE (MAX_NO_B_FRMS + N_PREV_FRMS_B)
-
-struct frame_data_type {
-  unsigned int offset;
-  OMX_S64 timestamp;
-};
-
-    static OMX_S64 timeStampLfile = 0;
-
     char *p_buffer = NULL;
-    struct frame_data_type frame_data_arr[FRM_ARRAY_SIZE];
+    unsigned int offset_array[FRM_ARRAY_SIZE];
     int byte_cntr, pckt_end_idx;
     unsigned int read_code = 0, bytes_read, byte_pos = 0, frame_type;
     unsigned int i, b_frm_idx, b_frames_found = 0, vop_set_cntr = 0;
@@ -2697,8 +2632,6 @@ struct frame_data_type {
 #endif //__DEBUG_DIVX__
 
     DEBUG_PRINT("Inside %s \n", __FUNCTION__);
-    pBufHdr->nTimeStamp = timeStampLfile;
-
     do {
       p_buffer = (char *)pBufHdr->pBuffer + byte_pos;
       bytes_read = fread(p_buffer, 1, NUMBER_OF_ARBITRARYBYTES_READ, inputBufferFile);
@@ -2719,9 +2652,7 @@ struct frame_data_type {
             }
             pckd_frms++;
 #endif // __DEBUG_DIVX__
-            frame_data_arr[vop_set_cntr].offset = byte_pos - bytes_read + byte_cntr - 4;
-            frame_data_arr[vop_set_cntr].timestamp = timeStampLfile;
-            timeStampLfile += timestampInterval;
+            offset_array[vop_set_cntr] = byte_pos - bytes_read + byte_cntr - 4;
             if (frame_type == 0x80) { // B Frame found!
               if (!b_frames_found) {
                 // Try to packet N_PREV_FRMS_B previous frames
@@ -2769,10 +2700,10 @@ struct frame_data_type {
       }
       if (pckt_ready) {
           fseek(inputBufferFile,
-            -(byte_pos - frame_data_arr[pckt_end_idx].offset), SEEK_CUR);
+            -(byte_pos - offset_array[pckt_end_idx]), SEEK_CUR);
       }
       else if (feof(inputBufferFile)) { // Handle last packet
-          frame_data_arr[vop_set_cntr].offset = byte_pos;
+          offset_array[vop_set_cntr] = byte_pos;
           pckt_end_idx = vop_set_cntr;
           pckt_ready = true;
 #ifdef __DEBUG_DIVX__
@@ -2781,8 +2712,9 @@ struct frame_data_type {
 #endif //__DEBUG_DIVX__
       }
     } while (!pckt_ready);
-    pBufHdr->nFilledLen = frame_data_arr[pckt_end_idx].offset;
-    timeStampLfile = frame_data_arr[pckt_end_idx].timestamp;
+    pBufHdr->nFilledLen = offset_array[pckt_end_idx];
+    pBufHdr->nTimeStamp = timeStampLfile;
+    timeStampLfile += timestampInterval;
 #ifdef __DEBUG_DIVX__
     total_bytes += pBufHdr->nFilledLen;
     LOGE("[DivX] Packet: Type[%s] Size[%u] TS[%lld] TB[%u] NFrms[%u]\n",

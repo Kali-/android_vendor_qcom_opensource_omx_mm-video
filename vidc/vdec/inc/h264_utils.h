@@ -205,5 +205,26 @@ private:
     bool              m_au_data;
 };
 
+class perf_metrics
+{
+  public:
+    perf_metrics() :
+      start_time(0),
+      proc_time(0),
+      active(false)
+    {
+    };
+    ~perf_metrics() {};
+    void start();
+    void stop();
+    void end(OMX_U32 units_cntr = 0);
+    void reset();
+    OMX_U64 processing_time_us();
+  private:
+    inline OMX_U64 get_act_time();
+    OMX_U64 start_time;
+    OMX_U64 proc_time;
+    bool active;
+};
 
 #endif /* H264_UTILS_H */
