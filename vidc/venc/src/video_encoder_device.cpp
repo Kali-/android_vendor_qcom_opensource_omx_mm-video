@@ -37,30 +37,29 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define MPEG4_720P_LEVEL 6
 #define H263_BP_START 0
 #define H264_BP_START 0
-#define H264_HP_START (H264_BP_START + 11)
-#define H264_MP_START (H264_BP_START + 21)
+#define H264_HP_START (H264_BP_START + 13)
+#define H264_MP_START (H264_BP_START + 26)
 
 /* MPEG4 profile and level table*/
 static const unsigned int mpeg4_profile_level_table[][5]=
 {
     /*max mb per frame, max mb per sec, max bitrate, level, profile*/
     {99,1485,64000,OMX_VIDEO_MPEG4Level0,OMX_VIDEO_MPEG4ProfileSimple},
-    {99,1485,128000,OMX_VIDEO_MPEG4Level1,OMX_VIDEO_MPEG4ProfileSimple},
+    {99,1485,64000,OMX_VIDEO_MPEG4Level1,OMX_VIDEO_MPEG4ProfileSimple},
     {396,5940,128000,OMX_VIDEO_MPEG4Level2,OMX_VIDEO_MPEG4ProfileSimple},
     {396,11880,384000,OMX_VIDEO_MPEG4Level3,OMX_VIDEO_MPEG4ProfileSimple},
     {1200,36000,4000000,OMX_VIDEO_MPEG4Level4a,OMX_VIDEO_MPEG4ProfileSimple},
     {1620,40500,8000000,OMX_VIDEO_MPEG4Level5,OMX_VIDEO_MPEG4ProfileSimple},
-    {3600,108000,14000000,OMX_VIDEO_MPEG4Level5,OMX_VIDEO_MPEG4ProfileSimple},
+    {3600,108000,12000000,OMX_VIDEO_MPEG4Level5,OMX_VIDEO_MPEG4ProfileSimple},
     {0,0,0,0,0},
 
-    {99,2970,128000,OMX_VIDEO_MPEG4Level0,OMX_VIDEO_MPEG4ProfileAdvancedSimple},
-    {99,2970,128000,OMX_VIDEO_MPEG4Level1,OMX_VIDEO_MPEG4ProfileAdvancedSimple},
+    {99,1485,128000,OMX_VIDEO_MPEG4Level0,OMX_VIDEO_MPEG4ProfileAdvancedSimple},
+    {99,1485,128000,OMX_VIDEO_MPEG4Level1,OMX_VIDEO_MPEG4ProfileAdvancedSimple},
     {396,5940,384000,OMX_VIDEO_MPEG4Level2,OMX_VIDEO_MPEG4ProfileAdvancedSimple},
     {396,11880,768000,OMX_VIDEO_MPEG4Level3,OMX_VIDEO_MPEG4ProfileAdvancedSimple},
     {792,23760,3000000,OMX_VIDEO_MPEG4Level4,OMX_VIDEO_MPEG4ProfileAdvancedSimple},
     {1620,48600,8000000,OMX_VIDEO_MPEG4Level5,OMX_VIDEO_MPEG4ProfileAdvancedSimple},
-    {3600,108000,14000000,OMX_VIDEO_MPEG4Level5,OMX_VIDEO_MPEG4ProfileAdvancedSimple},
-    {0,0,0,0,0}
+    {0,0,0,0,0},
 };
 
 /* H264 profile and level table*/
@@ -77,6 +76,8 @@ static const unsigned int h264_profile_level_table[][5]=
     {1620,20250,4000000,OMX_VIDEO_AVCLevel22,OMX_VIDEO_AVCProfileBaseline},
     {1620,40500,10000000,OMX_VIDEO_AVCLevel3,OMX_VIDEO_AVCProfileBaseline},
     {3600,108000,14000000,OMX_VIDEO_AVCLevel31,OMX_VIDEO_AVCProfileBaseline},
+    {5120,216000,20000000,OMX_VIDEO_AVCLevel32,OMX_VIDEO_AVCProfileBaseline},
+    {8192,245760,20000000,OMX_VIDEO_AVCLevel4,OMX_VIDEO_AVCProfileBaseline},
     {0,0,0,0,0},
 
     {99,1485,64000,OMX_VIDEO_AVCLevel1,OMX_VIDEO_AVCProfileHigh},
@@ -89,19 +90,24 @@ static const unsigned int h264_profile_level_table[][5]=
     {1620,20250,5000000,OMX_VIDEO_AVCLevel22,OMX_VIDEO_AVCProfileHigh},
     {1620,40500,12500000,OMX_VIDEO_AVCLevel3,OMX_VIDEO_AVCProfileHigh},
     {3600,108000,17500000,OMX_VIDEO_AVCLevel31,OMX_VIDEO_AVCProfileHigh},
+    {5120,216000,25000000,OMX_VIDEO_AVCLevel32,OMX_VIDEO_AVCProfileHigh},
+    {8192,245760,25000000,OMX_VIDEO_AVCLevel4,OMX_VIDEO_AVCProfileHigh},
     {0,0,0,0,0},
 
     {99,1485,64000,OMX_VIDEO_AVCLevel1,OMX_VIDEO_AVCProfileMain},
-    {99,1485,160000,OMX_VIDEO_AVCLevel1b,OMX_VIDEO_AVCProfileMain},
-    {396,3000,240000,OMX_VIDEO_AVCLevel11,OMX_VIDEO_AVCProfileMain},
-    {396,6000,480000,OMX_VIDEO_AVCLevel12,OMX_VIDEO_AVCProfileMain},
-    {396,11880,960000,OMX_VIDEO_AVCLevel13,OMX_VIDEO_AVCProfileMain},
-    {396,11880,2500000,OMX_VIDEO_AVCLevel2,OMX_VIDEO_AVCProfileMain},
-    {792,19800,5000000,OMX_VIDEO_AVCLevel21,OMX_VIDEO_AVCProfileMain},
-    {1620,20250,5000000,OMX_VIDEO_AVCLevel22,OMX_VIDEO_AVCProfileMain},
-    {1620,40500,12500000,OMX_VIDEO_AVCLevel3,OMX_VIDEO_AVCProfileMain},
-    {3600,108000,17500000,OMX_VIDEO_AVCLevel31,OMX_VIDEO_AVCProfileMain},
+    {99,1485,128000,OMX_VIDEO_AVCLevel1b,OMX_VIDEO_AVCProfileMain},
+    {396,3000,192000,OMX_VIDEO_AVCLevel11,OMX_VIDEO_AVCProfileMain},
+    {396,6000,384000,OMX_VIDEO_AVCLevel12,OMX_VIDEO_AVCProfileMain},
+    {396,11880,768000,OMX_VIDEO_AVCLevel13,OMX_VIDEO_AVCProfileMain},
+    {396,11880,2000000,OMX_VIDEO_AVCLevel2,OMX_VIDEO_AVCProfileMain},
+    {792,19800,4000000,OMX_VIDEO_AVCLevel21,OMX_VIDEO_AVCProfileMain},
+    {1620,20250,4000000,OMX_VIDEO_AVCLevel22,OMX_VIDEO_AVCProfileMain},
+    {1620,40500,10000000,OMX_VIDEO_AVCLevel3,OMX_VIDEO_AVCProfileMain},
+    {3600,108000,14000000,OMX_VIDEO_AVCLevel31,OMX_VIDEO_AVCProfileMain},
+    {5120,216000,20000000,OMX_VIDEO_AVCLevel32,OMX_VIDEO_AVCProfileMain},
+    {8192,245760,20000000,OMX_VIDEO_AVCLevel4,OMX_VIDEO_AVCProfileMain},
     {0,0,0,0,0}
+
 };
 
 /* H263 profile and level table*/
@@ -1239,7 +1245,8 @@ bool venc_dev::venc_set_profile_level(OMX_U32 eProfile,OMX_U32 eLevel)
   unsigned long mb_per_frame = 0, mb_per_sec = 0;
   DEBUG_PRINT_LOW("venc_set_profile_level:: eProfile = %d, Level = %d",
     eProfile, eLevel);
-
+  mb_per_frame = ((m_sVenc_cfg.input_height + 15) >> 4)*
+                  ((m_sVenc_cfg.input_width + 15) >> 4);
   if((eProfile == 0) && (eLevel == 0) && m_profile_set && m_level_set)
   {
     DEBUG_PRINT_LOW("\n Profile/Level setting complete before venc_start");
@@ -1284,44 +1291,51 @@ bool venc_dev::venc_set_profile_level(OMX_U32 eProfile,OMX_U32 eLevel)
       "OMX_VIDEO_MPEG4Level5 = %d", eLevel, OMX_VIDEO_MPEG4Level0, OMX_VIDEO_MPEG4Level1,
       OMX_VIDEO_MPEG4Level2, OMX_VIDEO_MPEG4Level3, OMX_VIDEO_MPEG4Level4, OMX_VIDEO_MPEG4Level5);
 
-    switch(eLevel)
+    if(mb_per_frame >= 3600)
     {
-    case OMX_VIDEO_MPEG4Level0:
-      requested_level.level = VEN_LEVEL_MPEG4_0;
-      break;
-    case OMX_VIDEO_MPEG4Level1:
-      requested_level.level = VEN_LEVEL_MPEG4_1;
-      break;
-    case OMX_VIDEO_MPEG4Level2:
-      requested_level.level = VEN_LEVEL_MPEG4_2;
-      break;
-    case OMX_VIDEO_MPEG4Level3:
-      requested_level.level = VEN_LEVEL_MPEG4_3;
-      break;
-    case OMX_VIDEO_MPEG4Level4a:
-      requested_level.level = VEN_LEVEL_MPEG4_4;
-      break;
-    case OMX_VIDEO_MPEG4Level5:
-      mb_per_frame = ((m_sVenc_cfg.input_height + 15) >> 4)*
-                        ((m_sVenc_cfg.input_width + 15) >> 4);
-      mb_per_sec = mb_per_frame * (m_sVenc_cfg.fps_num / m_sVenc_cfg.fps_den);
-
-      if((mb_per_frame >= profile_tbl[0]) &&
-         (mb_per_sec >= profile_tbl[1]))
-      {
-        DEBUG_PRINT_LOW("\nMPEG4 Level 6 is set for 720p resolution");
-        requested_level.level = VEN_LEVEL_MPEG4_6;
-      }
-      else
-      {
-        DEBUG_PRINT_LOW("\nMPEG4 Level 5 is set for non-720p resolution");
+      if(requested_profile.profile == VEN_PROFILE_MPEG4_ASP)
         requested_level.level = VEN_LEVEL_MPEG4_5;
+      if(requested_profile.profile == VEN_PROFILE_MPEG4_SP)
+        requested_level.level = VEN_LEVEL_MPEG4_6;
+    }
+    else
+    {
+      switch(eLevel)
+      {
+      case OMX_VIDEO_MPEG4Level0:
+        requested_level.level = VEN_LEVEL_MPEG4_0;
+        break;
+      case OMX_VIDEO_MPEG4Level1:
+        requested_level.level = VEN_LEVEL_MPEG4_1;
+        break;
+      case OMX_VIDEO_MPEG4Level2:
+        requested_level.level = VEN_LEVEL_MPEG4_2;
+        break;
+      case OMX_VIDEO_MPEG4Level3:
+        requested_level.level = VEN_LEVEL_MPEG4_3;
+        break;
+      case OMX_VIDEO_MPEG4Level4a:
+        requested_level.level = VEN_LEVEL_MPEG4_4;
+        break;
+      case OMX_VIDEO_MPEG4Level5:
+        mb_per_sec = mb_per_frame * (m_sVenc_cfg.fps_num / m_sVenc_cfg.fps_den);
+        if((mb_per_frame >= profile_tbl[0]) &&
+           (mb_per_sec >= profile_tbl[1]))
+        {
+          DEBUG_PRINT_LOW("\nMPEG4 Level 6 is set for 720p resolution");
+          requested_level.level = VEN_LEVEL_MPEG4_6;
+        }
+        else
+        {
+          DEBUG_PRINT_LOW("\nMPEG4 Level 5 is set for non-720p resolution");
+          requested_level.level = VEN_LEVEL_MPEG4_5;
+        }
+        break;
+      default:
+        return false;
+        // TODO update corresponding levels for MPEG4_LEVEL_3b,MPEG4_LEVEL_6
+        break;
       }
-      break;
-    default:
-      return false;
-      // TODO update corresponding levels for MPEG4_LEVEL_3b,MPEG4_LEVEL_6
-      break;
     }
   }
   else if(m_sVenc_cfg.codectype == VEN_CODEC_H263)
@@ -1426,7 +1440,6 @@ bool venc_dev::venc_set_profile_level(OMX_U32 eProfile,OMX_U32 eLevel)
       break;
     }
   }
-
   if(!m_profile_set)
   {
     ioctl_msg.in = (void*)&requested_profile;
@@ -2171,6 +2184,19 @@ bool venc_dev::venc_validate_profile_level(OMX_U32 *eProfile, OMX_U32 *eLevel)
 
   mb_per_frame = ((m_sVenc_cfg.input_height + 15) >> 4)*
                    ((m_sVenc_cfg.input_width + 15)>> 4);
+
+  if((mb_per_frame >= 3600) && (m_sVenc_cfg.codectype == VEN_CODEC_MPEG4))
+  {
+    if(codec_profile.profile == VEN_PROFILE_MPEG4_ASP)
+      profile_level.level = VEN_LEVEL_MPEG4_5;
+    if(codec_profile.profile == VEN_PROFILE_MPEG4_SP)
+      profile_level.level = VEN_LEVEL_MPEG4_6;
+    {
+      new_level = profile_level.level;
+      new_profile = codec_profile.profile;
+      return true;
+    }
+  }
 
   mb_per_sec = mb_per_frame * m_sVenc_cfg.fps_num / m_sVenc_cfg.fps_den;
 
