@@ -150,6 +150,7 @@ struct video_driver_context
     enum vdec_codec decoder_format;
     enum vdec_output_fromat output_format;
     enum vdec_interlaced_format interlace;
+    enum vdec_output_order picture_order;
     struct vdec_picsize video_resolution;
     struct vdec_allocatorproperty ip_buf;
     struct vdec_allocatorproperty op_buf;

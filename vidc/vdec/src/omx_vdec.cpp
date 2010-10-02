@@ -1072,6 +1072,7 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
     drv_ctx.ip_buf.buffer_type = VDEC_BUFFER_TYPE_INPUT;
     drv_ctx.op_buf.buffer_type = VDEC_BUFFER_TYPE_OUTPUT;
     drv_ctx.interlace = VDEC_InterlaceFrameProgressive;
+    drv_ctx.picture_order = VDEC_ORDER_DISPLAY;
 
     if (eRet == OMX_ErrorNone)
         eRet = get_buffer_req(&drv_ctx.ip_buf);
@@ -2798,7 +2799,35 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
                     paramIndex);
               break;
           }
-
+#ifdef MAX_RES_720P
+      case OMX_QcomIndexParamVideoDecoderPictureOrder:
+          {
+              QOMX_VIDEO_DECODER_PICTURE_ORDER *pictureOrder =
+                  (QOMX_VIDEO_DECODER_PICTURE_ORDER *)paramData;
+              enum vdec_output_order pic_order = VDEC_ORDER_DISPLAY;
+              DEBUG_PRINT_HIGH("set_parameter: OMX_QcomIndexParamVideoDecoderPictureOrder %d\n",
+                    pictureOrder->eOutputPictureOrder);
+              if (pictureOrder->eOutputPictureOrder == QOMX_VIDEO_DISPLAY_ORDER)
+                  pic_order = VDEC_ORDER_DISPLAY;
+              else if (pictureOrder->eOutputPictureOrder == QOMX_VIDEO_DECODE_ORDER)
+                  pic_order = VDEC_ORDER_DECODE;
+              else
+                  eRet = OMX_ErrorBadParameter;
+              if (eRet == OMX_ErrorNone && pic_order != drv_ctx.picture_order)
+              {
+                  drv_ctx.picture_order = pic_order;
+                  ioctl_msg.in = &drv_ctx.picture_order;
+                  ioctl_msg.out = NULL;
+                  if (ioctl(drv_ctx.video_driver_fd, VDEC_IOCTL_SET_PICTURE_ORDER,
+                      (void*)&ioctl_msg) < 0)
+                  {
+                      DEBUG_PRINT_ERROR("\n Set picture order failed");
+                      eRet = OMX_ErrorUnsupportedSetting;
+                  }
+              }
+              break;
+          }
+#endif
     default:
     {
       DEBUG_PRINT_ERROR("Setparameter: unknown param %d\n", paramIndex);
@@ -4503,7 +4532,6 @@ OMX_ERRORTYPE  omx_vdec::empty_this_buffer_proxy(OMX_IN OMX_HANDLETYPE         h
   DEBUG_PRINT_LOW("\n Decode Input Frame Size %d",frameinfo.datalen);
   ioctl_msg.in = &frameinfo;
   ioctl_msg.out = NULL;
-
   if (ioctl(drv_ctx.video_driver_fd,VDEC_IOCTL_DECODE_FRAME,
             &ioctl_msg) < 0)
   {
@@ -6150,9 +6178,12 @@ OMX_ERRORTYPE omx_vdec::start_port_reconfig()
     else
     {
       if (drv_ctx.interlace != VDEC_InterlaceFrameProgressive)
+      {
+        DEBUG_PRINT_HIGH("Interlace format detected! (%x)", drv_ctx.interlace);
         extra_data_size = (sizeof(OMX_OTHER_EXTRADATATYPE) +
                            sizeof(OMX_STREAMINTERLACEFORMAT) + 3)&(~3) +
                            sizeof(OMX_OTHER_EXTRADATATYPE);
+      }
       in_reconfig = true;
       op_buf_rcnfg.buffer_type = VDEC_BUFFER_TYPE_OUTPUT;
       eRet = get_buffer_req(&op_buf_rcnfg, extra_data_size);
