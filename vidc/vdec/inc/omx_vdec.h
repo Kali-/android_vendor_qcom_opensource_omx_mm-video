@@ -144,6 +144,8 @@ extern "C" {
 #define OMX_CORE_WVGA_HEIGHT         480
 #define OMX_CORE_WVGA_WIDTH          800
 
+#define MAX_NUM_INPUT_OUTPUT_BUFFERS 32
+
 enum port_indexes
 {
     OMX_CORE_INPUT_PORT_INDEX        =0,
@@ -390,6 +392,24 @@ private:
 
     };
 
+    struct ts_entry
+    {
+        OMX_TICKS timestamp;
+        bool valid;
+    };
+
+    struct ts_arr_list
+    {
+        ts_entry m_ts_arr_list[MAX_NUM_INPUT_OUTPUT_BUFFERS];
+
+        ts_arr_list();
+        ~ts_arr_list();
+
+        bool insert_ts(OMX_TICKS ts);
+        bool pop_min_ts(OMX_TICKS &ts);
+        bool reset_ts_list();
+    };
+
     bool allocate_done(void);
     bool allocate_input_done(void);
     bool allocate_output_done(void);
@@ -524,6 +544,8 @@ private:
     OMX_BUFFERHEADERTYPE  *m_inp_mem_ptr;
     // Output memory pointer
     OMX_BUFFERHEADERTYPE  *m_out_mem_ptr;
+    // Timestamp list
+    ts_arr_list           m_timestamp_list;
 
     bool input_flush_progress;
     bool output_flush_progress;
@@ -596,6 +618,7 @@ private:
     bool in_reconfig;
     OMX_NATIVE_WINDOWTYPE m_display_id;
     extra_data_parser extradata_parser;
+    bool m_debug_timestamp;
 #ifdef OMX_VDEC_PERF
     perf_metrics fps_metrics;
     perf_metrics dec_time;
