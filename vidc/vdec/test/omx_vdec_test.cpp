@@ -147,9 +147,7 @@ typedef enum {
 typedef enum {
   GOOD_STATE = 0,
   PORT_SETTING_CHANGE_STATE,
-  FLUSHING_STATE,
-  ERROR_STATE,
-  INVALID_STATE
+  ERROR_STATE
 } test_status;
 
 typedef enum {
@@ -476,7 +474,7 @@ int process_current_command(const char *seq_command)
 
 void* ebd_thread(void* pArg)
 {
-  while(currentStatus != INVALID_STATE)
+  while(currentStatus != ERROR_STATE)
   {
     int readBytes =0;
     OMX_BUFFERHEADERTYPE* pBuffer = NULL;
@@ -526,21 +524,17 @@ void* fbd_thread(void* pArg)
   struct timeval t_avsync = {0, 0}, base_avsync = {0, 0};
   int canDisplay = 1, contigous_drop_frame = 0, bytes_written = 0, ret = 0;
   OMX_S64 base_timestamp = 0, lastTimestamp = 0;
-  OMX_BUFFERHEADERTYPE *pBuffer = NULL, *pPrevBuff = NULL;
-  while(currentStatus != INVALID_STATE)
+  OMX_BUFFERHEADERTYPE *pBuffer = NULL;
+  while(currentStatus != ERROR_STATE)
   {
-
     DEBUG_PRINT("Inside %s\n", __FUNCTION__);
-
     if(flush_output_progress)
     {
         DEBUG_PRINT("\n FBD_thread flush wait start");
         sem_wait(&out_flush_sem);
         DEBUG_PRINT("\n FBD_thread flush wait complete");
     }
-
     sem_wait(&fbd_sem);
-
     pthread_mutex_lock(&enable_lock);
     if (sent_disabled)
     {
@@ -552,14 +546,11 @@ void* fbd_thread(void* pArg)
       continue;
     }
     pthread_mutex_unlock(&enable_lock);
-
-    pPrevBuff = pBuffer;
     pthread_mutex_lock(&fbd_lock);
     pBuffer = (OMX_BUFFERHEADERTYPE *)pop(fbd_queue);
     pthread_mutex_unlock(&fbd_lock);
     if (pBuffer == NULL)
     {
-      pBuffer = pPrevBuff;
       DEBUG_PRINT("Error - No pBuffer to dequeue\n");
       continue;
     }
@@ -707,10 +698,10 @@ void* fbd_thread(void* pArg)
         }
         pthread_mutex_unlock(&fbd_lock);
     }
-    else if (pPrevBuff)
+    else
     {
         pthread_mutex_lock(&fbd_lock);
-        OMX_FillThisBuffer(dec_handle, pPrevBuff);
+        OMX_FillThisBuffer(dec_handle, pBuffer);
         free_op_buf_cnt--;
         pthread_mutex_unlock(&fbd_lock);
     }
@@ -736,7 +727,6 @@ OMX_ERRORTYPE EventHandler(OMX_IN OMX_HANDLETYPE hComponent,
     switch(eEvent) {
         case OMX_EventCmdComplete:
             DEBUG_PRINT("\n OMX_EventCmdComplete \n");
-            currentStatus = GOOD_STATE;
             if(OMX_CommandPortDisable == (OMX_COMMANDTYPE)nData1)
             {
                 DEBUG_PRINT("*********************************************\n");
@@ -748,6 +738,8 @@ OMX_ERRORTYPE EventHandler(OMX_IN OMX_HANDLETYPE hComponent,
                 DEBUG_PRINT("*********************************************\n");
                 DEBUG_PRINT("Recieved ENABLE Event Command Complete[%d]\n",nData2);
                 DEBUG_PRINT("*********************************************\n");
+                if (currentStatus == PORT_SETTING_CHANGE_STATE)
+                  currentStatus = GOOD_STATE;
                 pthread_mutex_lock(&enable_lock);
                 sent_disabled = 0;
                 pthread_mutex_unlock(&enable_lock);
@@ -761,10 +753,8 @@ OMX_ERRORTYPE EventHandler(OMX_IN OMX_HANDLETYPE hComponent,
                     flush_input_progress = 0;
                 else if (nData2 == 1)
                     flush_output_progress = 0;
-                if (flush_input_progress || flush_output_progress)
-                    currentStatus = FLUSHING_STATE;
             }
-            if (currentStatus == GOOD_STATE)
+            if (!flush_input_progress && !flush_output_progress)
                 event_complete();
             break;
 
@@ -776,8 +766,7 @@ OMX_ERRORTYPE EventHandler(OMX_IN OMX_HANDLETYPE hComponent,
             if (OMX_ErrorInvalidState == (OMX_ERRORTYPE)nData1 ||
                 OMX_ErrorHardware == (OMX_ERRORTYPE)nData1)
             {
-              DEBUG_PRINT("Invalid State or hardware error \n");
-              currentStatus = INVALID_STATE;
+              printf("Invalid State or hardware error \n");
               if(event_is_done == 0)
               {
                 DEBUG_PRINT("Event error in the middle of Decode \n");
@@ -793,8 +782,11 @@ OMX_ERRORTYPE EventHandler(OMX_IN OMX_HANDLETYPE hComponent,
                 }
               }
             }
-
-            event_complete();
+            if (waitForPortSettingsChanged)
+            {
+	            waitForPortSettingsChanged = 0;
+	            event_complete();
+            }
             break;
         case OMX_EventPortSettingsChanged:
             DEBUG_PRINT("OMX_EventPortSettingsChanged port[%d]\n", nData1);
@@ -881,7 +873,6 @@ OMX_ERRORTYPE FillBufferDone(OMX_OUT OMX_HANDLETYPE hComponent,
      */
     if(waitForPortSettingsChanged)
     {
-      currentStatus = GOOD_STATE;
       waitForPortSettingsChanged = 0;
       if(displayYuv)
         overlay_set();
@@ -928,7 +919,7 @@ int main(int argc, char **argv)
       // file_type, out_op, tst_op, nal_sz, disp_win, rt_dis, (fps), color, pic_order
       int param[9] = {2, 1, 1, 0, 0, 0, 0xFF, 0xFF, 0xFF};
       int next_arg = 3, idx = 0;
-      while (argc > next_arg)
+      while (argc > next_arg && idx < 9)
       {
         if (strlen(argv[next_arg]) > 2)
         {
@@ -1302,7 +1293,6 @@ int run_tests()
   int cmd_error = 0;
   DEBUG_PRINT("Inside %s\n", __FUNCTION__);
   waitForPortSettingsChanged = 1;
-  currentStatus = GOOD_STATE;
 
   if(file_type_option == FILE_TYPE_DAT_PER_AU) {
     Read_Buffer = Read_Buffer_From_DAT_File;
@@ -1400,97 +1390,8 @@ int run_tests()
   pthread_mutex_unlock(&eos_lock);
 
   // Wait till EOS is reached...
-    if(bOutputEosReached)
-    {
-      int bufCnt = 0;
-      DEBUG_PRINT("Moving the decoder to idle state \n");
-      OMX_SendCommand(dec_handle, OMX_CommandStateSet, OMX_StateIdle,0);
-      wait_for_event();
-      if (currentStatus == INVALID_STATE)
-      {
-        do_freeHandle_and_clean_up(true);
-        return 0;
-      }
-
-      DEBUG_PRINT("Moving the decoder to loaded state \n");
-      OMX_SendCommand(dec_handle, OMX_CommandStateSet, OMX_StateLoaded,0);
-
-      DEBUG_PRINT("[OMX Vdec Test] - Deallocating i/p and o/p buffers \n");
-      for(bufCnt=0; bufCnt < input_buf_cnt; ++bufCnt) {
-        if(input_use_buffer) {
-            if(pInputBufHdrs[bufCnt]->pBuffer) {
-                free(pInputBufHdrs[bufCnt]->pBuffer);
-                pInputBufHdrs[bufCnt]->pBuffer = NULL;
-            }
-        }
-        OMX_FreeBuffer(dec_handle, 0, pInputBufHdrs[bufCnt]);
-      }
-
-      for(bufCnt = 0; bufCnt < portFmt.nBufferCountActual; ++bufCnt) {
-        if (output_use_buffer && p_eglHeaders) {
-            if(p_eglHeaders[bufCnt]) {
-               munmap (pOutYUVBufHdrs[bufCnt]->pBuffer,
-                       pOutYUVBufHdrs[bufCnt]->nAllocLen);
-               close(p_eglHeaders[bufCnt]->pmem_fd);
-               p_eglHeaders[bufCnt]->pmem_fd = -1;
-               free(p_eglHeaders[bufCnt]);
-               p_eglHeaders[bufCnt] = NULL;
-            }
-        }
-        OMX_FreeBuffer(dec_handle, 1, pOutYUVBufHdrs[bufCnt]);
-      }
-      if(p_eglHeaders) {
-          free(p_eglHeaders);
-          p_eglHeaders = NULL;
-      }
-      fbd_cnt = 0; ebd_cnt=0;
-      bInputEosReached = false;
-      bOutputEosReached = false;
-
-      wait_for_event();
-
-      DEBUG_PRINT("[OMX Vdec Test] - Free handle decoder\n");
-      OMX_ERRORTYPE result = OMX_FreeHandle(dec_handle);
-      if (result != OMX_ErrorNone)
-      {
-        DEBUG_PRINT_ERROR("[OMX Vdec Test] - Terminate: OMX_FreeHandle error. Error code: %d\n", result);
-      }
-      dec_handle = NULL;
-
-      /* Deinit OpenMAX */
-      DEBUG_PRINT("[OMX Vdec Test] - Terminate: De-initializing OMX \n");
-      OMX_Deinit();
-
-      DEBUG_PRINT("[OMX Vdec Test] - Terminate: closing all files\n");
-      if(inputBufferFile)
-      {
-      fclose(inputBufferFile);
-          inputBufferFile = NULL;
-      }
-
-
-      if (takeYuvLog && outputBufferFile) {
-        fclose(outputBufferFile);
-        outputBufferFile = NULL;
-      }
-
-      if(etb_queue)
-      {
-        free_queue(etb_queue);
-        etb_queue = NULL;
-      }
-      if(fbd_queue)
-      {
-        free_queue(fbd_queue);
-        fbd_queue = NULL;
-      }
-
-      printf("\n*****************************************\n");
-      printf("******...TEST SUCCESSFULL...*******\n");
-      printf("*****************************************\n");
-
-  }
-
+  if(bOutputEosReached)
+    do_freeHandle_and_clean_up(currentStatus == ERROR_STATE);
   return 0;
 }
 
@@ -1876,7 +1777,7 @@ int Play_Decoder()
     }
 #endif
     wait_for_event();
-    if (currentStatus == INVALID_STATE)
+    if (currentStatus == ERROR_STATE)
     {
       do_freeHandle_and_clean_up(true);
       return -1;
@@ -1903,7 +1804,7 @@ int Play_Decoder()
     DEBUG_PRINT("OMX_SendCommand Decoder -> Executing\n");
     OMX_SendCommand(dec_handle, OMX_CommandStateSet, OMX_StateExecuting,0);
     wait_for_event();
-    if (currentStatus == INVALID_STATE)
+    if (currentStatus == ERROR_STATE)
     {
       do_freeHandle_and_clean_up(true);
       return -1;
@@ -2015,12 +1916,13 @@ int Play_Decoder()
     }
 
     // wait for event port settings changed event
+    DEBUG_PRINT("wait_for_event: dyn reconfig");
     wait_for_event();
-    DEBUG_PRINT("RECIEVED EVENT PORT TO DETERMINE IF DYN PORT RECONFIGURATION NEEDED, currentStatus %d\n",
+    DEBUG_PRINT("wait_for_event: dyn reconfig rcvd, currentStatus %d\n",
                   currentStatus);
-    if (currentStatus == INVALID_STATE)
+    if (currentStatus == ERROR_STATE)
     {
-      DEBUG_PRINT_ERROR("Error - INVALID_STATE\n");
+      printf("Error - ERROR_STATE\n");
       do_freeHandle_and_clean_up(true);
       return -1;
     }
@@ -2183,40 +2085,53 @@ static OMX_ERRORTYPE use_output_buffer ( OMX_COMPONENTTYPE *dec_handle,
 static void do_freeHandle_and_clean_up(bool isDueToError)
 {
     int bufCnt = 0;
-
-    for(bufCnt=0; bufCnt < input_buf_cnt; ++bufCnt)
+    OMX_STATETYPE state = OMX_StateInvalid;
+    OMX_GetState(dec_handle, &state);
+    if (state == OMX_StateExecuting || state == OMX_StatePause)
     {
-       if (pInputBufHdrs[bufCnt]->pBuffer && input_use_buffer)
-       {
-          free(pInputBufHdrs[bufCnt]->pBuffer);
-          pInputBufHdrs[bufCnt]->pBuffer = NULL;
-
-          DEBUG_PRINT_ERROR("\nFree(pInputBufHdrs[%d]->pBuffer)",bufCnt);
-       }
-       OMX_FreeBuffer(dec_handle, 0, pInputBufHdrs[bufCnt]);
+      DEBUG_PRINT("Requestin transition to idle");
+      OMX_SendCommand(dec_handle, OMX_CommandStateSet, OMX_StateIdle, 0);
+      wait_for_event();
     }
-
-    if (pInputBufHdrs)
+    OMX_GetState(dec_handle, &state);
+    if (state == OMX_StateIdle)
     {
-       free(pInputBufHdrs);
-       pInputBufHdrs = NULL;
-    }
-
-    for(bufCnt = 0; bufCnt < portFmt.nBufferCountActual; ++bufCnt) {
-        if(p_eglHeaders[bufCnt]) {
-           munmap (pOutYUVBufHdrs[bufCnt]->pBuffer,
-                   pOutYUVBufHdrs[bufCnt]->nAllocLen);
-           close(p_eglHeaders[bufCnt]->pmem_fd);
-           p_eglHeaders[bufCnt]->pmem_fd = -1;
-           free(p_eglHeaders[bufCnt]);
-           p_eglHeaders[bufCnt] = NULL;
+      OMX_SendCommand(dec_handle, OMX_CommandStateSet, OMX_StateLoaded, 0);
+      for(bufCnt=0; bufCnt < input_buf_cnt; ++bufCnt)
+      {
+         if (pInputBufHdrs[bufCnt]->pBuffer && input_use_buffer)
+         {
+            free(pInputBufHdrs[bufCnt]->pBuffer);
+            pInputBufHdrs[bufCnt]->pBuffer = NULL;
+            DEBUG_PRINT_ERROR("\nFree(pInputBufHdrs[%d]->pBuffer)",bufCnt);
+         }
+         OMX_FreeBuffer(dec_handle, 0, pInputBufHdrs[bufCnt]);
+      }
+      if (pInputBufHdrs)
+      {
+         free(pInputBufHdrs);
+         pInputBufHdrs = NULL;
+      }
+      for(bufCnt = 0; bufCnt < portFmt.nBufferCountActual; ++bufCnt) {
+        if (output_use_buffer && p_eglHeaders) {
+            if(p_eglHeaders[bufCnt]) {
+               munmap (pOutYUVBufHdrs[bufCnt]->pBuffer,
+                       pOutYUVBufHdrs[bufCnt]->nAllocLen);
+               close(p_eglHeaders[bufCnt]->pmem_fd);
+               p_eglHeaders[bufCnt]->pmem_fd = -1;
+               free(p_eglHeaders[bufCnt]);
+               p_eglHeaders[bufCnt] = NULL;
+            }
         }
         OMX_FreeBuffer(dec_handle, 1, pOutYUVBufHdrs[bufCnt]);
+      }
+      if(p_eglHeaders) {
+          free(p_eglHeaders);
+          p_eglHeaders = NULL;
+      }
+      wait_for_event();
     }
-    if (p_eglHeaders) {
-        free(p_eglHeaders);
-        p_eglHeaders = NULL;
-    }
+
     DEBUG_PRINT("[OMX Vdec Test] - Free handle decoder\n");
     OMX_ERRORTYPE result = OMX_FreeHandle(dec_handle);
     if (result != OMX_ErrorNone)
@@ -2256,17 +2171,11 @@ static void do_freeHandle_and_clean_up(bool isDueToError)
       fbd_queue = NULL;
     }
     DEBUG_PRINT("[OMX Vdec Test] - after free iftb_queue\n");
-
-
     printf("*****************************************\n");
     if (isDueToError)
-    {
       printf("************...TEST FAILED...************\n");
-    }
     else
-    {
       printf("**********...TEST SUCCESSFULL...*********\n");
-    }
     printf("*****************************************\n");
 }
 
@@ -3144,7 +3053,7 @@ int disable_output_port()
         free(p_eglHeaders);
         p_eglHeaders = NULL;
     }
-    if (currentStatus == INVALID_STATE)
+    if (currentStatus == ERROR_STATE)
     {
       do_freeHandle_and_clean_up(true);
       return -1;
@@ -3192,7 +3101,7 @@ int enable_output_port()
 #endif
     // wait for enable event to come back
     wait_for_event();
-    if (currentStatus == INVALID_STATE)
+    if (currentStatus == ERROR_STATE)
     {
       do_freeHandle_and_clean_up(true);
       return -1;
