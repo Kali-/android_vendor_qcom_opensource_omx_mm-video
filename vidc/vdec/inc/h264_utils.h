@@ -341,6 +341,7 @@ public:
 private:
   void init_bitstream(OMX_U8* data, OMX_U32 size);
   OMX_U32 extract_bits(OMX_U32 n);
+  inline bool more_bits();
   void read_word();
   OMX_U32 uev();
   OMX_S32 sev();

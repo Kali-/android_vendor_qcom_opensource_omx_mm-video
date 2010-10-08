@@ -602,7 +602,9 @@ void extra_data_parser::parse_vui(bool vui_in_extradata)
   OMX_U32 value = 0;
   DEBUG_PRINT_LOW("parse_vui: IN");
   if (vui_in_extradata)
-    while (!extract_bits(1)); // Discard VUI enable flag
+    while (!extract_bits(1) && more_bits()); // Discard VUI enable flag
+  if (!more_bits())
+    return;
   if (extract_bits(1)) //aspect_ratio_info_present_flag
     if (extract_bits(8) == 0xFF) //aspect_ratio_idc
     {
@@ -682,7 +684,7 @@ void extra_data_parser::hrd_parameters(h264_hrd_param *hrd_param)
   DEBUG_PRINT_LOW("-->cpb_cnt        : %u", hrd_param->cpb_cnt);
   DEBUG_PRINT_LOW("-->bit_rate_scale : %u", hrd_param->bit_rate_scale);
   DEBUG_PRINT_LOW("-->cpb_size_scale : %u", hrd_param->cpb_size_scale);
-  for (idx = 0; idx < hrd_param->cpb_cnt; idx++)
+  for (idx = 0; idx < hrd_param->cpb_cnt && more_bits(); idx++)
   {
     hrd_param->bit_rate_value[idx] = uev() + 1;
     hrd_param->cpb_size_value[idx] = uev() + 1;
@@ -719,7 +721,7 @@ bool extra_data_parser::parse_sei(OMX_S64 *p_timestamp)
   DEBUG_PRINT_LOW("@@parse_sei: IN sei_unit_size(%u)", sei_unit_size);
   value = extract_bits(24);
   processed_bytes += 3;
-  while (value != 0x00000001 && processed_bytes < sei_unit_size)
+  while (value != 0x00000001 && processed_bytes < sei_unit_size && more_bits())
   {
     value <<= 8;
     value |= extract_bits(8);
@@ -740,7 +742,7 @@ bool extra_data_parser::parse_sei(OMX_S64 *p_timestamp)
     if (value == NALU_TYPE_SEI)
     {
       bool buf_period_processed = false, pic_timing_processed = false;
-      while ((processed_bytes + 2) < sei_unit_size)
+      while ((processed_bytes + 2) < sei_unit_size && more_bits())
       {
         init_bitstream(sei_msg_start + processed_bytes, sei_unit_size - processed_bytes);
         DEBUG_PRINT_LOW("-->NALU_TYPE_SEI");
@@ -879,7 +881,7 @@ bool extra_data_parser::sei_picture_timing(OMX_S64 &timestamp)
         DEBUG_PRINT_ERROR("sei_picture_timing: pic_struct invalid!");
     }
     DEBUG_PRINT_LOW("-->num_clock_ts      : %u", pic_param.num_clock_ts);
-    for (int i = 0; i < pic_param.num_clock_ts; i++)
+    for (int i = 0; i < pic_param.num_clock_ts && more_bits(); i++)
     {
       clock_ts_flag = extract_bits(1);
       if(clock_ts_flag)
@@ -1036,7 +1038,7 @@ void extra_data_parser::parse_sps(OMX_U8* data, OMX_U32 size)
   DEBUG_PRINT_LOW("@@parse_sps: IN");
   init_bitstream(data, size);
   value = extract_bits(24);
-  while (value != 0x00000001 && (bitstream_bytes > 0 || bits_read > 0))
+  while (value != 0x00000001 && more_bits())
   {
     value <<= 8;
     value |= extract_bits(8);
@@ -1074,7 +1076,7 @@ void extra_data_parser::parse_sps(OMX_U8* data, OMX_U32 size)
     uev(); //bit_depth_chroma_minus8
     extract_bits(1); //qpprime_y_zero_transform_bypass_flag
     if (extract_bits(1)) //seq_scaling_matrix_present_flag
-      for (int i = 0; i < scaling_matrix_limit; i++)
+      for (int i = 0; i < scaling_matrix_limit && more_bits(); i++)
       {
         if (extract_bits(1)) ////seq_scaling_list_present_flag[ i ]
           if (i < 6)
@@ -1186,11 +1188,16 @@ void extra_data_parser::read_word()
 OMX_U32 extra_data_parser::uev()
 {
   OMX_U32 lead_zero_bits = 0, code_num = 0;
-  while(!extract_bits(1))
+  while(!extract_bits(1) && more_bits())
     lead_zero_bits++;
   code_num = lead_zero_bits == 0 ? 0 :
     (1 << lead_zero_bits) - 1 + extract_bits(lead_zero_bits);
   return code_num;
+}
+
+bool extra_data_parser::more_bits()
+{
+	return (bitstream_bytes > 0 || bits_read > 0);
 }
 
 OMX_S32 extra_data_parser::sev()
