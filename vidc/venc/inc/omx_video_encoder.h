@@ -66,6 +66,7 @@ private:
   bool dev_fill_buf(void *, void *);
   bool dev_get_buf_req(OMX_U32 *,OMX_U32 *,OMX_U32 *,OMX_U32);
   bool dev_set_buf_req(OMX_U32 *,OMX_U32 *,OMX_U32 *,OMX_U32);
+  bool update_profile_level();
 };
 
 #endif //__OMX_VENC__H

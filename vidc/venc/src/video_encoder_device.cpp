@@ -475,8 +475,7 @@ bool venc_dev::venc_set_param(void *paramData,OMX_INDEXTYPE index )
           m_level_set = false;
           if(venc_set_profile_level(0, 0))
           {
-            DEBUG_PRINT_HIGH("\n %s(): Dynamic Profile/Level setting success",
-                __func__);
+            DEBUG_PRINT_HIGH("\n %s(): Profile/Level setting success", __func__);
           }
         }
         else
@@ -503,12 +502,12 @@ bool venc_dev::venc_set_param(void *paramData,OMX_INDEXTYPE index )
       }
       else if(portDefn->nPortIndex == PORT_INDEX_OUT)
       {
-        if(!venc_set_encode_framerate(portDefn->format.video.xFramerate))
+        if(!venc_set_encode_framerate(portDefn->format.video.xFramerate, 0))
         {
           return false;
         }
 
-        if(!venc_set_target_bitrate(portDefn->format.video.nBitrate))
+        if(!venc_set_target_bitrate(portDefn->format.video.nBitrate, 0))
         {
           return false;
         }
@@ -556,7 +555,7 @@ bool venc_dev::venc_set_param(void *paramData,OMX_INDEXTYPE index )
       }
       else if(portFmt->nPortIndex == (OMX_U32) PORT_INDEX_OUT)
       {
-        if(!venc_set_encode_framerate(portFmt->xFramerate))
+        if(!venc_set_encode_framerate(portFmt->xFramerate, 0))
         {
           return false;
         }
@@ -575,7 +574,7 @@ bool venc_dev::venc_set_param(void *paramData,OMX_INDEXTYPE index )
 
       if(pParam->nPortIndex == (OMX_U32) PORT_INDEX_OUT)
       {
-        if(!venc_set_target_bitrate(pParam->nTargetBitrate))
+        if(!venc_set_target_bitrate(pParam->nTargetBitrate, 0))
         {
           DEBUG_PRINT_ERROR("\nERROR: Target Bit Rate setting failed");
           return false;
@@ -614,12 +613,12 @@ bool venc_dev::venc_set_param(void *paramData,OMX_INDEXTYPE index )
         m_level_set = false;
         if(!venc_set_profile_level (pParam->eProfile, pParam->eLevel))
         {
-          DEBUG_PRINT_ERROR("\nWARNING: Unsuccessful in updating Profile and level");
+          DEBUG_PRINT_ERROR("\nERROR: Unsuccessful in updating Profile and level");
           return false;
         }
         if(!venc_set_multislice_cfg(OMX_IndexParamVideoMpeg4,pParam->nSliceHeaderSpacing))
         {
-          DEBUG_PRINT_ERROR("\nWARNING: Unsuccessful in updating slice_config");
+          DEBUG_PRINT_ERROR("\nERROR: Unsuccessful in updating slice_config");
           return false;
         }
       }
@@ -645,7 +644,7 @@ bool venc_dev::venc_set_param(void *paramData,OMX_INDEXTYPE index )
         m_level_set = false;
         if(!venc_set_profile_level (pParam->eProfile, pParam->eLevel))
         {
-          DEBUG_PRINT_ERROR("\nWARNING: Unsuccessful in updating Profile and level");
+          DEBUG_PRINT_ERROR("\nERROR: Unsuccessful in updating Profile and level");
           return false;
         }
       }
@@ -674,7 +673,7 @@ bool venc_dev::venc_set_param(void *paramData,OMX_INDEXTYPE index )
 
         if(!venc_set_profile_level (pParam->eProfile,pParam->eLevel))
         {
-          DEBUG_PRINT_ERROR("\nWARNING: Unsuccessful in updating Profile and level %d, %d",
+          DEBUG_PRINT_ERROR("\nERROR: Unsuccessful in updating Profile and level %d, %d",
                             pParam->eProfile, pParam->eLevel);
           return false;
         }
@@ -807,7 +806,7 @@ bool venc_dev::venc_set_config(void *configData, OMX_INDEXTYPE index)
       DEBUG_PRINT_LOW("\n venc_set_config: OMX_IndexConfigVideoBitrate");
       if(bit_rate->nPortIndex == (OMX_U32)PORT_INDEX_OUT)
       {
-        if(venc_set_target_bitrate(bit_rate->nEncodeBitrate) == false)
+        if(venc_set_target_bitrate(bit_rate->nEncodeBitrate, 1) == false)
         {
           DEBUG_PRINT_ERROR("\nERROR: Setting Target Bit rate failed");
           return false;
@@ -826,7 +825,7 @@ bool venc_dev::venc_set_config(void *configData, OMX_INDEXTYPE index)
       DEBUG_PRINT_LOW("\n venc_set_config: OMX_IndexConfigVideoFramerate");
       if(frame_rate->nPortIndex == (OMX_U32)PORT_INDEX_OUT)
       {
-        if(venc_set_encode_framerate(frame_rate->xEncodeFramerate) == false)
+        if(venc_set_encode_framerate(frame_rate->xEncodeFramerate, 1) == false)
         {
           DEBUG_PRINT_ERROR("\nERROR: Setting Encode Framerate failed");
           return false;
@@ -1436,6 +1435,8 @@ bool venc_dev::venc_set_profile_level(OMX_U32 eProfile,OMX_U32 eLevel)
       requested_level.level = VEN_LEVEL_H264_3p1;
       break;
     default :
+      DEBUG_PRINT_ERROR("\nERROR: Unsupported H.264 level= %u",
+        requested_level.level);
       return false;
       break;
     }
@@ -1446,7 +1447,7 @@ bool venc_dev::venc_set_profile_level(OMX_U32 eProfile,OMX_U32 eLevel)
     ioctl_msg.out = NULL;
     if(ioctl (m_nDriver_fd,VEN_IOCTL_SET_CODEC_PROFILE,(void*)&ioctl_msg)< 0)
     {
-      DEBUG_PRINT_LOW("\nERROR: Request for setting profile failed");
+      DEBUG_PRINT_ERROR("\nERROR: Request for setting profile failed");
       return false;
     }
     codec_profile.profile = requested_profile.profile;
@@ -1459,7 +1460,7 @@ bool venc_dev::venc_set_profile_level(OMX_U32 eProfile,OMX_U32 eLevel)
     ioctl_msg.out = NULL;
     if(ioctl (m_nDriver_fd,VEN_IOCTL_SET_PROFILE_LEVEL,(void*)&ioctl_msg)< 0)
     {
-      DEBUG_PRINT_LOW("\nERROR: Request for setting profile level failed");
+      DEBUG_PRINT_ERROR("\nERROR: Request for setting profile level failed");
       return false;
     }
     profile_level.level = requested_level.level;
@@ -1729,7 +1730,7 @@ bool venc_dev::venc_set_inloop_filter(OMX_VIDEO_AVCLOOPFILTERTYPE loopfilter)
   return true;
 }
 
-bool venc_dev::venc_set_target_bitrate(OMX_U32 nTargetBitrate)
+bool venc_dev::venc_set_target_bitrate(OMX_U32 nTargetBitrate, OMX_U32 config)
 {
   venc_ioctl_msg ioctl_msg = {NULL, NULL};
   struct venc_targetbitrate bitrate_cfg;
@@ -1746,11 +1747,18 @@ bool venc_dev::venc_set_target_bitrate(OMX_U32 nTargetBitrate)
   }
   m_sVenc_cfg.targetbitrate = nTargetBitrate;
   bitrate.target_bitrate = nTargetBitrate;
-  m_level_set = false;
+  if(!config)
+  {
+    m_level_set = false;
+    if(venc_set_profile_level(0, 0))
+    {
+      DEBUG_PRINT_HIGH("Calling set level (Bitrate) with %d\n",profile_level.level);
+    }
+  }
   return true;
 }
 
-bool venc_dev::venc_set_encode_framerate(OMX_U32 encode_framerate)
+bool venc_dev::venc_set_encode_framerate(OMX_U32 encode_framerate, OMX_U32 config)
 {
   venc_ioctl_msg ioctl_msg = {NULL, NULL};
   struct venc_framerate frame_rate_cfg;
@@ -1771,7 +1779,14 @@ bool venc_dev::venc_set_encode_framerate(OMX_U32 encode_framerate)
 
   m_sVenc_cfg.fps_den = frame_rate_cfg.fps_denominator;
   m_sVenc_cfg.fps_num = frame_rate_cfg.fps_numerator;
-  m_level_set = false;
+  if(!config)
+  {
+    m_level_set = false;
+    if(venc_set_profile_level(0, 0))
+    {
+      DEBUG_PRINT_HIGH("Calling set level (Framerate) with %d\n",profile_level.level);
+    }
+  }
   return true;
 }
 
