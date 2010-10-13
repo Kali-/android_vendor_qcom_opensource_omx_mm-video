@@ -62,6 +62,7 @@ install:
 
 SRCS := src/frameparser.cpp
 SRCS += src/h264_utils.cpp
+SRCS += src/mp4_utils.cpp
 SRCS += src/omx_vdec.cpp
 
 LDLIBS := -lpthread

@@ -85,6 +85,9 @@ extern "C"{
 //#include "OmxUtils.h"
 #include <linux/msm_vidc_dec.h>
 #include "frameparser.h"
+#ifdef MAX_RES_1080P
+#include "mp4_utils.h"
+#endif
 #include <linux/android_pmem.h>
 
 extern "C" {
@@ -619,6 +622,9 @@ private:
     OMX_NATIVE_WINDOWTYPE m_display_id;
     extra_data_parser extradata_parser;
     bool m_debug_timestamp;
+#ifdef MAX_RES_1080P
+    MP4_Utils mp4_headerparser;
+#endif
 #ifdef OMX_VDEC_PERF
     perf_metrics fps_metrics;
     perf_metrics dec_time;

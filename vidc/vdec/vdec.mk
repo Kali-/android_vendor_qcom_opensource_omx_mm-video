@@ -38,6 +38,7 @@ all: libOmxVdec.so mm-vdec-omx-test mm-video-driver-test
 
 SRCS := $(VDEC_SRC)/src/frameparser.cpp
 SRCS += $(VDEC_SRC)/src/h264_utils.cpp
+SRCS += $(VDEC_SRC)/src/mp4_utils.cpp
 SRCS += $(VDEC_SRC)/src/omx_vdec.cpp
 
 CPPFLAGS += -I$(VDEC_SRC)/inc

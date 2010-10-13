@@ -75,6 +75,9 @@ LOCAL_SHARED_LIBRARIES	:= liblog libutils libbinder libcutils
 
 LOCAL_SRC_FILES         := src/frameparser.cpp
 LOCAL_SRC_FILES         += src/h264_utils.cpp
+ifeq "$(findstring msm8660,$(TARGET_PRODUCT))" "msm8660"
+LOCAL_SRC_FILES         += src/mp4_utils.cpp
+endif
 LOCAL_SRC_FILES         += src/omx_vdec.cpp
 
 include $(BUILD_SHARED_LIBRARY)

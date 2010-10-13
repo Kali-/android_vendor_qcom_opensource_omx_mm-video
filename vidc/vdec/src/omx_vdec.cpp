@@ -4532,6 +4532,9 @@ OMX_ERRORTYPE  omx_vdec::empty_this_buffer_proxy(OMX_IN OMX_HANDLETYPE         h
   struct vdec_ioctl_msg ioctl_msg;
   struct vdec_seqheader seq_header;
   bool port_setting_changed = true;
+#ifdef MAX_RES_1080P
+  bool not_coded_vop = false;
+#endif
 
   /*Should we generate a Aync error event*/
   if (buffer == NULL || buffer->pInputPortPrivate == NULL)
@@ -4550,8 +4553,30 @@ OMX_ERRORTYPE  omx_vdec::empty_this_buffer_proxy(OMX_IN OMX_HANDLETYPE         h
   }
 
   pending_input_buffers++;
-
-  if( input_flush_progress == true )
+#ifdef MAX_RES_1080P
+  if(codec_type_parse == CODEC_TYPE_MPEG4 || codec_type_parse == CODEC_TYPE_DIVX){
+    mp4StreamType psBits;
+    psBits.data = (unsigned char *)(buffer->pBuffer + buffer->nOffset);
+    psBits.numBytes = buffer->nFilledLen;
+    mp4_headerparser.parseHeader(&psBits);
+    not_coded_vop = mp4_headerparser.is_notcodec_vop(
+            (buffer->pBuffer + buffer->nOffset),buffer->nFilledLen);
+    if(not_coded_vop) {
+        DEBUG_PRINT_HIGH("\n Found Not coded vop len %d frame number %d",
+             buffer->nFilledLen,frame_count);
+        if(buffer->nFlags & OMX_BUFFERFLAG_EOS){
+          DEBUG_PRINT_HIGH("\n Eos and Not coded Vop set len to zero");
+          not_coded_vop = false;
+          buffer->nFilledLen = 0;
+        }
+    }
+  }
+#endif
+  if(input_flush_progress == true
+#ifdef MAX_RES_1080P
+     || not_coded_vop
+#endif
+     )
   {
     DEBUG_PRINT_LOW("\n Flush in progress return buffer ");
     post_event ((unsigned int)buffer,VDEC_S_SUCCESS,
@@ -4599,6 +4624,12 @@ OMX_ERRORTYPE  omx_vdec::empty_this_buffer_proxy(OMX_IN OMX_HANDLETYPE         h
        first_buffer = (unsigned char *)malloc (drv_ctx.ip_buf.buffer_size);
        DEBUG_PRINT_LOW("\n Copied the first buffer data size %d ",
                     temp_buffer->buffer_len);
+#ifdef MAX_RES_1080P
+       mp4StreamType psBits;
+       psBits.data = (unsigned char *)temp_buffer->bufferaddr;
+       psBits.numBytes = temp_buffer->buffer_len;
+       mp4_headerparser.parseHeader(&psBits);
+#endif
        first_frame = 1;
        memcpy (first_buffer,temp_buffer->bufferaddr,temp_buffer->buffer_len);
        first_frame_size = buffer->nFilledLen;
@@ -5758,6 +5789,15 @@ OMX_ERRORTYPE omx_vdec::push_input_sc_codec(OMX_HANDLETYPE hComp)
       DEBUG_PRINT_LOW("\n H263/MPEG4 Codec First Frame ");
       mp4h263_flags = psource_frame->nFlags;
       mp4h263_timestamp = psource_frame->nTimeStamp;
+#ifdef MAX_RES_1080P
+      if(codec_type_parse == CODEC_TYPE_MPEG4 ||
+         codec_type_parse == CODEC_TYPE_DIVX) {
+        mp4StreamType psBits;
+        psBits.data = pdest_frame->pBuffer + pdest_frame->nOffset;
+        psBits.numBytes = pdest_frame->nFilledLen;
+        mp4_headerparser.parseHeader(&psBits);
+      }
+#endif
       frame_count++;
     }
     else
