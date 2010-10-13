@@ -2605,35 +2605,6 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
       DEBUG_PRINT_LOW("set_parameter: OMX_IndexParamPortDefinition H= %d, W = %d\n",
              (int)portDefn->format.video.nFrameHeight,
              (int)portDefn->format.video.nFrameWidth);
-
-      if(portDefn->format.video.xFramerate > 0 &&
-         portDefn->format.video.xFramerate <= MAX_SUPPORTED_FPS)
-      {
-          // Frame rate only should be set if this is a "known value" or to
-          // activate ts prediction logic (arbitrary mode only) sending input
-          // timestamps with max value (LLONG_MAX).
-          DEBUG_PRINT_HIGH("set_parameter: frame rate set by omx client : %d",
-                           portDefn->format.video.xFramerate);
-          drv_ctx.frame_rate.fps_numerator = portDefn->format.video.xFramerate;
-          drv_ctx.frame_rate.fps_denominator = 1;
-          frm_int = drv_ctx.frame_rate.fps_denominator * 1e6 /
-                    drv_ctx.frame_rate.fps_numerator;
-          frm_int_top = (drv_ctx.frame_rate.fps_numerator <= 5)? 1e6 :
-                        1e6  / (drv_ctx.frame_rate.fps_numerator - 5);
-          frm_int_bot = 1e6  / (drv_ctx.frame_rate.fps_numerator + 5);
-          ioctl_msg.in = &drv_ctx.frame_rate;
-          if (ioctl (drv_ctx.video_driver_fd, VDEC_IOCTL_SET_FRAME_RATE,
-                     (void*)&ioctl_msg) < 0)
-          {
-            DEBUG_PRINT_ERROR("Setting frame rate failed");
-            return OMX_ErrorUnsupportedSetting;
-          }
-          DEBUG_PRINT_LOW("set_parameter: frm_int(%u) fint_bot(%u) fint_top(%u) fps(%.2f)",
-                           frm_int, frm_int_bot, frm_int_top,
-                           drv_ctx.frame_rate.fps_numerator /
-                           (float)drv_ctx.frame_rate.fps_denominator);
-      }
-
       if(OMX_DirOutput == portDefn->eDir)
       {
           DEBUG_PRINT_LOW("set_parameter: OMX_IndexParamPortDefinition OP port\n");
@@ -2654,6 +2625,32 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
       }
       else if(OMX_DirInput == portDefn->eDir)
       {
+        if(portDefn->format.video.xFramerate > 0 &&
+           portDefn->format.video.xFramerate <= MAX_SUPPORTED_FPS)
+        {
+            // Frame rate only should be set if this is a "known value" or to
+            // activate ts prediction logic (arbitrary mode only) sending input
+            // timestamps with max value (LLONG_MAX).
+            DEBUG_PRINT_HIGH("set_parameter: frame rate set by omx client : %d",
+                             portDefn->format.video.xFramerate);
+            drv_ctx.frame_rate.fps_numerator = portDefn->format.video.xFramerate;
+            drv_ctx.frame_rate.fps_denominator = 1;
+            frm_int = drv_ctx.frame_rate.fps_denominator * 1e6 /
+                      drv_ctx.frame_rate.fps_numerator;
+            frm_int_top = (drv_ctx.frame_rate.fps_numerator <= 5)? 1e6 :
+                          1e6  / (drv_ctx.frame_rate.fps_numerator - 5);
+            frm_int_bot = 1e6  / (drv_ctx.frame_rate.fps_numerator + 5);
+            ioctl_msg.in = &drv_ctx.frame_rate;
+            if (ioctl (drv_ctx.video_driver_fd, VDEC_IOCTL_SET_FRAME_RATE,
+                       (void*)&ioctl_msg) < 0)
+            {
+              DEBUG_PRINT_ERROR("Setting frame rate to driver failed");
+            }
+            DEBUG_PRINT_LOW("set_parameter: frm_int(%u) fint_bot(%u) fint_top(%u) fps(%.2f)",
+                             frm_int, frm_int_bot, frm_int_top,
+                             drv_ctx.frame_rate.fps_numerator /
+                             (float)drv_ctx.frame_rate.fps_denominator);
+        }
          DEBUG_PRINT_LOW("set_parameter: OMX_IndexParamPortDefinition IP port\n");
          if(drv_ctx.video_resolution.frame_height !=
                portDefn->format.video.nFrameHeight ||

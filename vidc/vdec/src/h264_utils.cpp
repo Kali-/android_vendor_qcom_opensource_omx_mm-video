@@ -954,6 +954,8 @@ bool extra_data_parser::sei_picture_timing(OMX_S64 &timestamp)
     {
       DEBUG_PRINT_ERROR("NO TIMING INFO PRESENT! Cannot calculate timestamp...");
     }
+  else
+    calc_ts = false;
   au_num++;
   DEBUG_PRINT_LOW("@@sei_picture_timing: OUT");
   return calc_ts;
