@@ -435,9 +435,6 @@ bool H264_Utils::isNewFrame(OMX_BUFFERHEADERTYPE *p_buf_hdr,
         case NALU_TYPE_SPS:
         case NALU_TYPE_PPS:
         case NALU_TYPE_SEI:
-        case NALU_TYPE_UNSPECIFIED:
-        case NALU_TYPE_EOSEQ:
-        case NALU_TYPE_EOSTREAM:
         {
           DEBUG_PRINT_LOW("\n Non-AU boundary with NAL type %d", nal_unit.nalu_type);
           if(m_au_data)
@@ -454,6 +451,9 @@ bool H264_Utils::isNewFrame(OMX_BUFFERHEADERTYPE *p_buf_hdr,
           break;
         }
         case NALU_TYPE_ACCESS_DELIM:
+        case NALU_TYPE_UNSPECIFIED:
+        case NALU_TYPE_EOSEQ:
+        case NALU_TYPE_EOSTREAM:
         default:
         {
           isNewFrame =  OMX_FALSE;
