@@ -85,6 +85,7 @@ extern "C" {
 #define SWAPBYTES(ptrA, ptrB) { char t = *ptrA; *ptrA = *ptrB; *ptrB = t;}
 #define SIZE_NAL_FIELD_MAX  4
 #define MDP_DEINTERLACE 0x80000000
+#define MDP_VERSION_3_1 100 /* 3.1--> 51('3') + 49('1') = 100 */
 
 /************************************************************************/
 /*				GLOBAL DECLARATIONS                     */
@@ -2490,7 +2491,7 @@ void render_fb(struct OMX_BUFFERHEADERTYPE *pBufHdr)
     OMX_QCOM_EXTRADATA_FRAMEDIMENSION *pExtraFrameDimension = 0;
     OMX_QCOM_EXTRADATA_CODEC_DATA *pExtraCodecData = 0;
     OMX_QCOM_PLATFORM_PRIVATE_PMEM_INFO *pPMEMInfo = NULL;
-    unsigned int destx, desty,destW, destH;
+    unsigned int destx, desty,destW, destH,scale,version;
     struct use_egl_id *egl_info = NULL;
 #ifdef _ANDROID_
     MemoryHeapBase *vheap = NULL;
@@ -2670,8 +2671,23 @@ void render_fb(struct OMX_BUFFERHEADERTYPE *pBufHdr)
      default:
             destx = 0;
             desty = 0;
-            destW = vinfo.xres;
-            destH = vinfo.yres;
+            /* MDP driver version 3.1 supports up to 8X scaling */
+            version = (finfo.id[5] + finfo.id[6]);
+            /* if MDP version is above 3.1 then return unsupported version */
+            if(version > MDP_VERSION_3_1)
+            {
+              QTV_MSG_PRIO2(QTVDIAG_GENERAL,QTVDIAG_PRIO_ERROR,
+              "Unsupported Display driver version%c.%c \n",finfo.id[5] , finfo.id[6]);
+              return;
+            }/* if MDP version is 3.1 then set 8x as max scaling factor */
+            else if(version == MDP_VERSION_3_1)   scale = 3;
+            /* if MDP version is less then 3.1 then set 4x as max scaling factor */
+            else  scale = 2;
+
+            destW = (e->src.width<<scale);
+            destH = (e->src.height<<scale);
+            destW = (vinfo.xres > destW) ? destW : vinfo.xres;
+            destH = (vinfo.yres > destH) ? destH : vinfo.yres;
     }
 
 
