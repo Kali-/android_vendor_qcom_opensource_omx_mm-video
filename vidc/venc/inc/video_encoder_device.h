@@ -89,10 +89,10 @@ private:
 
   bool venc_set_profile_level(OMX_U32 eProfile,OMX_U32 eLevel);
   bool venc_set_intra_period(OMX_U32 nPFrames);
-  bool venc_set_target_bitrate(OMX_U32 nTargetBitrate);
+  bool venc_set_target_bitrate(OMX_U32 nTargetBitrate, OMX_U32 config);
   bool venc_set_ratectrl_cfg(OMX_VIDEO_CONTROLRATETYPE eControlRate);
   bool venc_set_session_qp(OMX_U32 i_frame_qp, OMX_U32 p_frame_qp);
-  bool venc_set_encode_framerate(OMX_U32 encode_framerate);
+  bool venc_set_encode_framerate(OMX_U32 encode_framerate, OMX_U32 config);
   bool venc_set_intra_vop_refresh(OMX_BOOL intra_vop_refresh);
   bool venc_set_color_format(OMX_COLOR_FORMATTYPE color_format);
   bool venc_validate_profile_level(OMX_U32 *eProfile, OMX_U32 *eLevel);

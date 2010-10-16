@@ -515,6 +515,8 @@ OMX_ERRORTYPE  omx_venc::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
         m_sOutPortDef.format.video.nFrameWidth  = portDefn->format.video.nFrameWidth;
         m_sOutPortDef.format.video.nFrameHeight = portDefn->format.video.nFrameHeight;
 
+        update_profile_level(); //framerate , bitrate
+
         DEBUG_PRINT_LOW("\n o/p previous actual cnt = %d\n", m_sOutPortDef.nBufferCountActual);
         DEBUG_PRINT_LOW("\n o/p previous min cnt = %d\n", m_sOutPortDef.nBufferCountMin);
         m_sOutPortDef.nBufferCountActual = portDefn->nBufferCountActual;
@@ -547,7 +549,7 @@ OMX_ERRORTYPE  omx_venc::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
 
         DEBUG_PRINT_LOW("set_parameter: OMX_IndexParamVideoPortFormat %d\n",
             portFmt->eColorFormat);
-
+        update_profile_level(); //framerate
         m_sInPortFormat.eColorFormat = portFmt->eColorFormat;
         m_sInPortFormat.xFramerate = portFmt->xFramerate;
       }
@@ -571,7 +573,7 @@ OMX_ERRORTYPE  omx_venc::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
       }
       m_sParamBitrate.nTargetBitrate = pParam->nTargetBitrate;
       m_sParamBitrate.eControlRate = pParam->eControlRate;
-
+      update_profile_level(); //bitrate
       m_sConfigBitrate.nEncodeBitrate = pParam->nTargetBitrate;
 	  m_sInPortDef.format.video.nBitrate = pParam->nTargetBitrate;
       m_sOutPortDef.format.video.nBitrate = pParam->nTargetBitrate;
@@ -646,8 +648,10 @@ OMX_ERRORTYPE  omx_venc::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
     {
       OMX_VIDEO_PARAM_PROFILELEVELTYPE* pParam = (OMX_VIDEO_PARAM_PROFILELEVELTYPE*)paramData;
       DEBUG_PRINT_LOW("set_parameter: OMX_IndexParamVideoProfileLevelCurrent");
-      if(handle->venc_set_param(paramData,OMX_IndexParamVideoProfileLevelCurrent) != true)
+      if(handle->venc_set_param(pParam,OMX_IndexParamVideoProfileLevelCurrent) != true)
       {
+        DEBUG_PRINT_ERROR("set_parameter: OMX_IndexParamVideoProfileLevelCurrent failed for Profile: %d "
+                          "Level :%d", pParam->eProfile, pParam->eLevel);
         return OMX_ErrorUnsupportedSetting;
       }
       m_sParamProfileLevel.eProfile = pParam->eProfile;
@@ -669,7 +673,8 @@ OMX_ERRORTYPE  omx_venc::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
           DEBUG_PRINT_LOW("\n H263 profile = %d, level = %d", m_sParamH263.eProfile,
               m_sParamH263.eLevel);
       }
-      else
+      else if(!strncmp((char *)m_nkind, "OMX.qcom.video.encoder.avc",\
+          OMX_MAX_STRINGNAME_SIZE))
       {
           m_sParamAVC.eProfile = (OMX_VIDEO_AVCPROFILETYPE)m_sParamProfileLevel.eProfile;
           m_sParamAVC.eLevel = (OMX_VIDEO_AVCLEVELTYPE)m_sParamProfileLevel.eLevel;
@@ -872,6 +877,45 @@ OMX_ERRORTYPE  omx_venc::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
   return eRet;
 }
 
+bool omx_venc::update_profile_level()
+{
+  OMX_U32 eProfile, eLevel;
+
+  if(!handle->venc_get_profile_level(&eProfile,&eLevel))
+  {
+    DEBUG_PRINT_ERROR("\nFailed to update the profile_level\n");
+    return false;
+  }
+
+  m_sParamProfileLevel.eProfile = (OMX_VIDEO_MPEG4PROFILETYPE)eProfile;
+  m_sParamProfileLevel.eLevel = (OMX_VIDEO_MPEG4LEVELTYPE)eLevel;
+
+  if(!strncmp((char *)m_nkind, "OMX.qcom.video.encoder.mpeg4",\
+              OMX_MAX_STRINGNAME_SIZE))
+  {
+    m_sParamMPEG4.eProfile = (OMX_VIDEO_MPEG4PROFILETYPE)eProfile;
+    m_sParamMPEG4.eLevel = (OMX_VIDEO_MPEG4LEVELTYPE)eLevel;
+    DEBUG_PRINT_LOW("\n MPEG4 profile = %d, level = %d", m_sParamMPEG4.eProfile,
+                    m_sParamMPEG4.eLevel);
+  }
+  else if(!strncmp((char *)m_nkind, "OMX.qcom.video.encoder.h263",\
+                   OMX_MAX_STRINGNAME_SIZE))
+  {
+    m_sParamH263.eProfile = (OMX_VIDEO_H263PROFILETYPE)eProfile;
+    m_sParamH263.eLevel = (OMX_VIDEO_H263LEVELTYPE)eLevel;
+    DEBUG_PRINT_LOW("\n H263 profile = %d, level = %d", m_sParamH263.eProfile,
+                    m_sParamH263.eLevel);
+  }
+  else if(!strncmp((char *)m_nkind, "OMX.qcom.video.encoder.avc",\
+                   OMX_MAX_STRINGNAME_SIZE))
+  {
+    m_sParamAVC.eProfile = (OMX_VIDEO_AVCPROFILETYPE)eProfile;
+    m_sParamAVC.eLevel = (OMX_VIDEO_AVCLEVELTYPE)eLevel;
+    DEBUG_PRINT_LOW("\n AVC profile = %d, level = %d", m_sParamAVC.eProfile,
+                    m_sParamAVC.eLevel);
+  }
+  return true;
+}
 /* ======================================================================
 FUNCTION
   omx_video::SetConfig
