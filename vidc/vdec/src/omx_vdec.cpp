@@ -46,6 +46,7 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <errno.h>
 #include "omx_vdec.h"
 #include <fcntl.h>
+#include <cutils/properties.h>
 
 #ifndef _ANDROID_
 #include <stropts.h>
@@ -237,6 +238,106 @@ unsigned omx_vdec::omx_cmd_queue::get_q_msg_type()
     return m_q[m_read].id;
 }
 
+
+omx_vdec::ts_arr_list::ts_arr_list()
+{
+  //initialize timestamps array
+  memset(m_ts_arr_list, 0, ( sizeof(ts_entry) * MAX_NUM_INPUT_OUTPUT_BUFFERS) );
+}
+omx_vdec::ts_arr_list::~ts_arr_list()
+{
+  //free m_ts_arr_list?
+}
+
+bool omx_vdec::ts_arr_list::insert_ts(OMX_TICKS ts)
+{
+  bool ret = true;
+  bool duplicate_ts = false;
+  int idx = 0;
+
+  //insert at the first available empty location
+  for ( ; idx < MAX_NUM_INPUT_OUTPUT_BUFFERS; idx++)
+  {
+    if (!m_ts_arr_list[idx].valid)
+    {
+      //found invalid or empty entry, save timestamp
+      m_ts_arr_list[idx].valid = true;
+      m_ts_arr_list[idx].timestamp = ts;
+      DEBUG_PRINT_LOW("Insert_ts(): Inserting TIMESTAMP (%lld) at idx (%d)",
+                       ts, idx);
+      break;
+    }
+  }
+
+  if (idx == MAX_NUM_INPUT_OUTPUT_BUFFERS)
+  {
+    DEBUG_PRINT_LOW("Timestamp array list is FULL. Unsuccessful insert");
+    ret = false;
+  }
+  return ret;
+}
+
+bool omx_vdec::ts_arr_list::pop_min_ts(OMX_TICKS &ts)
+{
+  bool ret = true;
+  int min_idx = -1;
+  OMX_TICKS min_ts = 0;
+  int idx = 0;
+  
+  for ( ; idx < MAX_NUM_INPUT_OUTPUT_BUFFERS; idx++)
+  {
+
+    if (m_ts_arr_list[idx].valid)
+    {
+      //found valid entry, save index
+      if (min_idx < 0)
+      {
+        //first valid entry
+        min_ts = m_ts_arr_list[idx].timestamp;
+        min_idx = idx;
+      }
+      else if (m_ts_arr_list[idx].timestamp < min_ts)
+      {
+        min_ts = m_ts_arr_list[idx].timestamp;
+        min_idx = idx;
+      }
+    }
+
+  }
+
+  if (min_idx < 0)
+  {
+    //no valid entries found
+    DEBUG_PRINT_LOW("Timestamp array list is empty. Unsuccessful pop");
+    ts = 0;
+    ret = false;
+  }
+  else
+  {
+    ts = m_ts_arr_list[min_idx].timestamp;
+    m_ts_arr_list[min_idx].valid = false;
+    DEBUG_PRINT_LOW("Pop_min_ts:Timestamp (%lld), index(%d)",
+                     ts, min_idx);
+  }
+
+  return ret;
+
+}
+
+
+bool omx_vdec::ts_arr_list::reset_ts_list()
+{
+  bool ret = true;
+  int idx = 0;
+
+  DEBUG_PRINT_LOW("reset_ts_list(): Resetting timestamp array list");
+  for ( ; idx < MAX_NUM_INPUT_OUTPUT_BUFFERS; idx++)
+  {
+    m_ts_arr_list[idx].valid = false;
+  }
+  return ret;
+}
+
 // factory function executed by the core to create instances
 void *get_omx_component_factory_fn(void)
 {
@@ -329,6 +430,11 @@ omx_vdec::omx_vdec(): m_state(OMX_StateInvalid),
   m_vendor_config.pData = NULL;
   pthread_mutex_init(&m_lock, NULL);
   sem_init(&m_cmd_lock,0,0);
+
+  char property_value[PROPERTY_VALUE_MAX] = {0};
+  property_get("vidc.dec.debug.ts", property_value, "0");
+  m_debug_timestamp = atoi(property_value);
+  DEBUG_PRINT_HIGH("vidc.dec.debug.ts value is %d",m_debug_timestamp);
 }
 
 
@@ -1952,6 +2058,10 @@ bool omx_vdec::execute_input_flush()
   {
     prev_ts = LLONG_MAX;
     rst_prev_ts = true;
+  }
+  if (m_debug_timestamp)
+  {
+    m_timestamp_list.reset_ts_list();
   }
   DEBUG_PRINT_HIGH("\n OMX flush i/p Port complete PenBuf(%d)", pending_input_buffers);
   return bRet;
@@ -4520,6 +4630,12 @@ OMX_ERRORTYPE  omx_vdec::empty_this_buffer_proxy(OMX_IN OMX_HANDLETYPE         h
   frameinfo.pmem_offset = temp_buffer->offset;
   frameinfo.timestamp = buffer->nTimeStamp;
 
+  if (m_debug_timestamp)
+  {
+    DEBUG_PRINT_LOW("\n Inserting TIMESTAMP (%lld) into queue", buffer->nTimeStamp);
+    m_timestamp_list.insert_ts(buffer->nTimeStamp);
+  }
+
 #ifdef INPUT_BUFFER_LOG
   if (inputBufferFile1)
   {
@@ -4781,6 +4897,11 @@ OMX_ERRORTYPE  omx_vdec::component_deinit(OMX_IN OMX_HANDLETYPE hComp)
     m_ftb_q.m_read = m_ftb_q.m_write =0;
     m_cmd_q.m_read = m_cmd_q.m_write =0;
     m_etb_q.m_read = m_etb_q.m_write =0;
+
+    if (m_debug_timestamp)
+    {
+      m_timestamp_list.reset_ts_list();
+    }
 
     DEBUG_PRINT_LOW("\n Calling VDEC_IOCTL_STOP_NEXT_MSG");
     (void)ioctl(drv_ctx.video_driver_fd, VDEC_IOCTL_STOP_NEXT_MSG,
@@ -5370,6 +5491,25 @@ int omx_vdec::async_message_process (void *context, void* message)
   vdec_msg = (struct vdec_msginfo *)message;
 
   omx = reinterpret_cast<omx_vdec*>(context);
+
+
+  if (omx->m_debug_timestamp)
+  {
+    if ( (vdec_msg->msgcode == VDEC_MSG_RESP_OUTPUT_BUFFER_DONE) &&
+         !(omx->output_flush_progress) )
+    {
+      OMX_TICKS expected_ts = 0;
+      omx->m_timestamp_list.pop_min_ts(expected_ts);
+      DEBUG_PRINT_LOW("\n Current timestamp (%lld),Popped TIMESTAMP (%lld) from list",
+                       vdec_msg->msgdata.output_frame.time_stamp, expected_ts);
+
+      if (vdec_msg->msgdata.output_frame.time_stamp != expected_ts)
+      {
+        DEBUG_PRINT_ERROR("\n ERROR in omx_vdec::async_message_process timestamp Check");
+      }
+    }
+  }
+
   switch (vdec_msg->msgcode)
   {
 
@@ -6417,6 +6557,7 @@ void omx_vdec::complete_pending_buffer_done_cbs()
         break;
     }
   }
+
 }
 
 void omx_vdec::set_frame_rate(OMX_S64 act_timestamp, bool min_delta)
