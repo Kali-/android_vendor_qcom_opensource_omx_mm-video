@@ -3723,16 +3723,37 @@ OMX_ERRORTYPE Venc::allocate_q6_buffers(struct venc_buffers *pbufs)
   int width, height;
 
   QC_OMX_MSG_MEDIUM("Attempt to allocate q6 buffers ");
-
-  width = m_sOutPortDef.format.video.nFrameWidth;
-  height = m_sOutPortDef.format.video.nFrameHeight;
+  
+  if (m_pDevice->config.rotation.rotation == VEN_ROTATION_90 ||
+      m_pDevice->config.rotation.rotation == VEN_ROTATION_270)
+  {
+    height = m_sOutPortDef.format.video.nFrameWidth;
+    width  = m_sOutPortDef.format.video.nFrameHeight;
+  }
+  else
+  {
+    width  = m_sOutPortDef.format.video.nFrameWidth;
+    height = m_sOutPortDef.format.video.nFrameHeight;
+  }
+  
   if(OMX_ErrorNone != is_multi_slice_mode_supported()) {
     nCmdSize = width * height * 3 / 2;
   } else {
+    /* AVC codec and resolution is less than VGA */
+    /* slice mode is supported here, so allocate */
+    /* extra command buffer size                 */
     nCmdSize = width * height * 4;
   }
+  
+  /* nVlcSize = max coefficients in a MB row (all co-effs are non zero) */
+  /* Luma MB co-eff's      = 16*16 */ 
+  /* 2 Chroma MBs co-eff's = 2*8*8 */
+  /* total of 384 * 8  = 3072 bits */
   nVlcSize = 3072 * width / 16;
+  
+  /* aligning width to 2 MBs, requirement from 720p optimizations */
   nReconSize = nWbSize = (((width + 31) >> 5) << 5) * height * 3 / 2;
+  
   // allocate recon buffers
   for (i = 0; i < VENC_MAX_RECON_BUFFERS && result == OMX_ErrorNone; i++)
   {
