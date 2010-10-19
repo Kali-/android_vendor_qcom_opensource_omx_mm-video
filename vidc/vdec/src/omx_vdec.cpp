@@ -6326,18 +6326,7 @@ OMX_ERRORTYPE omx_vdec::start_port_reconfig()
       in_reconfig = true;
       op_buf_rcnfg.buffer_type = VDEC_BUFFER_TYPE_OUTPUT;
       eRet = get_buffer_req(&op_buf_rcnfg, true);
-      if (eRet == OMX_ErrorNone &&
-         (vid_res.frame_height != drv_ctx.video_resolution.frame_height ||
-          vid_res.frame_width != drv_ctx.video_resolution.frame_width ||
-          vid_res.stride != drv_ctx.video_resolution.stride ||
-          vid_res.scan_lines != drv_ctx.video_resolution.scan_lines ||
-          op_buf_rcnfg.actualcount > drv_ctx.op_buf.actualcount ||
-          op_buf_rcnfg.buffer_size > drv_ctx.op_buf.buffer_size))
-        drv_ctx.video_resolution = vid_res;
-      else
-      // Reconfig issued for interlace, current buffer requirements are good
-      // enough for the extradata required, no reconfig from client required.
-        in_reconfig = false;
+      drv_ctx.video_resolution = vid_res;
     }
   }
   return eRet;
