@@ -35,6 +35,7 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "omx_video_common.h"
 #include <linux/msm_vidc_enc.h>
 
+#define MAX_RECON_BUFFERS 3
 
 void* async_venc_message_thread (void *);
 
@@ -67,6 +68,16 @@ public:
   OMX_U32 m_nDriver_fd;
   bool m_profile_set;
   bool m_level_set;
+  struct recon_buffer {
+	  unsigned char* virtual_address;
+	  int pmem_fd;
+	  int size;
+	  int alignment;
+	  int offset;
+	  };
+
+  recon_buffer recon_buff[MAX_RECON_BUFFERS];
+  int recon_buffers_count;
 
 private:
   struct venc_basecfg             m_sVenc_cfg;
@@ -103,6 +114,21 @@ private:
   bool venc_set_error_resilience(OMX_VIDEO_PARAM_ERRORCORRECTIONTYPE* error_resilience);
   bool venc_set_voptiming_cfg(OMX_U32 nTimeIncRes);
   void venc_config_print();
+#ifdef MAX_RES_1080P
+  OMX_U32 pmem_free();
+  OMX_U32 pmem_allocate(OMX_U32 size, OMX_U32 alignment, OMX_U32 count);
+  OMX_U32 venc_allocate_recon_buffers();
+  inline int clip2(int x)
+  {
+	  x = x -1;
+	  x = x | x >> 1;
+	  x = x | x >> 2;
+	  x = x | x >> 4;
+	  x = x | x >> 16;
+	  x = x + 1;
+	  return x;
+  }
+#endif
 };
 
 #endif

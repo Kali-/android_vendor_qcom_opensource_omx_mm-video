@@ -512,7 +512,7 @@ result = OMX_SetParameter(m_hHandle,
             {
               eLevel = (int)profile_tbl[3];
               eProfile = (int)profile_tbl[4];
-              E("\n profile and level found \n");
+              E("\n profile/level found: %d/%d\n",eProfile/eLevel);
               profile_level_found = true;
               break;
             }

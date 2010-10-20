@@ -31,6 +31,7 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <fcntl.h>
 #include "video_encoder_device.h"
 #include "omx_video_encoder.h"
+#include <linux/android_pmem.h>
 
 #define MPEG4_SP_START 0
 #define MPEG4_ASP_START (MPEG4_SP_START + 8)
@@ -40,6 +41,7 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define H264_HP_START (H264_BP_START + 13)
 #define H264_MP_START (H264_BP_START + 26)
 
+#define PMEM_DEVICE "/dev/pmem_smipool"
 /* MPEG4 profile and level table*/
 static const unsigned int mpeg4_profile_level_table[][5]=
 {
@@ -277,7 +279,7 @@ bool venc_dev::venc_open(OMX_U32 codec)
     DEBUG_PRINT_HIGH("\n %s(): Init Profile/Level setting success",
         __func__);
   }
-
+  recon_buffers_count = MAX_RECON_BUFFERS;
   return true;
 }
 
@@ -900,6 +902,9 @@ bool venc_dev::venc_set_config(void *configData, OMX_INDEXTYPE index)
 
 unsigned venc_dev::venc_stop( void)
 {
+#ifdef MAX_RES_1080P
+  pmem_free();
+#endif
   return ioctl(m_nDriver_fd,VEN_IOCTL_CMD_STOP,NULL);
 }
 
@@ -928,8 +933,152 @@ unsigned venc_dev::venc_start(void)
       __func__, codec_profile.profile, profile_level.level);
   }
   venc_config_print();
-  return ioctl(m_nDriver_fd, VEN_IOCTL_CMD_START, NULL);
+
+#ifdef MAX_RES_1080P
+  if((codec_profile.profile != VEN_PROFILE_MPEG4_ASP) ||
+     (codec_profile.profile != VEN_PROFILE_H264_HIGH) ||
+     (codec_profile.profile != VEN_PROFILE_H264_MAIN))
+   {
+     recon_buffers_count = MAX_RECON_BUFFERS - 1;
+   }
+
+  if (!venc_allocate_recon_buffers())
+    return ioctl(m_nDriver_fd, VEN_IOCTL_CMD_START, NULL);
+  else
+  {
+    DEBUG_PRINT_ERROR("Failed in creating Recon buffers\n");
+    return -1;
+  }
+#else
+    return ioctl(m_nDriver_fd, VEN_IOCTL_CMD_START, NULL);
+#endif
 }
+
+#ifdef MAX_RES_1080P
+OMX_U32 venc_dev::venc_allocate_recon_buffers()
+{
+  OMX_U32 yuv_size;
+  struct venc_ioctl_msg ioctl_msg;
+  struct venc_recon_buff_size recon_buff_size;
+
+  recon_buff_size.width =  ((m_sVenc_cfg.input_width + 15) / 16) * 16;
+  recon_buff_size.height = ((m_sVenc_cfg.input_height + 15) / 16 ) * 16;
+
+  DEBUG_PRINT_LOW("Width %d, Height %d, w_round %d, h_round %d\n", m_sVenc_cfg.input_width,
+                    m_sVenc_cfg.input_height, recon_buff_size.width, recon_buff_size.height);
+
+  ioctl_msg.in = NULL;
+  ioctl_msg.out = (void*)&recon_buff_size;
+
+  if (ioctl (m_nDriver_fd,VEN_IOCTL_GET_RECON_BUFFER_SIZE, (void*)&ioctl_msg) < 0)
+  {
+    DEBUG_PRINT_ERROR("\n VEN_IOCTL_GET_RECON_BUFFER_SIZE Failed for width: %d, Height %d" ,
+      recon_buff_size.width, recon_buff_size.height);
+    return OMX_ErrorInsufficientResources;
+  }
+
+  DEBUG_PRINT_HIGH("Width %d, Height %d, w_round %d, h_round %d, yuv_size %d alignment %d count %d\n",
+                   m_sVenc_cfg.input_width, m_sVenc_cfg.input_height, recon_buff_size.width,
+                   recon_buff_size.height, recon_buff_size.size, recon_buff_size.alignment,
+                   recon_buffers_count);
+
+  for(int i = 0; i < recon_buffers_count; i++)
+  {
+    if(pmem_allocate(recon_buff_size.size, recon_buff_size.alignment,i))
+    {
+      DEBUG_PRINT_ERROR("Error returned in allocating recon buffers\n");
+      return -1;
+    }
+  }
+  return 0;
+}
+
+OMX_U32 venc_dev::pmem_allocate(OMX_U32 size, OMX_U32 alignment, OMX_U32 count)
+{
+  OMX_U32 pmem_fd = -1;
+  OMX_U32 width, height;
+  void *buf_addr = NULL;
+  struct venc_ioctl_msg ioctl_msg;
+  struct pmem_allocation allocation;
+  struct venc_recon_addr recon_addr;
+
+  pmem_fd = open(PMEM_DEVICE, O_RDWR);
+
+  if ((int)(pmem_fd) < 0)
+      return -1;
+
+  allocation.size = size;
+  allocation.align = clip2(alignment);
+
+  if (allocation.align != 8192)
+    allocation.align = 8192;
+
+  if (ioctl(pmem_fd, PMEM_ALLOCATE_ALIGNED, &allocation) < 0)
+  {
+    DEBUG_PRINT_ERROR("\n Aligment(%u) failed with pmem driver Sz(%lu)",
+      allocation.align, allocation.size);
+    return -1;
+  }
+
+  buf_addr = mmap(NULL, size,
+               PROT_READ | PROT_WRITE,
+               MAP_SHARED, pmem_fd, 0);
+
+  if (buf_addr == (void*) MAP_FAILED)
+  {
+    close(pmem_fd);
+    pmem_fd = -1;
+    DEBUG_PRINT_ERROR("Error returned in allocating recon buffers buf_addr: %p\n",buf_addr);
+    return -1;
+  }
+
+  DEBUG_PRINT_HIGH("\n Allocated virt:%p, FD: %d of size %d \n", buf_addr, pmem_fd, size);
+
+  recon_addr.buffer_size = size;
+  recon_addr.pmem_fd = pmem_fd;
+  recon_addr.offset = 0;
+
+  ioctl_msg.in = (void*)&recon_addr;
+  ioctl_msg.out = NULL;
+
+  if (ioctl (m_nDriver_fd,VEN_IOCTL_SET_RECON_BUFFER, (void*)&ioctl_msg) < 0)
+  {
+    DEBUG_PRINT_ERROR("Failed to set the Recon_buffers\n");
+    return -1;
+  }
+
+  recon_buff[count].virtual_address = (unsigned char *) buf_addr;
+  recon_buff[count].size = size;
+  recon_buff[count].offset = 0;
+  recon_buff[count].pmem_fd = pmem_fd;
+
+  DEBUG_PRINT_ERROR("\n Allocated virt:%p, FD: %d of size %d at index: %d\n", recon_buff[count].virtual_address,
+                     recon_buff[count].pmem_fd, recon_buff[count].size, count);
+  return 0;
+}
+
+OMX_U32 venc_dev::pmem_free()
+{
+  int cnt = 0;
+  for (cnt = 0; cnt < recon_buffers_count; cnt++)
+  {
+    if(recon_buff[cnt].pmem_fd)
+    {
+      if(!ioctl(m_nDriver_fd, VEN_IOCTL_FREE_RECON_BUFFER ,NULL))
+        DEBUG_PRINT_ERROR("VEN_IOCTL_FREE_RECON_BUFFER failed");
+      munmap(recon_buff[cnt].virtual_address, recon_buff[cnt].size);
+      close(recon_buff[cnt].pmem_fd);
+      DEBUG_PRINT_LOW("\n cleaning Index %d of size %d \n",cnt,recon_buff[cnt].size);
+      recon_buff[cnt].pmem_fd = -1;
+      recon_buff[cnt].virtual_address = NULL;
+      recon_buff[cnt].offset = 0;
+      recon_buff[cnt].alignment = 0;
+      recon_buff[cnt].size = 0;
+    }
+  }
+  return 0;
+}
+#endif
 
 void venc_dev::venc_config_print()
 {
@@ -2232,10 +2381,10 @@ bool venc_dev::venc_validate_profile_level(OMX_U32 *eProfile, OMX_U32 *eLevel)
         {
           if(m_sVenc_cfg.targetbitrate <= (int)profile_tbl[2])
           {
-              DEBUG_PRINT_LOW("\n Appropriate profile/level found \n");
               new_level = (int)profile_tbl[3];
               new_profile = (int)profile_tbl[4];
               profile_level_found = true;
+              DEBUG_PRINT_LOW("\n Appropriate profile/level found %d/%d\n", new_profile, new_level);
               break;
           }
         }
