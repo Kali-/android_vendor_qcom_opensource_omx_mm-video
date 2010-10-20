@@ -84,10 +84,11 @@ extern "C" {
 #define SHORT_HEADER_START_CODE 0x00008000
 #define VC1_START_CODE  0x00000100
 #define VC1_FRAME_START_CODE  0x0000010D
+#define VC1_FRAME_FIELD_CODE  0x0000010C
 #define NUMBER_OF_ARBITRARYBYTES_READ  (4 * 1024)
 #define VC1_SEQ_LAYER_SIZE_WITHOUT_STRUCTC 32
 #define VC1_SEQ_LAYER_SIZE_V1_WITHOUT_STRUCTC 16
-
+static int previous_vc1_au = 0;
 #define CONFIG_VERSION_SIZE(param) \
     param.nVersion.nVersion = CURRENT_OMX_SPEC_VERSION;\
     param.nSize = sizeof(param);
@@ -413,6 +414,11 @@ int process_current_command(const char *seq_command)
         data_str = (char*)seq_command + strlen("flush") + 1;
         data = atoi(data_str);
         printf("\n After frame number %u", data);
+        if (previous_vc1_au)
+        {
+            printf("\n Flush not allowed on Field boundary");
+            return 0;
+        }
         cmd_data = data;
         sem_wait(&seq_sem);
         if (!bOutputEosReached && !bInputEosReached)
@@ -2493,8 +2499,14 @@ static int Read_Buffer_From_VC1_File(OMX_BUFFERHEADERTYPE  *pBufHdr)
       //VOP start code comparision
       if (readOffset>3)
       {
-        if (VC1_FRAME_START_CODE == (code & 0xFFFFFFFF))
+        if (VC1_FRAME_START_CODE == (code & 0xFFFFFFFF) ||
+            VC1_FRAME_FIELD_CODE == (code & 0xFFFFFFFF))
         {
+          previous_vc1_au = 0;
+          if(VC1_FRAME_FIELD_CODE == (code & 0xFFFFFFFF))
+          {
+              previous_vc1_au = 1;
+          }
           //Seek backwards by 4
           fseek(inputBufferFile, -4, SEEK_CUR);
           readOffset-=3;
@@ -2826,7 +2838,7 @@ void overlay_set()
     overlayp->alpha = 0x0;
     overlayp->transp_mask = 0xFFFFFFFF;
     overlayp->flags = 0;
-    overlayp->is_fg = 1;
+    overlayp->is_fg = 0;
 
     overlayp->id = MSMFB_NEW_REQUEST;
     vid_buf_front_id = ioctl(fb_fd, MSMFB_OVERLAY_SET, overlayp);
