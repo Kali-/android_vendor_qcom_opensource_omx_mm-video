@@ -1318,7 +1318,7 @@ bool venc_dev::venc_set_profile_level(OMX_U32 eProfile,OMX_U32 eLevel)
         break;
       case OMX_VIDEO_MPEG4Level5:
         mb_per_sec = mb_per_frame * (m_sVenc_cfg.fps_num / m_sVenc_cfg.fps_den);
-        if((mb_per_frame >= profile_tbl[0]) &&
+		if((requested_profile.profile == VEN_PROFILE_MPEG4_SP) && (mb_per_frame >= profile_tbl[0]) &&
            (mb_per_sec >= profile_tbl[1]))
         {
           DEBUG_PRINT_LOW("\nMPEG4 Level 6 is set for 720p resolution");
@@ -1433,6 +1433,9 @@ bool venc_dev::venc_set_profile_level(OMX_U32 eProfile,OMX_U32 eLevel)
       break;
     case OMX_VIDEO_AVCLevel31:
       requested_level.level = VEN_LEVEL_H264_3p1;
+      break;
+    case OMX_VIDEO_AVCLevel4:
+      requested_level.level = VEN_LEVEL_H264_4;
       break;
     default :
       DEBUG_PRINT_ERROR("\nERROR: Unsupported H.264 level= %u",
@@ -2041,7 +2044,10 @@ bool venc_dev::venc_get_profile_level(OMX_U32 *eProfile,OMX_U32 *eLevel)
     case VEN_LEVEL_H264_3p1:
       *eLevel = OMX_VIDEO_AVCLevel31;
       break;
-    default :
+    case VEN_LEVEL_H264_4:
+      *eLevel = OMX_VIDEO_AVCLevel4;
+      break;
+	  default :
       *eLevel = OMX_VIDEO_AVCLevelMax;
       status = false;
       break;
@@ -2236,8 +2242,7 @@ bool venc_dev::venc_validate_profile_level(OMX_U32 *eProfile, OMX_U32 *eLevel)
       profile_tbl = profile_tbl + 5;
   }while(profile_tbl[0] != 0);
 
-  if ((profile_level_found != true) || (new_profile != *eProfile)
-      || (new_level > *eLevel))
+  if (profile_level_found != true)
   {
     DEBUG_PRINT_LOW("\n ERROR: Unsupported profile/level\n");
     return false;
