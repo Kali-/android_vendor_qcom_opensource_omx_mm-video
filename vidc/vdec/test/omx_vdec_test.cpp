@@ -54,9 +54,12 @@ extern "C"{
 #define DEBUG_PRINT
 #define DEBUG_PRINT_ERROR
 
-//#define __DEBUG_DIVX__ // Uncomment this macro to print (through logcat)
+//#define __DEBUG_DIVX__ // Define this macro to print (through logcat)
                          // the kind of frames packed per buffer and
                          // timestamps adjustments for divx.
+
+//#define TEST_TS_FROM_SEI // Define this macro to calculate the timestamps
+                           // from the SEI and VUI data for H264 
 
 #else
 #define DEBUG_PRINT printf
@@ -563,8 +566,13 @@ void* fbd_thread(void* pArg)
     else if (pBuffer->nFilledLen > 0)
     {
       fbd_cnt++;
+#ifdef TEST_TS_FROM_SEI
+      LOGE("%s: fbd_cnt(%d) Buf(%p) Timestamp(%lld)",
+        __FUNCTION__, fbd_cnt, pBuffer, pBuffer->nTimeStamp);
+#else
       DEBUG_PRINT("%s: fbd_cnt(%d) Buf(%p) Timestamp(%lld)",
         __FUNCTION__, fbd_cnt, pBuffer, pBuffer->nTimeStamp);
+#endif
       canDisplay = 1;
       if (realtime_display)
       {
@@ -634,7 +642,6 @@ void* fbd_thread(void* pArg)
     if (pBuffer->nFlags & OMX_BUFFERFLAG_EXTRADATA)
     {
         OMX_OTHER_EXTRADATATYPE *pExtra;
-        OMX_STREAMINTERLACEFORMAT *pInterlaceFormat;
         DEBUG_PRINT(">> BUFFER WITH EXTRA DATA RCVD <<<");
         pExtra = (OMX_OTHER_EXTRADATATYPE *)
                  ((unsigned)(pBuffer->pBuffer + pBuffer->nOffset +
@@ -645,12 +652,46 @@ void* fbd_thread(void* pArg)
         {
           DEBUG_PRINT("ExtraData : pBuf(%p) BufTS(%lld) Type(%x) DataSz(%u)",
                pBuffer, pBuffer->nTimeStamp, pExtra->eType, pExtra->nDataSize);
-          if (pExtra->eType == OMX_ExtraDataInterlaceFormat)
+          switch (pExtra->eType)
           {
-            pInterlaceFormat = (OMX_STREAMINTERLACEFORMAT *)pExtra->data;
-            DEBUG_PRINT("Buf(%p) TSmp(%lld) Off(%x) FLen(%x) XDPtr(%p) IntPtr(%p) Fmt(%x)",
-              pBuffer->pBuffer, pBuffer->nTimeStamp, pBuffer->nOffset, pBuffer->nFilledLen,
-              pExtra, pInterlaceFormat, pInterlaceFormat->nInterlaceFormats);
+            case OMX_ExtraDataInterlaceFormat:
+            {
+              OMX_STREAMINTERLACEFORMAT *pInterlaceFormat = (OMX_STREAMINTERLACEFORMAT *)pExtra->data;
+              DEBUG_PRINT("OMX_ExtraDataInterlaceFormat: Buf(%p) TSmp(%lld) IntPtr(%p) Fmt(%x)",
+                pBuffer->pBuffer, pBuffer->nTimeStamp,
+                pInterlaceFormat, pInterlaceFormat->nInterlaceFormats);
+              break;
+            }
+            case OMX_ExtraDataFrameInfo:
+            {
+              OMX_QCOM_EXTRADATA_FRAMEINFO *frame_info = (OMX_QCOM_EXTRADATA_FRAMEINFO *)pExtra->data;
+              DEBUG_PRINT("OMX_ExtraDataFrameInfo: Buf(%p) TSmp(%lld) PicType(%u) IntT(%u) ConMB(%u)",
+                pBuffer->pBuffer, pBuffer->nTimeStamp, frame_info->ePicType,
+                frame_info->interlaceType, frame_info->nConcealedMacroblocks);
+              break;
+            }
+            break;
+            case OMX_ExtraDataConcealMB:
+            {
+              OMX_U8 data = 0, *data_ptr = (OMX_U8 *)pExtra->data;
+              OMX_U32 concealMBnum = 0, bytes_cnt = 0;
+              while (bytes_cnt < pExtra->nDataSize)
+              {
+                data = *data_ptr;
+                while (data)
+                {
+                  concealMBnum += (data&0x01);
+                  data >>= 1;
+                }
+                data_ptr++;
+                bytes_cnt++;
+              }
+              DEBUG_PRINT("OMX_ExtraDataConcealMB: Buf(%p) TSmp(%lld) ConcealMB(%u)",
+                pBuffer->pBuffer, pBuffer->nTimeStamp, concealMBnum);
+            }
+            break;
+            default:
+              DEBUG_PRINT("Unknown Extrata!");
           }
           pExtra = (OMX_OTHER_EXTRADATATYPE *) (((OMX_U8 *) pExtra) + pExtra->nSize);
         }
@@ -1597,7 +1638,29 @@ int Play_Decoder()
     }
     OMX_SetParameter(dec_handle,(OMX_INDEXTYPE)OMX_QcomIndexPortDefn,
                      (OMX_PTR)&inputPortFmt);
-
+    QOMX_ENABLETYPE extra_data;
+    extra_data.bEnable = OMX_TRUE;
+#if 0
+    OMX_SetParameter(dec_handle,(OMX_INDEXTYPE)OMX_QcomIndexParamInterlaceExtraData,
+                     (OMX_PTR)&extra_data);
+#endif
+#if 0
+    OMX_SetParameter(dec_handle,(OMX_INDEXTYPE)OMX_QcomIndexParamConcealMBMapExtraData,
+                     (OMX_PTR)&extra_data);
+#endif
+#if 0
+    OMX_SetParameter(dec_handle,(OMX_INDEXTYPE)OMX_QcomIndexParamFrameInfoExtraData,
+                     (OMX_PTR)&extra_data);
+#endif
+#ifdef TEST_TS_FROM_SEI
+    OMX_SetParameter(dec_handle,(OMX_INDEXTYPE)OMX_QcomIndexParamH264TimeInfo,
+                     (OMX_PTR)&extra_data);
+#endif
+#if 0
+    extra_data.bEnable = OMX_FALSE;
+    OMX_SetParameter(dec_handle,(OMX_INDEXTYPE)OMX_QcomIndexParamConcealMBMapExtraData,
+                     (OMX_PTR)&extra_data);
+#endif
     /* Query the decoder outport's min buf requirements */
     CONFIG_VERSION_SIZE(portFmt);
 
@@ -2242,7 +2305,14 @@ static int Read_Buffer_ArbitraryBytes(OMX_BUFFERHEADERTYPE  *pBufHdr)
                       video_playback_count);
         return 0;
     }
+#ifdef TEST_TS_FROM_SEI
+    if (timeStampLfile == 0)
+      pBufHdr->nTimeStamp = 0;
+    else
+      pBufHdr->nTimeStamp = LLONG_MAX;
+#else
     pBufHdr->nTimeStamp = timeStampLfile;
+#endif
     timeStampLfile += timestampInterval;
     return bytes_read;
 }

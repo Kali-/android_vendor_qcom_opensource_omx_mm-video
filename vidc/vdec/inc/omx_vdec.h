@@ -79,10 +79,7 @@ extern "C"{
 #endif
 #include "OMX_Core.h"
 #include "OMX_QCOMExtns.h"
-//#include "vdec.h"
 #include "qc_omx_component.h"
-//#include "Map.h"
-//#include "OmxUtils.h"
 #include <linux/msm_vidc_dec.h>
 #include "frameparser.h"
 #ifdef MAX_RES_1080P
@@ -149,6 +146,26 @@ extern "C" {
 
 #define MAX_NUM_INPUT_OUTPUT_BUFFERS 32
 
+#define OMX_FRAMEINFO_EXTRADATA 0x00010000
+#define OMX_INTERLACE_EXTRADATA 0x00020000
+#define OMX_TIMEINFO_EXTRADATA  0x00040000
+#define DRIVER_EXTRADATA_MASK   0x0000FFFF
+
+#define OMX_INTERLACE_EXTRADATA_SIZE ((sizeof(OMX_OTHER_EXTRADATATYPE) +\
+                                       sizeof(OMX_STREAMINTERLACEFORMAT) + 3)&(~3))
+#define OMX_FRAMEINFO_EXTRADATA_SIZE ((sizeof(OMX_OTHER_EXTRADATATYPE) +\
+                                       sizeof(OMX_QCOM_EXTRADATA_FRAMEINFO) + 3)&(~3))
+
+//#define PROCESS_SEI_AND_VUI_IN_EXTRADATA
+
+//  Define next macro with required values to enable default extradata,
+//    VDEC_EXTRADATA_MB_ERROR_MAP
+//    OMX_INTERLACE_EXTRADATA
+//    OMX_FRAMEINFO_EXTRADATA
+//    OMX_TIMEINFO_EXTRADATA
+
+//#define DEFAULT_EXTRADATA (OMX_FRAMEINFO_EXTRADATA|OMX_INTERLACE_EXTRADATA)
+
 enum port_indexes
 {
     OMX_CORE_INPUT_PORT_INDEX        =0,
@@ -169,6 +186,7 @@ struct video_driver_context
     struct vdec_bufferpayload *ptr_outputbuffer;
     struct vdec_output_frameinfo *ptr_respbuffer;
     struct vdec_framerate frame_rate;
+    unsigned extradata;
     char kind[128];
 };
 
@@ -482,12 +500,19 @@ private:
 
     bool release_output_done();
     bool release_input_done();
-    OMX_ERRORTYPE get_buffer_req(vdec_allocatorproperty *buffer_prop, bool verify_extradata = false);
+    OMX_ERRORTYPE get_buffer_req(vdec_allocatorproperty *buffer_prop);
     OMX_ERRORTYPE set_buffer_req(vdec_allocatorproperty *buffer_prop);
     OMX_ERRORTYPE start_port_reconfig();
     OMX_ERRORTYPE update_picture_resolution();
     void adjust_timestamp(OMX_S64 &act_timestamp);
     void set_frame_rate(OMX_S64 act_timestamp, bool min_delta = false);
+    void handle_extradata(OMX_BUFFERHEADERTYPE *p_buf_hdr);
+    OMX_ERRORTYPE enable_extradata(OMX_U32 requested_extradata, bool enable = true);
+    void append_interlace_extradata(OMX_OTHER_EXTRADATATYPE *extra);
+    void append_frame_info_extradata(OMX_OTHER_EXTRADATATYPE *extra,
+         OMX_U32 num_conceal_mb, OMX_U32 picture_type);
+    void append_terminator_extradata(OMX_OTHER_EXTRADATATYPE *extra);
+    OMX_U32 count_MB_in_extradata(OMX_OTHER_EXTRADATATYPE *extra);
 
     bool align_pmem_buffers(int pmem_fd, OMX_U32 buffer_size,
                             OMX_U32 alignment);
@@ -619,7 +644,8 @@ private:
     struct vdec_allocatorproperty op_buf_rcnfg;
     bool in_reconfig;
     OMX_NATIVE_WINDOWTYPE m_display_id;
-    extra_data_parser extradata_parser;
+    h264_stream_parser *h264_parser;
+    OMX_U32 client_extradata;
     bool m_debug_timestamp;
 #ifdef MAX_RES_1080P
     MP4_Utils mp4_headerparser;

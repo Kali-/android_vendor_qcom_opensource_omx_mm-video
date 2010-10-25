@@ -66,10 +66,6 @@ and other items needed by this module.
 
 #define MAX_SUPPORTED_LEVEL 32
 
-//#define PARSE_VUI_IN_EXTRADATA
-#define PARSE_SEI_IN_EXTRADATA
-
-
 RbspParser::RbspParser (const uint8 *_begin, const uint8 *_end)
 : begin (_begin), end(_end), pos (- 1), bit (0),
 cursor (0xFFFFFF), advanceNeeded (true)
@@ -369,8 +365,7 @@ SIDE EFFECTS:
 ===========================================================================*/
 bool H264_Utils::isNewFrame(OMX_BUFFERHEADERTYPE *p_buf_hdr,
                             OMX_IN OMX_U32 size_of_nal_length_field,
-                            OMX_OUT OMX_BOOL &isNewFrame,
-                            extra_data_parser *extradata_parser)
+                            OMX_OUT OMX_BOOL &isNewFrame)
 {
     NALU nal_unit;
     uint16 first_mb_in_slice = 0;
@@ -392,14 +387,6 @@ bool H264_Utils::isNewFrame(OMX_BUFFERHEADERTYPE *p_buf_hdr,
     }
     else
     {
-#ifndef PARSE_VUI_IN_EXTRADATA
-      if (nal_unit.nalu_type == NALU_TYPE_SPS)
-        extradata_parser->parse_sps(buffer, buffer_length);
-#endif
-#ifndef PARSE_SEI_IN_EXTRADATA
-      if (nal_unit.nalu_type == NALU_TYPE_SEI)
-        extradata_parser->parse_sei(p_buf_hdr);
-#endif
       nalu_type = nal_unit.nalu_type;
       switch (nal_unit.nalu_type)
       {
@@ -516,79 +503,23 @@ OMX_U64 perf_metrics::processing_time_us()
   return proc_time;
 }
 
-void extra_data_parser::reset_params()
+void h264_stream_parser::reset()
 {
   curr_32_bit = 0;
   bits_read = 0;
   zero_cntr = 0;
   emulation_code_skip_cntr = 0;
-  au_num = 0;
   bitstream = NULL;
   bitstream_bytes = 0;
   memset(&vui_param, 0, sizeof(vui_param));
+  vui_param.fixed_fps_prev_ts = LLONG_MAX;
   memset(&sei_buf_period, 0, sizeof(sei_buf_period));
+  memset(&sei_pic_timing, 0, sizeof(sei_pic_timing));
   memset(&pan_scan_param, 0, sizeof(pan_scan_param));
   pan_scan_param.rect_id = NO_PAN_SCAN_BIT;
 }
 
-bool extra_data_parser::parse_extradata(OMX_BUFFERHEADERTYPE *p_buf_hdr,
-  OMX_U32 decoder_fmt, OMX_U32 interlace_fmt)
-{
-  OMX_OTHER_EXTRADATATYPE *p_extra = NULL, *p_sei = NULL, *p_vui = NULL;
-  bool ts_in_metadata = false;
-  p_extra = (OMX_OTHER_EXTRADATATYPE *)
-           ((unsigned)(p_buf_hdr->pBuffer + p_buf_hdr->nOffset +
-            p_buf_hdr->nFilledLen + 3)&(~3));
-  if (p_buf_hdr->nFlags & OMX_BUFFERFLAG_EXTRADATA)
-  {
-    while(p_extra &&
-          (OMX_U8*)p_extra < (p_buf_hdr->pBuffer + p_buf_hdr->nAllocLen) &&
-          p_extra->eType != OMX_ExtraDataNone )
-    {
-      DEBUG_PRINT_LOW("ExtraData : pBuf(%p) BufTS(%lld) Type(%x) DataSz(%u)",
-           p_buf_hdr, p_buf_hdr->nTimeStamp, p_extra->eType, p_extra->nDataSize);
-      if (decoder_fmt == VDEC_CODECTYPE_H264)
-      {
-        if (p_extra->eType == VDEC_OMX_SEI)
-          p_sei = p_extra;
-        else if (p_extra->eType == VDEC_OMX_VUI)
-          p_vui = p_extra;
-      }
-      p_extra = (OMX_OTHER_EXTRADATATYPE *) (((OMX_U8 *) p_extra) + p_extra->nSize);
-    }
-#ifdef PARSE_VUI_IN_EXTRADATA
-    if (p_vui && p_vui->nSize)
-    {
-      init_bitstream((OMX_U8*)p_vui->data, p_vui->nSize);
-      parse_vui(true);
-    }
-#endif
-#ifdef PARSE_SEI_IN_EXTRADATA
-    if (p_sei && p_sei->nSize)
-    {
-      init_bitstream((OMX_U8*)p_sei->data, p_sei->nSize);
-      ts_in_metadata = parse_sei(&p_buf_hdr->nTimeStamp);
-    }
-#endif
-    if (!(pan_scan_param.rect_id & NO_PAN_SCAN_BIT))
-    {
-      append_frame_info_extradata(p_extra, interlace_fmt);
-      p_extra = (OMX_OTHER_EXTRADATATYPE *) (((OMX_U8 *) p_extra) + p_extra->nSize);
-    }
-  }
-  if (interlace_fmt != VDEC_InterlaceFrameProgressive && p_extra != NULL &&
-      (OMX_U8*)p_extra < (p_buf_hdr->pBuffer + p_buf_hdr->nAllocLen))
-  {
-    p_buf_hdr->nFlags |= OMX_BUFFERFLAG_EXTRADATA;
-    append_interlace_extradata(p_extra, interlace_fmt);
-    p_extra = (OMX_OTHER_EXTRADATATYPE *) (((OMX_U8 *) p_extra) + p_extra->nSize);
-  }
-  if (p_buf_hdr->nFlags & OMX_BUFFERFLAG_EXTRADATA)
-    append_terminator_extradata(p_extra);
-  return ts_in_metadata;
-}
-
-void extra_data_parser::init_bitstream(OMX_U8* data, OMX_U32 size)
+void h264_stream_parser::init_bitstream(OMX_U8* data, OMX_U32 size)
 {
   bitstream = data;
   bitstream_bytes = size;
@@ -598,7 +529,7 @@ void extra_data_parser::init_bitstream(OMX_U8* data, OMX_U32 size)
   emulation_code_skip_cntr = 0;
 }
 
-void extra_data_parser::parse_vui(bool vui_in_extradata)
+void h264_stream_parser::parse_vui(bool vui_in_extradata)
 {
   OMX_U32 value = 0;
   DEBUG_PRINT_LOW("parse_vui: IN");
@@ -641,10 +572,6 @@ void extra_data_parser::parse_vui(bool vui_in_extradata)
     DEBUG_PRINT_LOW("  time scale         : %u", vui_param.time_scale);
     DEBUG_PRINT_LOW("  fixed frame rate   : %u", vui_param.fixed_frame_rate_flag);
   }
-  else
-  {
-    DEBUG_PRINT_HIGH("NO TIMING info present in VUI!");
-  }
   vui_param.nal_hrd_parameters_present_flag = extract_bits(1);
   if (vui_param.nal_hrd_parameters_present_flag)
   {
@@ -675,7 +602,7 @@ void extra_data_parser::parse_vui(bool vui_in_extradata)
   DEBUG_PRINT_LOW("parse_vui: OUT");
 }
 
-void extra_data_parser::hrd_parameters(h264_hrd_param *hrd_param)
+void h264_stream_parser::hrd_parameters(h264_hrd_param *hrd_param)
 {
   int idx;
   DEBUG_PRINT_LOW("hrd_parameters: IN");
@@ -705,100 +632,53 @@ void extra_data_parser::hrd_parameters(h264_hrd_param *hrd_param)
   DEBUG_PRINT_LOW("hrd_parameters: OUT");
 }
 
-void extra_data_parser::parse_sei(OMX_BUFFERHEADERTYPE *p_buf_hdr)
-{
-  DEBUG_PRINT_LOW("@@parse_sei external: IN");
-  init_bitstream(p_buf_hdr->pBuffer, p_buf_hdr->nFilledLen);
-  parse_sei(&p_buf_hdr->nTimeStamp);
-  DEBUG_PRINT_LOW("@@parse_sei external: OUT");
-}
-
-bool extra_data_parser::parse_sei(OMX_S64 *p_timestamp)
+void h264_stream_parser::parse_sei()
 {
   OMX_U32 value = 0, processed_bytes = 0;
   OMX_U8 *sei_msg_start = bitstream;
   OMX_U32 sei_unit_size = bitstream_bytes;
-  bool pic_timing = false;
   DEBUG_PRINT_LOW("@@parse_sei: IN sei_unit_size(%u)", sei_unit_size);
-  value = extract_bits(24);
-  processed_bytes += 3;
-  while (value != 0x00000001 && processed_bytes < sei_unit_size && more_bits())
+  while ((processed_bytes + 2) < sei_unit_size && more_bits())
   {
-    value <<= 8;
-    value |= extract_bits(8);
-    processed_bytes++;
-  }
-  if (value != 0x00000001)
-  {
-    DEBUG_PRINT_ERROR("parse_sei: Start code not found!");
-  }
-  else if (processed_bytes < sei_unit_size)
-  {
-    extract_bits(1); // forbidden_zero_bit
-    value = extract_bits(2);
-    DEBUG_PRINT_LOW("-->nal_ref_idc    : %x", value);
-    value = extract_bits(5);
-    DEBUG_PRINT_LOW("-->nal_unit_type  : %x", value);
-    processed_bytes++;
-    if (value == NALU_TYPE_SEI)
+    init_bitstream(sei_msg_start + processed_bytes, sei_unit_size - processed_bytes);
+    DEBUG_PRINT_LOW("-->NALU_TYPE_SEI");
+    OMX_U32 payload_type = 0, payload_size = 0, aux = 0;
+    do {
+      value = extract_bits(8);
+      payload_type += value;
+      processed_bytes++;
+    } while (value == 0xFF);
+    DEBUG_PRINT_LOW("-->payload_type   : %u", payload_type);
+    do {
+      value = extract_bits(8);
+      payload_size += value;
+      processed_bytes++;
+    } while (value == 0xFF);
+    DEBUG_PRINT_LOW("-->payload_size   : %u", payload_size);
+    if (payload_size > 0)
     {
-      bool buf_period_processed = false, pic_timing_processed = false;
-      while ((processed_bytes + 2) < sei_unit_size && more_bits())
+      switch (payload_type)
       {
-        init_bitstream(sei_msg_start + processed_bytes, sei_unit_size - processed_bytes);
-        DEBUG_PRINT_LOW("-->NALU_TYPE_SEI");
-        OMX_U32 payload_type = 0, payload_size = 0, aux = 0;
-        do {
-          value = extract_bits(8);
-          payload_type += value;
-          processed_bytes++;
-        } while (value == 0xFF);
-        DEBUG_PRINT_LOW("-->payload_type   : %u", payload_type);
-        do {
-          value = extract_bits(8);
-          payload_size += value;
-          processed_bytes++;
-        } while (value == 0xFF);
-        DEBUG_PRINT_LOW("-->payload_size   : %u", payload_size);
-        if (payload_size > 0)
-        {
-          switch (payload_type)
-          {
-            case BUFFERING_PERIOD:
-              if (!buf_period_processed)
-              {
-                sei_buffering_period(*p_timestamp);
-                buf_period_processed = true;
-              }
-            break;
-            case PIC_TIMING:
-              if (!pic_timing_processed)
-              {
-                pic_timing = sei_picture_timing(*p_timestamp);
-                pic_timing_processed = true;
-              }
-            break;
-            case PAN_SCAN_RECT:
-              sei_pan_scan();
-            break;
-            default:
-              DEBUG_PRINT_LOW("-->SEI payload type [%u] not implemented! size[%u]", payload_type, payload_size);
-          }
-        }
-        processed_bytes += (payload_size + emulation_code_skip_cntr);
-        DEBUG_PRINT_LOW("-->SEI processed_bytes[%u]", processed_bytes);
+        case BUFFERING_PERIOD:
+          sei_buffering_period();
+        break;
+        case PIC_TIMING:
+          sei_picture_timing();
+        break;
+        case PAN_SCAN_RECT:
+          sei_pan_scan();
+        break;
+        default:
+          DEBUG_PRINT_LOW("-->SEI payload type [%u] not implemented! size[%u]", payload_type, payload_size);
       }
     }
-    else
-    {
-      DEBUG_PRINT_ERROR("ERROR: Unexpected metadata nal unit type!");
-    }
+    processed_bytes += (payload_size + emulation_code_skip_cntr);
+    DEBUG_PRINT_LOW("-->SEI processed_bytes[%u]", processed_bytes);
   }
   DEBUG_PRINT_LOW("@@parse_sei: OUT");
-  return pic_timing;
 }
 
-void extra_data_parser::sei_buffering_period(OMX_S64 timestamp)
+void h264_stream_parser::sei_buffering_period()
 {
   int idx;
   OMX_U32 value = 0;
@@ -836,22 +716,16 @@ void extra_data_parser::sei_buffering_period(OMX_S64 timestamp)
       DEBUG_PRINT_LOW("-->initial_cpb_removal_delay_offset : %u", sei_buf_period.initial_cpb_removal_delay_offset[idx]);
     }
   }
-  if (sei_buf_period.is_valid)
-  {
-    sei_buf_period.au_cntr = 0;
-    sei_buf_period.new_reference_ts = timestamp;
-  }
+  sei_buf_period.au_cntr = 0;
   DEBUG_PRINT_LOW("@@sei_buffering_period: OUT");
 }
 
-bool extra_data_parser::sei_picture_timing(OMX_S64 &timestamp)
+void h264_stream_parser::sei_picture_timing()
 {
   DEBUG_PRINT_LOW("@@sei_picture_timing: IN");
-  h264_sei_pic_param pic_param;
-  OMX_S64 clock_ts = 0;
   OMX_U32 time_offset_len = 0, cpb_removal_len = 24, dpb_output_len  = 24;
-  OMX_U8 clock_ts_flag = 0, cbr_flag = 0;
-  bool calc_ts = false;
+  OMX_U8 cbr_flag = 0;
+  sei_pic_timing.is_valid = true;
   if (vui_param.nal_hrd_parameters_present_flag)
   {
     cpb_removal_len = vui_param.nal_hrd_parameters.cpb_removal_delay_length;
@@ -866,103 +740,76 @@ bool extra_data_parser::sei_picture_timing(OMX_S64 &timestamp)
     time_offset_len = vui_param.vcl_hrd_parameters.time_offset_length;
     cbr_flag = vui_param.vcl_hrd_parameters.cbr_flag[0];
   }
-  pic_param.cpb_removal_delay = extract_bits(cpb_removal_len);
-  pic_param.dpb_output_delay = extract_bits(dpb_output_len);
-  DEBUG_PRINT_LOW("-->cpb_removal_delay : %u", pic_param.cpb_removal_delay);
-  DEBUG_PRINT_LOW("-->dpb_output_delay  : %u", pic_param.dpb_output_delay);
+  sei_pic_timing.cpb_removal_delay = extract_bits(cpb_removal_len);
+  sei_pic_timing.dpb_output_delay = extract_bits(dpb_output_len);
+  DEBUG_PRINT_LOW("-->cpb_removal_delay : %u", sei_pic_timing.cpb_removal_delay);
+  DEBUG_PRINT_LOW("-->dpb_output_delay  : %u", sei_pic_timing.dpb_output_delay);
   if (vui_param.pic_struct_present_flag)
   {
-    pic_param.pic_struct = extract_bits(4);
-    switch (pic_param.pic_struct)
+    sei_pic_timing.pic_struct = extract_bits(4);
+    sei_pic_timing.num_clock_ts = 0;
+    switch (sei_pic_timing.pic_struct)
     {
-      case 0: case 1: case 2: pic_param.num_clock_ts = 1; break;
-      case 3: case 4: case 7: pic_param.num_clock_ts = 2; break;
-      case 5: case 6: case 8: pic_param.num_clock_ts = 3; break;
+      case 0: case 1: case 2: sei_pic_timing.num_clock_ts = 1; break;
+      case 3: case 4: case 7: sei_pic_timing.num_clock_ts = 2; break;
+      case 5: case 6: case 8: sei_pic_timing.num_clock_ts = 3; break;
       default:
         DEBUG_PRINT_ERROR("sei_picture_timing: pic_struct invalid!");
     }
-    DEBUG_PRINT_LOW("-->num_clock_ts      : %u", pic_param.num_clock_ts);
-    for (int i = 0; i < pic_param.num_clock_ts && more_bits(); i++)
+    DEBUG_PRINT_LOW("-->num_clock_ts      : %u", sei_pic_timing.num_clock_ts);
+    for (int i = 0; i < sei_pic_timing.num_clock_ts && more_bits(); i++)
     {
-      clock_ts_flag = extract_bits(1);
-      if(clock_ts_flag)
+      sei_pic_timing.clock_ts_flag = extract_bits(1);
+      if(sei_pic_timing.clock_ts_flag)
       {
         DEBUG_PRINT_LOW("-->clock_timestamp present!");
-        pic_param.ct_type = extract_bits(2);
-        pic_param.nuit_field_based_flag = extract_bits(1);
-        pic_param.counting_type = extract_bits(5);
-        pic_param.full_timestamp_flag = extract_bits(1);
-        pic_param.discontinuity_flag = extract_bits(1);
-        pic_param.cnt_dropped_flag = extract_bits(1);
-        pic_param.n_frames = extract_bits(8);
-        DEBUG_PRINT_LOW("-->f_timestamp_flg   : %u", pic_param.full_timestamp_flag);
-        DEBUG_PRINT_LOW("-->n_frames          : %u", pic_param.n_frames);
-        pic_param.seconds_value = 0;
-        pic_param.minutes_value = 0;
-        pic_param.hours_value = 0;
-        if (pic_param.full_timestamp_flag)
+        sei_pic_timing.ct_type = extract_bits(2);
+        sei_pic_timing.nuit_field_based_flag = extract_bits(1);
+        sei_pic_timing.counting_type = extract_bits(5);
+        sei_pic_timing.full_timestamp_flag = extract_bits(1);
+        sei_pic_timing.discontinuity_flag = extract_bits(1);
+        sei_pic_timing.cnt_dropped_flag = extract_bits(1);
+        sei_pic_timing.n_frames = extract_bits(8);
+        DEBUG_PRINT_LOW("-->f_timestamp_flg   : %u", sei_pic_timing.full_timestamp_flag);
+        DEBUG_PRINT_LOW("-->n_frames          : %u", sei_pic_timing.n_frames);
+        sei_pic_timing.seconds_value = 0;
+        sei_pic_timing.minutes_value = 0;
+        sei_pic_timing.hours_value = 0;
+        if (sei_pic_timing.full_timestamp_flag)
         {
-          pic_param.seconds_value = extract_bits(6);
-          pic_param.minutes_value = extract_bits(6);
-          pic_param.hours_value = extract_bits(5);
+          sei_pic_timing.seconds_value = extract_bits(6);
+          sei_pic_timing.minutes_value = extract_bits(6);
+          sei_pic_timing.hours_value = extract_bits(5);
         }
         else if (extract_bits(1))
         {
           DEBUG_PRINT_LOW("-->seconds_flag enabled!");
-          pic_param.seconds_value = extract_bits(6);
+          sei_pic_timing.seconds_value = extract_bits(6);
           if (extract_bits(1))
           {
             DEBUG_PRINT_LOW("-->minutes_flag enabled!");
-            pic_param.minutes_value = extract_bits(6);
+            sei_pic_timing.minutes_value = extract_bits(6);
             if (extract_bits(1))
             {
               DEBUG_PRINT_LOW("-->hours_flag enabled!");
-              pic_param.hours_value = extract_bits(5);
+              sei_pic_timing.hours_value = extract_bits(5);
             }
           }
         }
-        else
-          clock_ts_flag = 0;
-        pic_param.time_offset = 0;
+        sei_pic_timing.time_offset = 0;
         if (time_offset_len > 0)
-          pic_param.time_offset |= extract_bits(time_offset_len); //Update to read integer
-        clock_ts = ((pic_param.hours_value * 60 + pic_param.minutes_value) * 60 + pic_param.seconds_value) * 1e6 +
-                    (pic_param.n_frames * (vui_param.num_units_in_tick * (1 + pic_param.nuit_field_based_flag)) + pic_param.time_offset) *
-                    1e6 / vui_param.time_scale;
-        DEBUG_PRINT_LOW("-->seconds_value     : %u", pic_param.seconds_value);
-        DEBUG_PRINT_LOW("-->minutes_value     : %u", pic_param.minutes_value);
-        DEBUG_PRINT_LOW("-->hours_value       : %u", pic_param.hours_value);
-        DEBUG_PRINT_LOW("-->time_offset       : %d", pic_param.time_offset);
-        DEBUG_PRINT_LOW("-->CLOCK TIMESTAMP   : %lld", clock_ts);
+          sei_pic_timing.time_offset |= extract_bits(time_offset_len); //Update to read integer
+        DEBUG_PRINT_LOW("-->seconds_value     : %u", sei_pic_timing.seconds_value);
+        DEBUG_PRINT_LOW("-->minutes_value     : %u", sei_pic_timing.minutes_value);
+        DEBUG_PRINT_LOW("-->hours_value       : %u", sei_pic_timing.hours_value);
+        DEBUG_PRINT_LOW("-->time_offset       : %d", sei_pic_timing.time_offset);
       }
     }
   }
-  DEBUG_PRINT_LOW("-->sei_picture_timing: Original TS[%lld]", timestamp);
-  if (clock_ts_flag)
-    calc_ts = true;
-  else if (sei_buf_period.is_valid)
-  {
-    clock_ts = calculate_ts(pic_param.cpb_removal_delay);
-    calc_ts = true;
-  }
-  if (!VALID_TS(timestamp))
-    if (calc_ts)
-    {
-      timestamp = clock_ts;
-      DEBUG_PRINT_LOW("-->sei_picture_timing: Updated TS[%lld]", timestamp);
-    }
-    else
-    {
-      DEBUG_PRINT_ERROR("NO TIMING INFO PRESENT! Cannot calculate timestamp...");
-    }
-  else
-    calc_ts = false;
-  au_num++;
   DEBUG_PRINT_LOW("@@sei_picture_timing: OUT");
-  return calc_ts;
 }
 
-void extra_data_parser::sei_pan_scan()
+void h264_stream_parser::sei_pan_scan()
 {
   DEBUG_PRINT_LOW("@@sei_pan_scan: IN");
   pan_scan_param.rect_id = uev();
@@ -1001,66 +848,13 @@ void extra_data_parser::sei_pan_scan()
     pan_scan_param.rect_repetition_period = uev();
     DEBUG_PRINT_LOW("-->repetition_period  : %u", pan_scan_param.rect_repetition_period);
   }
-  DEBUG_PRINT_HIGH("@@sei_pan_scan: OUT");
+  DEBUG_PRINT_LOW("@@sei_pan_scan: OUT");
 }
 
-OMX_S64 extra_data_parser::calculate_ts(OMX_U32 cpb_removal_delay)
-{
-  OMX_S64 clock_ts = 0;
-  DEBUG_PRINT_LOW("calculate_ts(): IN");
-  if (au_num == 0)
-  {
-    if (!VALID_TS(sei_buf_period.new_reference_ts))
-    {
-      DEBUG_PRINT_ERROR("--> Invalid reference timestamp! Resetting to 0...");
-      sei_buf_period.reference_ts = 0;
-    }
-    else
-      sei_buf_period.reference_ts = sei_buf_period.new_reference_ts;
-    clock_ts = sei_buf_period.reference_ts;
-  }
-  else
-  {
-    clock_ts = sei_buf_period.reference_ts + cpb_removal_delay * 1e6 * vui_param.num_units_in_tick / vui_param.time_scale;
-    if (sei_buf_period.au_cntr == 0)
-    {
-      if (!VALID_TS(sei_buf_period.new_reference_ts))
-        sei_buf_period.reference_ts = clock_ts;
-      else
-        clock_ts = sei_buf_period.reference_ts = sei_buf_period.new_reference_ts;
-    }
-  }
-  sei_buf_period.au_cntr++;
-  DEBUG_PRINT_LOW("calculate_ts(): OUT");
-  return clock_ts;
-}
-
-void extra_data_parser::parse_sps(OMX_U8* data, OMX_U32 size)
+void h264_stream_parser::parse_sps()
 {
   OMX_U32 value = 0, scaling_matrix_limit;
   DEBUG_PRINT_LOW("@@parse_sps: IN");
-  init_bitstream(data, size);
-  value = extract_bits(24);
-  while (value != 0x00000001 && more_bits())
-  {
-    value <<= 8;
-    value |= extract_bits(8);
-  }
-  if (value != 0x00000001)
-  {
-    DEBUG_PRINT_ERROR("parse_sps: Start code not found!");
-    return;
-  }
-  else
-  {
-    extract_bits(1); // forbidden_zero_bit
-    value = extract_bits(2);
-    DEBUG_PRINT_LOW("-->nal_ref_idc    : %x", value);
-    value = extract_bits(5);
-    DEBUG_PRINT_LOW("-->nal_unit_type  : %x", value);
-    if (value != NALU_TYPE_SPS)
-     return;
-  }
   value = extract_bits(8); //profile_idc
   extract_bits(8); //constraint flags and reserved bits
   extract_bits(8); //level_idc
@@ -1120,7 +914,7 @@ void extra_data_parser::parse_sps(OMX_U8* data, OMX_U32 size)
   DEBUG_PRINT_LOW("@@parse_sps: OUT");
 }
 
-void extra_data_parser::scaling_list(OMX_U32 size_of_scaling_list)
+void h264_stream_parser::scaling_list(OMX_U32 size_of_scaling_list)
 {
   OMX_S32 last_scale = 8, next_scale = 8, delta_scale;
   for (int j = 0; j < size_of_scaling_list; j++)
@@ -1134,7 +928,7 @@ void extra_data_parser::scaling_list(OMX_U32 size_of_scaling_list)
   }
 }
 
-OMX_U32 extra_data_parser::extract_bits(OMX_U32 n)
+OMX_U32 h264_stream_parser::extract_bits(OMX_U32 n)
 {
   OMX_U32 value = 0;
   if (n > 32)
@@ -1160,7 +954,7 @@ OMX_U32 extra_data_parser::extract_bits(OMX_U32 n)
   return value;
 }
 
-void extra_data_parser::read_word()
+void h264_stream_parser::read_word()
 {
   curr_32_bit = 0;
   bits_read = 0;
@@ -1188,7 +982,7 @@ void extra_data_parser::read_word()
   curr_32_bit <<= (32 - bits_read);
 }
 
-OMX_U32 extra_data_parser::uev()
+OMX_U32 h264_stream_parser::uev()
 {
   OMX_U32 lead_zero_bits = 0, code_num = 0;
   while(!extract_bits(1) && more_bits())
@@ -1198,12 +992,12 @@ OMX_U32 extra_data_parser::uev()
   return code_num;
 }
 
-bool extra_data_parser::more_bits()
+bool h264_stream_parser::more_bits()
 {
 	return (bitstream_bytes > 0 || bits_read > 0);
 }
 
-OMX_S32 extra_data_parser::sev()
+OMX_S32 h264_stream_parser::sev()
 {
   OMX_U32 code_num = uev();
   OMX_S32 ret;
@@ -1211,65 +1005,165 @@ OMX_S32 extra_data_parser::sev()
   return (code_num & 1) ? ret : -ret;
 }
 
-void extra_data_parser::append_interlace_extradata(OMX_OTHER_EXTRADATATYPE *extra, OMX_U32 interlace_fmt)
+OMX_U32 h264_stream_parser::get_nal_unit_type(OMX_U32 *nal_unit_type)
 {
-  OMX_STREAMINTERLACEFORMAT *interlace_format;
-  extra->nSize = (sizeof(OMX_OTHER_EXTRADATATYPE) +
-                  sizeof(OMX_STREAMINTERLACEFORMAT) + 3)&(~3);
-  extra->nVersion.nVersion = OMX_SPEC_VERSION;
-  extra->nPortIndex = OMX_CORE_OUTPUT_PORT_INDEX;
-  extra->eType = (OMX_EXTRADATATYPE)OMX_ExtraDataInterlaceFormat;
-  extra->nDataSize = sizeof(OMX_STREAMINTERLACEFORMAT);
-  interlace_format = (OMX_STREAMINTERLACEFORMAT *)extra->data;
-  interlace_format->nSize = sizeof(OMX_STREAMINTERLACEFORMAT);
-  interlace_format->nVersion.nVersion = OMX_SPEC_VERSION;
-  interlace_format->nPortIndex = OMX_CORE_OUTPUT_PORT_INDEX;
-  interlace_format->bInterlaceFormat = OMX_TRUE;
-  if (interlace_fmt == VDEC_InterlaceInterleaveFrameTopFieldFirst)
-    interlace_format->nInterlaceFormats = OMX_InterlaceInterleaveFrameTopFieldFirst;
-  else
-    interlace_format->nInterlaceFormats = OMX_InterlaceInterleaveFrameBottomFieldFirst;
-}
-
-void extra_data_parser::append_frame_info_extradata(OMX_OTHER_EXTRADATATYPE *extra, OMX_U32 interlace_fmt)
-{
-  OMX_QCOM_EXTRADATA_FRAMEINFO *frame_info = NULL;
-  extra->nSize = (sizeof(OMX_OTHER_EXTRADATATYPE) +
-                  sizeof(OMX_QCOM_EXTRADATA_FRAMEINFO) + 3)&(~3);
-  extra->nVersion.nVersion = OMX_SPEC_VERSION;
-  extra->nPortIndex = OMX_CORE_OUTPUT_PORT_INDEX;
-  extra->eType = (OMX_EXTRADATATYPE)OMX_ExtraDataFrameInfo;
-  extra->nDataSize = sizeof(OMX_QCOM_EXTRADATA_FRAMEINFO);
-  frame_info = (OMX_QCOM_EXTRADATA_FRAMEINFO *)extra->data;
-
-  frame_info->panScan.numWindows = pan_scan_param.cnt;
-
-  frame_info->ePicType = (OMX_VIDEO_PICTURETYPE)0; // DATA NOT PARSED
-
-  // Interlace info is propagated with a another extra data type when it's not progressive
-  if (interlace_fmt == VDEC_InterlaceInterleaveFrameTopFieldFirst)
-    frame_info->interlaceType = OMX_QCOM_InterlaceInterleaveFrameTopFieldFirst;
-  else if (interlace_fmt == VDEC_InterlaceInterleaveFrameBottomFieldFirst)
-    frame_info->interlaceType = OMX_QCOM_InterlaceInterleaveFrameBottomFieldFirst;
-  else
-    frame_info->interlaceType = OMX_QCOM_InterlaceFrameProgressive;
-
-  for (int i = 0; i < frame_info->panScan.numWindows; i++)
+  OMX_U32 value = 0, consumed_bytes = 3;
+  *nal_unit_type = NALU_TYPE_UNSPECIFIED;
+  DEBUG_PRINT_LOW("-->get_nal_unit_type: IN");
+  value = extract_bits(24);
+  while (value != 0x00000001 && more_bits())
   {
-    frame_info->panScan.window[i].x = pan_scan_param.rect_left_offset[i];
-    frame_info->panScan.window[i].y = pan_scan_param.rect_top_offset[i];
-    frame_info->panScan.window[i].dx = pan_scan_param.rect_right_offset[i];
-    frame_info->panScan.window[i].dy = pan_scan_param.rect_bottom_offset[i];
+    value <<= 8;
+    value |= extract_bits(8);
+    consumed_bytes++;
   }
-
-  frame_info->nConcealedMacroblocks = 0;  // DATA NOT PARSED?
+  if (value != 0x00000001)
+  {
+    DEBUG_PRINT_ERROR("ERROR in get_nal_unit_type: Start code not found!");
+  }
+  else
+  {
+    if (extract_bits(1)) // forbidden_zero_bit
+    {
+      DEBUG_PRINT_ERROR("WARNING: forbidden_zero_bit should be zero!");
+    }
+    value = extract_bits(2);
+    DEBUG_PRINT_LOW("-->nal_ref_idc    : %x", value);
+    *nal_unit_type = extract_bits(5);
+    DEBUG_PRINT_LOW("-->nal_unit_type  : %x", *nal_unit_type);
+    consumed_bytes++;
+    if (consumed_bytes > 5)
+    {
+      DEBUG_PRINT_ERROR("-->WARNING: Startcode was found after the first 4 bytes!");
+    }
+  }
+  DEBUG_PRINT_LOW("-->get_nal_unit_type: OUT");
+  return consumed_bytes;
 }
 
-void extra_data_parser::append_terminator_extradata(OMX_OTHER_EXTRADATATYPE *extra)
+OMX_S64 h264_stream_parser::calculate_buf_period_ts(OMX_S64 timestamp)
 {
-  extra->nSize = sizeof(OMX_OTHER_EXTRADATATYPE);
-  extra->nVersion.nVersion = OMX_SPEC_VERSION;
-  extra->eType = OMX_ExtraDataNone;
-  extra->nDataSize = 0;
-  extra->data[0] = 0;
+  OMX_S64 clock_ts = timestamp;
+  DEBUG_PRINT_LOW("calculate_ts(): IN");
+  if (sei_buf_period.au_cntr == 0)
+    clock_ts = sei_buf_period.reference_ts = timestamp;
+  else if (sei_pic_timing.is_valid && VALID_TS(sei_buf_period.reference_ts))
+  {
+    clock_ts = sei_buf_period.reference_ts + sei_pic_timing.cpb_removal_delay *
+               1e6 * vui_param.num_units_in_tick / vui_param.time_scale;
+  }
+  sei_buf_period.au_cntr++;
+  DEBUG_PRINT_LOW("calculate_ts(): OUT");
+  return clock_ts;
+}
+
+OMX_S64 h264_stream_parser::calculate_fixed_fps_ts(OMX_S64 timestamp, OMX_U32 DeltaTfiDivisor)
+{
+  if (VALID_TS(timestamp))
+    vui_param.fixed_fps_prev_ts = timestamp;
+  else if (VALID_TS(vui_param.fixed_fps_prev_ts))
+    vui_param.fixed_fps_prev_ts += DeltaTfiDivisor * 1e6 *
+                                   vui_param.num_units_in_tick / vui_param.time_scale;
+  return vui_param.fixed_fps_prev_ts;
+}
+
+/* API'S EXPOSED TO OMX COMPONENT */
+
+void h264_stream_parser::parse_nal(OMX_U8* data_ptr, OMX_U32 data_len, OMX_U32 nal_type)
+{
+  OMX_U32 nal_unit_type = NALU_TYPE_UNSPECIFIED, cons_bytes = 0;
+  DEBUG_PRINT_LOW("parse_nal(): IN nal_type(%lu)", nal_type);
+  if (!data_len)
+    return;
+  init_bitstream(data_ptr, data_len);
+  if (nal_type != NALU_TYPE_VUI)
+  {
+    cons_bytes = get_nal_unit_type(&nal_unit_type);
+    if (nal_type != nal_unit_type && nal_type != NALU_TYPE_UNSPECIFIED)
+    {
+      DEBUG_PRINT_LOW("Unexpected nal_type(%x) expected(%x)", nal_unit_type, nal_type);
+      return;
+    }
+  }
+  switch (nal_type)
+  {
+    case NALU_TYPE_SPS:
+      if (more_bits())
+        parse_sps();
+    break;
+    case NALU_TYPE_SEI:
+      init_bitstream(data_ptr + cons_bytes, data_len - cons_bytes);
+      parse_sei();
+    break;
+    case NALU_TYPE_VUI:
+      parse_vui();
+    break;
+    default:
+      DEBUG_PRINT_LOW("nal_unit_type received : %lu", nal_type);
+  }
+  DEBUG_PRINT_LOW("parse_nal(): OUT");
+}
+
+void h264_stream_parser::fill_pan_scan_data(OMX_QCOM_PANSCAN *dest_pan_scan)
+{
+  if (!(pan_scan_param.rect_id & NO_PAN_SCAN_BIT))
+  {
+    dest_pan_scan->numWindows = pan_scan_param.cnt;
+    for (int i = 0; i < dest_pan_scan->numWindows; i++)
+    {
+      dest_pan_scan->window[i].x = pan_scan_param.rect_left_offset[i];
+      dest_pan_scan->window[i].y = pan_scan_param.rect_top_offset[i];
+      dest_pan_scan->window[i].dx = pan_scan_param.rect_right_offset[i];
+      dest_pan_scan->window[i].dy = pan_scan_param.rect_bottom_offset[i];
+    }
+    if (pan_scan_param.rect_repetition_period == 0)
+      pan_scan_param.rect_id = NO_PAN_SCAN_BIT;
+  }
+}
+
+OMX_S64 h264_stream_parser::process_ts_with_sei_vui(OMX_S64 timestamp)
+{
+  bool clock_ts_flag = false;
+  OMX_S64 clock_ts = timestamp;
+  OMX_U32 deltaTfiDivisor = 2;
+  if (vui_param.timing_info_present_flag)
+  {
+    if (vui_param.pic_struct_present_flag)
+    {
+      if(sei_pic_timing.clock_ts_flag)
+      {
+        clock_ts = ((sei_pic_timing.hours_value * 60 + sei_pic_timing.minutes_value) * 60 + sei_pic_timing.seconds_value) * 1e6 +
+                    (sei_pic_timing.n_frames * (vui_param.num_units_in_tick * (1 + sei_pic_timing.nuit_field_based_flag)) + sei_pic_timing.time_offset) *
+                    1e6 / vui_param.time_scale;
+        DEBUG_PRINT_LOW("-->CLOCK TIMESTAMP   : %lld", clock_ts);
+        clock_ts_flag = true;
+      }
+      if (vui_param.fixed_frame_rate_flag)
+      {
+        switch (sei_pic_timing.pic_struct)
+        {
+          case 1: case 2:         deltaTfiDivisor = 1; break;
+          case 0: case 3: case 4: deltaTfiDivisor = 2; break;
+          case 5: case 6:         deltaTfiDivisor = 3; break;
+          case 7:                 deltaTfiDivisor = 4; break;
+          case 8:                 deltaTfiDivisor = 6; break;
+          default:
+            DEBUG_PRINT_ERROR("process_ts_with_sei_vui: pic_struct invalid!");
+        }
+      }
+    }
+    if (!clock_ts_flag)
+    {
+      if (vui_param.fixed_frame_rate_flag)
+        clock_ts = calculate_fixed_fps_ts(timestamp, deltaTfiDivisor);
+      else if (sei_buf_period.is_valid)
+        clock_ts = calculate_buf_period_ts(timestamp);
+    }
+  }
+  else
+  {
+    DEBUG_PRINT_LOW("NO TIMING information present in VUI!");
+  }
+  sei_pic_timing.is_valid = false; // SEI data is valid only for current frame
+  return clock_ts;
 }

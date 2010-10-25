@@ -47,6 +47,7 @@ This module contains H264 video decoder utilities and helper routines.
 #include "Map.h"
 #include "qtypes.h"
 #include "OMX_Core.h"
+#include "OMX_QCOMExtns.h"
 
 #define STD_MIN(x,y) (((x) < (y)) ? (x) : (y))
 
@@ -186,8 +187,7 @@ public:
     void allocate_rbsp_buffer(uint32 inputBufferSize);
     bool isNewFrame(OMX_BUFFERHEADERTYPE *p_buf_hdr,
                     OMX_IN OMX_U32 size_of_nal_length_field,
-                    OMX_OUT OMX_BOOL &isNewFrame,
-                    extra_data_parser *extradata_parser);
+                    OMX_OUT OMX_BOOL &isNewFrame);
     uint32 nalu_type;
 
 private:
@@ -232,11 +232,10 @@ class perf_metrics
 
 #define EMULATION_PREVENTION_THREE_BYTE 0x03
 #define MAX_CPB_COUNT     32
-#define VDEC_OMX_SEI      0x7F000007
-#define VDEC_OMX_VUI      0x7F000008
 #define NO_PAN_SCAN_BIT   0x00000100
 #define MAX_PAN_SCAN_RECT 3
 #define VALID_TS(ts)      ((ts < LLONG_MAX)? true : false)
+#define NALU_TYPE_VUI (NALU_TYPE_RESERVED + 1)
 
 enum SEI_PAYLOAD_TYPE
 {
@@ -286,6 +285,7 @@ typedef struct
   h264_hrd_param   vcl_hrd_parameters;
   OMX_U8   low_delay_hrd_flag;
   OMX_U8   pic_struct_present_flag;
+  OMX_S64  fixed_fps_prev_ts;
 } h264_vui_param;
 
 typedef struct
@@ -294,6 +294,7 @@ typedef struct
   OMX_U32 dpb_output_delay;
   OMX_U8  pic_struct;
   OMX_U32 num_clock_ts;
+  bool    clock_ts_flag;
   OMX_U8  ct_type;
   OMX_U32 nuit_field_based_flag;
   OMX_U8  counting_type;
@@ -305,7 +306,8 @@ typedef struct
   OMX_U32 minutes_value;
   OMX_U32 hours_value;
   OMX_S32 time_offset;
-} h264_sei_pic_param;
+  bool    is_valid;
+} h264_sei_pic_timing;
 
 typedef struct
 {
@@ -313,7 +315,6 @@ typedef struct
   OMX_U32  initial_cpb_removal_delay_offset[MAX_CPB_COUNT];
   OMX_U32  au_cntr;
   OMX_S64  reference_ts;
-  OMX_S64  new_reference_ts;
   bool     is_valid;
 } h264_sei_buf_period;
 
@@ -329,45 +330,47 @@ typedef struct
   OMX_U32  rect_repetition_period;
 } h264_pan_scan;
 
-class extra_data_parser
+class h264_stream_parser
 {
-public:
-  extra_data_parser() { reset_params(); };
-  ~extra_data_parser() {};
-  bool parse_extradata(OMX_BUFFERHEADERTYPE *p_buf_hdr,
-    OMX_U32 decoder_fmt, OMX_U32 interlace_fmt);
-  void parse_sps(OMX_U8* data, OMX_U32 size);
-  void parse_sei(OMX_BUFFERHEADERTYPE *p_buf_hdr);
-  void reset_params();
-private:
-  void init_bitstream(OMX_U8* data, OMX_U32 size);
-  OMX_U32 extract_bits(OMX_U32 n);
-  inline bool more_bits();
-  void read_word();
-  OMX_U32 uev();
-  OMX_S32 sev();
-  void append_interlace_extradata(OMX_OTHER_EXTRADATATYPE *extra, OMX_U32 interlace_fmt);
-  void append_frame_info_extradata(OMX_OTHER_EXTRADATATYPE *extra, OMX_U32 interlace_fmt);
-  void append_terminator_extradata(OMX_OTHER_EXTRADATATYPE *extra);
-  void parse_vui(bool vui_in_extradata);
-  bool parse_sei(OMX_S64 *p_timestamp);
-  void hrd_parameters(h264_hrd_param *hrd_param);
-  void sei_buffering_period(OMX_S64 timestamp);
-  bool sei_picture_timing(OMX_S64 &timestamp);
-  void scaling_list(OMX_U32 size_of_scaling_list);
-  void sei_pan_scan();
-  OMX_S64 calculate_ts(OMX_U32 cpb_removal_delay);
+  public:
+    h264_stream_parser() { reset(); };
+    ~h264_stream_parser() {};
+    void reset();
+    void fill_pan_scan_data(OMX_QCOM_PANSCAN *dest_pan_scan);
+    void parse_nal(OMX_U8* data_ptr, OMX_U32 data_len,
+                   OMX_U32 nal_type = NALU_TYPE_UNSPECIFIED);
+    OMX_S64 process_ts_with_sei_vui(OMX_S64 timestamp);
+  private:
+    void init_bitstream(OMX_U8* data, OMX_U32 size);
+    OMX_U32 extract_bits(OMX_U32 n);
+    inline bool more_bits();
+    void read_word();
+    OMX_U32 uev();
+    OMX_S32 sev();
+    void parse_sps();
+    void parse_vui(bool vui_in_extradata = true);
+    void hrd_parameters(h264_hrd_param *hrd_param);
+    void parse_sei();
+    void sei_buffering_period();
+    void sei_picture_timing();
+    void sei_pan_scan();
+    void scaling_list(OMX_U32 size_of_scaling_list);
 
-  OMX_U32 curr_32_bit;
-  OMX_U32 bits_read;
-  OMX_U32 zero_cntr;
-  OMX_U32 emulation_code_skip_cntr;
-  OMX_U32 au_num;
-  OMX_U8* bitstream;
-  OMX_U32 bitstream_bytes;
-  h264_vui_param vui_param;
-  h264_sei_buf_period sei_buf_period;
-  h264_pan_scan pan_scan_param;
+    OMX_U32 get_nal_unit_type(OMX_U32 *nal_unit_type);
+    OMX_S64 calculate_buf_period_ts(OMX_S64 timestamp);
+    OMX_S64 calculate_fixed_fps_ts(OMX_S64 timestamp, OMX_U32 DeltaTfiDivisor);
+
+    OMX_U32 curr_32_bit;
+    OMX_U32 bits_read;
+    OMX_U32 zero_cntr;
+    OMX_U32 emulation_code_skip_cntr;
+    OMX_U8* bitstream;
+    OMX_U32 bitstream_bytes;
+
+    h264_vui_param vui_param;
+    h264_sei_buf_period sei_buf_period;
+    h264_sei_pic_timing sei_pic_timing;
+    h264_pan_scan pan_scan_param;
 };
 
 #endif /* H264_UTILS_H */
