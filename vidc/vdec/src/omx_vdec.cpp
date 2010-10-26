@@ -2303,10 +2303,6 @@ OMX_ERRORTYPE  omx_vdec::get_parameter(OMX_IN OMX_HANDLETYPE     hComp,
       portDefn->nVersion.nVersion = OMX_SPEC_VERSION;
       portDefn->nSize = sizeof(portDefn);
       portDefn->eDomain    = OMX_PortDomainVideo;
-      portDefn->format.video.nFrameHeight =  drv_ctx.video_resolution.frame_height;
-      portDefn->format.video.nFrameWidth  =  drv_ctx.video_resolution.frame_width;
-      portDefn->format.video.nStride = drv_ctx.video_resolution.stride;
-      portDefn->format.video.nSliceHeight = drv_ctx.video_resolution.scan_lines;
       portDefn->format.video.xFramerate = drv_ctx.frame_rate.fps_numerator /
                                           drv_ctx.frame_rate.fps_denominator;
       if (0 == portDefn->nPortIndex)
@@ -2323,6 +2319,8 @@ OMX_ERRORTYPE  omx_vdec::get_parameter(OMX_IN OMX_HANDLETYPE     hComp,
       else if (1 == portDefn->nPortIndex)
       {
         portDefn->eDir =  OMX_DirOutput;
+        if (update_picture_resolution() != OMX_ErrorNone)
+          return OMX_ErrorHardware;
         if (in_reconfig)
         {
           portDefn->nBufferCountActual = op_buf_rcnfg.actualcount;
@@ -2355,7 +2353,11 @@ OMX_ERRORTYPE  omx_vdec::get_parameter(OMX_IN OMX_HANDLETYPE     hComp,
                  (int)portDefn->nPortIndex);
         eRet = OMX_ErrorBadPortIndex;
       }
-
+      // Set width, height, stride and scanlines after update them from driver for OP port
+      portDefn->format.video.nFrameHeight =  drv_ctx.video_resolution.frame_height;
+      portDefn->format.video.nFrameWidth  =  drv_ctx.video_resolution.frame_width;
+      portDefn->format.video.nStride = drv_ctx.video_resolution.stride;
+      portDefn->format.video.nSliceHeight = drv_ctx.video_resolution.scan_lines;
       break;
     }
     case OMX_IndexParamVideoInit:
@@ -6326,16 +6328,9 @@ OMX_ERRORTYPE omx_vdec::set_buffer_req(vdec_allocatorproperty *buffer_prop)
 OMX_ERRORTYPE omx_vdec::start_port_reconfig()
 {
   struct vdec_ioctl_msg ioctl_msg = {NULL, NULL};
-  struct vdec_picsize vid_res;
   OMX_ERRORTYPE eRet = OMX_ErrorNone;
-  ioctl_msg.in = NULL;
-  ioctl_msg.out = &vid_res;
-  if (ioctl(drv_ctx.video_driver_fd, VDEC_IOCTL_GET_PICRES, &ioctl_msg))
-  {
-    DEBUG_PRINT_ERROR("Error VDEC_IOCTL_GET_PICRES");
-    eRet = OMX_ErrorHardware;
-  }
-  else
+  eRet = update_picture_resolution();
+  if (eRet == OMX_ErrorNone)
   {
     ioctl_msg.out = &drv_ctx.interlace;
     if (ioctl(drv_ctx.video_driver_fd, VDEC_IOCTL_GET_INTERLACE_FORMAT, &ioctl_msg))
@@ -6348,8 +6343,21 @@ OMX_ERRORTYPE omx_vdec::start_port_reconfig()
       in_reconfig = true;
       op_buf_rcnfg.buffer_type = VDEC_BUFFER_TYPE_OUTPUT;
       eRet = get_buffer_req(&op_buf_rcnfg, true);
-      drv_ctx.video_resolution = vid_res;
     }
+  }
+  return eRet;
+}
+
+OMX_ERRORTYPE omx_vdec::update_picture_resolution()
+{
+  struct vdec_ioctl_msg ioctl_msg = {NULL, NULL};
+  OMX_ERRORTYPE eRet = OMX_ErrorNone;
+  ioctl_msg.in = NULL;
+  ioctl_msg.out = &drv_ctx.video_resolution;
+  if (ioctl(drv_ctx.video_driver_fd, VDEC_IOCTL_GET_PICRES, &ioctl_msg))
+  {
+    DEBUG_PRINT_ERROR("Error VDEC_IOCTL_GET_PICRES");
+    eRet = OMX_ErrorHardware;
   }
   return eRet;
 }

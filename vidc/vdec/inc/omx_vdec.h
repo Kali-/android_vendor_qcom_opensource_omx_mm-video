@@ -485,6 +485,7 @@ private:
     OMX_ERRORTYPE get_buffer_req(vdec_allocatorproperty *buffer_prop, bool verify_extradata = false);
     OMX_ERRORTYPE set_buffer_req(vdec_allocatorproperty *buffer_prop);
     OMX_ERRORTYPE start_port_reconfig();
+    OMX_ERRORTYPE update_picture_resolution();
     void adjust_timestamp(OMX_S64 &act_timestamp);
     void set_frame_rate(OMX_S64 act_timestamp, bool min_delta = false);
 
