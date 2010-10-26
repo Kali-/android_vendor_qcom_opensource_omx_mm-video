@@ -759,7 +759,7 @@ namespace venctest
   /////////////////////////////////////////////////////////////////////////////
   OMX_ERRORTYPE Encoder::DeliverInput(OMX_BUFFERHEADERTYPE* pBuffer)
   {
-    VENC_TEST_MSG_HIGH("deliver input frame %ld", m_nInFrameIn);
+    VENC_TEST_MSG_HIGH(" deliver  input frame %ld", m_nInFrameIn);
     ++m_nInFrameIn;
 
     if (m_pStats != NULL)

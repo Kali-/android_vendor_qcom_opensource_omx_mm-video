@@ -579,6 +579,7 @@ bail:
 
 Venc* Venc::get_instance()
 {
+  QC_OMX_MSG_HIGH("getting instance...");
   if (g_pVencInstance)
   {
     QC_OMX_MSG_ERROR("Singleton Class can't created more than one instance");
@@ -624,13 +625,13 @@ OMX_ERRORTYPE Venc::send_command(OMX_IN  OMX_HANDLETYPE hComponent,
   switch (Cmd)
   {
     case OMX_CommandStateSet:
-      QC_OMX_MSG_MEDIUM("sending command MSG_ID_STATE_CHANGE");
+      QC_OMX_MSG_HIGH("sending command MSG_ID_STATE_CHANGE");
       msgId = VencMsgQ::MSG_ID_STATE_CHANGE;
       msgData.eState = (OMX_STATETYPE) nParam1;
       break;
 
     case OMX_CommandFlush:
-      QC_OMX_MSG_MEDIUM("sending command MSG_ID_FLUSH");
+      QC_OMX_MSG_HIGH("sending command MSG_ID_FLUSH");
       msgId = VencMsgQ::MSG_ID_FLUSH;
       msgData.nPortIndex = nParam1;
       break;
@@ -642,7 +643,7 @@ OMX_ERRORTYPE Venc::send_command(OMX_IN  OMX_HANDLETYPE hComponent,
         QC_OMX_MSG_ERROR("bad port index to call OMX_CommandPortDisable");
         return OMX_ErrorBadPortIndex;
       }
-      QC_OMX_MSG_MEDIUM("sending command MSG_ID_PORT_DISABLE");
+      QC_OMX_MSG_HIGH("sending command MSG_ID_PORT_DISABLE");
       msgId = VencMsgQ::MSG_ID_PORT_DISABLE;
       msgData.nPortIndex = nParam1;
       break;
@@ -654,13 +655,13 @@ OMX_ERRORTYPE Venc::send_command(OMX_IN  OMX_HANDLETYPE hComponent,
         QC_OMX_MSG_ERROR("bad port index to call OMX_CommandPortEnable");
         return OMX_ErrorBadPortIndex;
       }
-      QC_OMX_MSG_MEDIUM("sending command MSG_ID_PORT_ENABLE");
+      QC_OMX_MSG_HIGH("sending command MSG_ID_PORT_ENABLE");
       msgId = VencMsgQ::MSG_ID_PORT_ENABLE;
       msgData.nPortIndex = nParam1;
       break;
 
     case OMX_CommandMarkBuffer:
-      QC_OMX_MSG_MEDIUM("sending command MSG_ID_MARK_BUFFER");
+      QC_OMX_MSG_HIGH("sending command MSG_ID_MARK_BUFFER");
       msgId = VencMsgQ::MSG_ID_MARK_BUFFER;
       msgData.sMarkBuffer.nPortIndex = nParam1;
       memcpy(&msgData.sMarkBuffer.sMarkData,
@@ -711,6 +712,7 @@ OMX_ERRORTYPE Venc::get_parameter(OMX_IN  OMX_HANDLETYPE hComponent,
     case OMX_IndexParamVideoPortFormat:
       {
         OMX_VIDEO_PARAM_PORTFORMATTYPE* pParam = reinterpret_cast<OMX_VIDEO_PARAM_PORTFORMATTYPE*>(pCompParam);
+        QC_OMX_MSG_HIGH("OMX_IndexParamVideoPortFormat");
         if (pParam->nPortIndex == (OMX_U32) PORT_INDEX_IN)
         {
           memcpy(pParam, &m_sInPortFormat, sizeof(m_sInPortFormat));
@@ -730,6 +732,7 @@ OMX_ERRORTYPE Venc::get_parameter(OMX_IN  OMX_HANDLETYPE hComponent,
     case OMX_IndexParamPortDefinition:
       {
         OMX_PARAM_PORTDEFINITIONTYPE* pParam = reinterpret_cast<OMX_PARAM_PORTDEFINITIONTYPE*>(pCompParam);
+        QC_OMX_MSG_HIGH("OMX_IndexParamPortDefinition");
         if (pParam->nPortIndex == (OMX_U32) PORT_INDEX_IN)
         {
           memcpy(pParam, &m_sInPortDef, sizeof(m_sInPortDef));
@@ -748,12 +751,14 @@ OMX_ERRORTYPE Venc::get_parameter(OMX_IN  OMX_HANDLETYPE hComponent,
     case OMX_IndexParamVideoInit:
       {
         OMX_PORT_PARAM_TYPE* pParam = reinterpret_cast<OMX_PORT_PARAM_TYPE*>(pCompParam);
+        QC_OMX_MSG_HIGH("OMX_IndexParamVideoInit");
         memcpy(pParam, &m_sPortParam, sizeof(m_sPortParam));
         break;
       }
     case OMX_IndexParamVideoBitrate:
       {
         OMX_VIDEO_PARAM_BITRATETYPE* pParam = reinterpret_cast<OMX_VIDEO_PARAM_BITRATETYPE*>(pCompParam);
+        QC_OMX_MSG_HIGH("OMX_IndexParamVideoBitrate");
         if (pParam->nPortIndex == (OMX_U32) PORT_INDEX_OUT)
         {
           memcpy(pParam, &m_sParamBitrate, sizeof(m_sParamBitrate));
@@ -768,25 +773,28 @@ OMX_ERRORTYPE Venc::get_parameter(OMX_IN  OMX_HANDLETYPE hComponent,
     case OMX_IndexParamVideoMpeg4:
       {
         OMX_VIDEO_PARAM_MPEG4TYPE* pParam = reinterpret_cast<OMX_VIDEO_PARAM_MPEG4TYPE*>(pCompParam);
+        QC_OMX_MSG_HIGH("OMX_IndexParamVideoMpeg4");
         memcpy(pParam, &m_sParamMPEG4, sizeof(m_sParamMPEG4));
         break;
       }
     case OMX_IndexParamVideoProfileLevelCurrent:
       {
         OMX_VIDEO_PARAM_PROFILELEVELTYPE* pParam = reinterpret_cast<OMX_VIDEO_PARAM_PROFILELEVELTYPE*>(pCompParam);
+        QC_OMX_MSG_HIGH("OMX_IndexParamVideoProfileLevelCurrent");
         memcpy(pParam, &m_sParamProfileLevel, sizeof(m_sParamProfileLevel));
-
         break;
       }
     case OMX_IndexParamVideoH263:
       {
         OMX_VIDEO_PARAM_H263TYPE* pParam = reinterpret_cast<OMX_VIDEO_PARAM_H263TYPE*>(pCompParam);
+        QC_OMX_MSG_HIGH("OMX_IndexParamVideoH263");
         memcpy(pParam, &m_sParamH263, sizeof(m_sParamH263));
         break;
       }
     case OMX_IndexParamVideoAvc:
       {
         OMX_VIDEO_PARAM_AVCTYPE* pParam = reinterpret_cast<OMX_VIDEO_PARAM_AVCTYPE*>(pCompParam);
+        QC_OMX_MSG_HIGH("OMX_IndexParamVideoAvc");
         memcpy(pParam, &m_sParamAVC, sizeof(m_sParamAVC));
         break;
       }
@@ -795,7 +803,7 @@ OMX_ERRORTYPE Venc::get_parameter(OMX_IN  OMX_HANDLETYPE hComponent,
       {
         QOMX_VIDEO_SYNTAXHDRTYPE * pParam =
           reinterpret_cast<QOMX_VIDEO_SYNTAXHDRTYPE*>(pCompParam);
-
+        QC_OMX_MSG_HIGH("QOMX_IndexParamVideoSyntaxHdr");
         if (pParam != NULL &&
             pParam->data != NULL &&
             pParam->nBytes != 0)
@@ -832,10 +840,8 @@ OMX_ERRORTYPE Venc::get_parameter(OMX_IN  OMX_HANDLETYPE hComponent,
 #endif
     case OMX_IndexParamVideoProfileLevelQuerySupported:
       {
-
         OMX_VIDEO_PARAM_PROFILELEVELTYPE* pParam = reinterpret_cast<OMX_VIDEO_PARAM_PROFILELEVELTYPE*>(pCompParam);
-
-
+        QC_OMX_MSG_HIGH("OMX_IndexParamVideoProfileLevelQuerySupported");
         if (m_sOutPortDef.format.video.eCompressionFormat == OMX_VIDEO_CodingMPEG4)
         {
           static const OMX_U32 MPEG4Profile[][2] =
@@ -870,7 +876,7 @@ OMX_ERRORTYPE Venc::get_parameter(OMX_IN  OMX_HANDLETYPE hComponent,
           {
             pParam->eProfile = (OMX_VIDEO_AVCPROFILETYPE) H264Profile[pParam->nProfileIndex][0];
             pParam->eLevel = (OMX_VIDEO_AVCLEVELTYPE) H264Profile[pParam->nProfileIndex][1];
-            QC_OMX_MSG_MEDIUM("get_parameter: h264: level supported(%d) \n", pParam->eLevel);
+            QC_OMX_MSG_MEDIUM("get_parameter: h264: level supported(%d)", pParam->eLevel);
           }
           else
           {
@@ -904,24 +910,28 @@ OMX_ERRORTYPE Venc::get_parameter(OMX_IN  OMX_HANDLETYPE hComponent,
     case OMX_IndexParamVideoErrorCorrection:
       {
         OMX_VIDEO_PARAM_ERRORCORRECTIONTYPE* pParam = reinterpret_cast<OMX_VIDEO_PARAM_ERRORCORRECTIONTYPE*>(pCompParam);
+        QC_OMX_MSG_HIGH("OMX_IndexParamVideoErrorCorrection");
         memcpy(pParam, &m_sErrorCorrection, sizeof(m_sErrorCorrection));
         break;
       }
     case OMX_IndexParamVideoQuantization:
       {
         OMX_VIDEO_PARAM_QUANTIZATIONTYPE* pParam = reinterpret_cast<OMX_VIDEO_PARAM_QUANTIZATIONTYPE*>(pCompParam);
+        QC_OMX_MSG_HIGH("OMX_IndexParamVideoQuantization");
         memcpy(pParam, &m_sParamQPs, sizeof(m_sParamQPs));
         break;
       }
     case OMX_IndexParamVideoIntraRefresh:
       {
         OMX_VIDEO_PARAM_INTRAREFRESHTYPE* pParam = reinterpret_cast<OMX_VIDEO_PARAM_INTRAREFRESHTYPE*>(pCompParam);
+        QC_OMX_MSG_HIGH("OMX_IndexParamVideoIntraRefresh");
         memcpy(pParam, &m_sParamIntraRefresh, sizeof(m_sParamIntraRefresh));
         break;
       }
     case OMX_COMPONENT_CAPABILITY_TYPE_INDEX:
       {
         OMXComponentCapabilityFlagsType *pParam = reinterpret_cast<OMXComponentCapabilityFlagsType*>(pCompParam);
+        QC_OMX_MSG_HIGH("OMX_COMPONENT_CAPABILITY_TYPE_INDEX");
         pParam->iIsOMXComponentMultiThreaded = OMX_TRUE;
         pParam->iOMXComponentSupportsExternalOutputBufferAlloc = OMX_FALSE;
         pParam->iOMXComponentSupportsExternalInputBufferAlloc = OMX_TRUE;
@@ -947,7 +957,6 @@ OMX_ERRORTYPE Venc::get_parameter(OMX_IN  OMX_HANDLETYPE hComponent,
 OMX_ERRORTYPE Venc::driver_get_buffer_reqs(OMX_PARAM_PORTDEFINITIONTYPE* pPortDef, PortIndexType eIndex)
 {
   OMX_ERRORTYPE result = OMX_ErrorNone;
-
   if (pPortDef != NULL)
   {
     struct ven_allocator_property property;
@@ -956,10 +965,12 @@ OMX_ERRORTYPE Venc::driver_get_buffer_reqs(OMX_PARAM_PORTDEFINITIONTYPE* pPortDe
 
     if (eIndex == PORT_INDEX_IN)
     {
+      QC_OMX_MSG_HIGH("get input buffer requirements...");
       rc = ven_get_input_req(m_pDevice,&property);
     }
     else
     {
+      QC_OMX_MSG_HIGH("get output buffer requirements...");
       rc = ven_get_output_req(m_pDevice,&property);
     }
 
@@ -970,6 +981,10 @@ OMX_ERRORTYPE Venc::driver_get_buffer_reqs(OMX_PARAM_PORTDEFINITIONTYPE* pPortDe
       pPortDef->nBufferSize            = property.data_size;
       pPortDef->nBufferAlignment       = property.alignment;
       pPortDef->bBuffersContiguous     = OMX_FALSE;
+      QC_OMX_MSG_HIGH("nBufferCountMin = %d",pPortDef->nBufferCountMin);
+      QC_OMX_MSG_HIGH("nBufferCountActual = %d",pPortDef->nBufferCountActual);
+      QC_OMX_MSG_HIGH("nBufferSize = %d",pPortDef->nBufferSize);
+      QC_OMX_MSG_HIGH("nBufferAlignment = %d",pPortDef->nBufferAlignment);
     }
     else
     {
@@ -1173,6 +1188,7 @@ OMX_ERRORTYPE Venc::translate_driver_error(int driverResult)
   static const int nAppErrorCodeBit = 0x20000000;
   OMX_ERRORTYPE result = OMX_ErrorNone;
 
+  QC_OMX_MSG_HIGH("translate_driver_error...");
   // see if this is encoder specific error
   if (driverResult & nAppErrorCodeBit)
   {
@@ -1255,7 +1271,7 @@ OMX_ERRORTYPE Venc::driver_set_default_config()
   ////////////////////////////////////////
   // set base config
   ////////////////////////////////////////
-  QC_OMX_MSG_HIGH("driver_set_default_config: pcofig: %p \n", &(m_pDevice->config.base_config));
+  QC_OMX_MSG_HIGH("driver_set_default_config: pcofig: %p", &(m_pDevice->config.base_config));
 
 
   baseCfg.input_width = m_sInPortDef.format.video.nFrameWidth;
@@ -1565,12 +1581,11 @@ OMX_ERRORTYPE Venc::update_param_port_fmt(OMX_IN OMX_VIDEO_PARAM_PORTFORMATTYPE*
   int rc = 0;
   if (pParam != NULL)
   {
-
     if (pParam->nPortIndex == (OMX_U32) PORT_INDEX_OUT)
     {
       if (pParam->xFramerate != 0)
       {
-        QC_OMX_MSG_ERROR("Frame rate is for input port (refer to OMX IL spec)");
+        QC_OMX_MSG_HIGH("Frame rate is for input port (refer to OMX IL spec)");
         //  result = OMX_ErrorUnsupportedSetting;
       }
     }
@@ -1611,12 +1626,14 @@ OMX_ERRORTYPE Venc::update_param_port_fmt(OMX_IN OMX_VIDEO_PARAM_PORTFORMATTYPE*
       {
         if (pParam->nPortIndex == (OMX_U32) PORT_INDEX_IN)
         {
+          QC_OMX_MSG_HIGH("update input port format");
           memcpy(&m_sInPortFormat, pParam, sizeof(m_sInPortFormat));
           m_sConfigFramerate.xEncodeFramerate = pParam->xFramerate;
           m_sInPortDef.format.video.xFramerate = pParam->xFramerate;
         }
         else
         {
+          QC_OMX_MSG_HIGH("update output port format");
           memcpy(&m_sOutPortFormat, pParam, sizeof(m_sOutPortFormat));
         }
 
@@ -1647,7 +1664,7 @@ OMX_ERRORTYPE Venc::update_param_port_def(OMX_IN OMX_PARAM_PORTDEFINITIONTYPE* p
       pLocalDef = &m_sOutPortDef;
       if (pParam->format.video.xFramerate != 0)
       {
-        QC_OMX_MSG_ERROR("Frame rate is for input port (refer to OMX IL spec)");
+        QC_OMX_MSG_HIGH("Frame rate is for input port (refer to OMX IL spec)");
         //            result = OMX_ErrorUnsupportedSetting;
 
       }
@@ -1747,14 +1764,14 @@ OMX_ERRORTYPE Venc::update_param_port_def(OMX_IN OMX_PARAM_PORTDEFINITIONTYPE* p
       /// @integrate this is a hack. how to handle buff req change due to frame size change
       pParam->nBufferSize = pLocalDef->nBufferSize;
 
-      QC_OMX_MSG_LOW("Before update buffer: actual: %d, min: %d\n",
+      QC_OMX_MSG_LOW("Before update buffer: actual: %d, min: %d",
           pLocalDef->nBufferCountActual, pLocalDef->nBufferCountMin);
-      QC_OMX_MSG_LOW("After update buffer: actual:%d, min: %d \n",
+      QC_OMX_MSG_LOW("After update buffer: actual:%d, min: %d",
           pParam->nBufferCountActual, pParam->nBufferCountMin);
 
-      QC_OMX_MSG_LOW("Before update buffer: size: %d, alignment: %d\n",
+      QC_OMX_MSG_LOW("Before update buffer: size: %d, alignment: %d",
           pLocalDef->nBufferSize, pLocalDef->nBufferAlignment);
-      QC_OMX_MSG_LOW("After update buffer: size:%d, alignment: %d \n",
+      QC_OMX_MSG_LOW("After update buffer: size:%d, alignment: %d",
           pParam->nBufferSize, pParam->nBufferAlignment);
       if (pParam->nBufferCountActual >= pLocalDef->nBufferCountMin &&    // must be greater or equal to min requirement
           pParam->nBufferCountMin == pLocalDef->nBufferCountMin &&       // min count is read only!
@@ -1762,9 +1779,9 @@ OMX_ERRORTYPE Venc::update_param_port_def(OMX_IN OMX_PARAM_PORTDEFINITIONTYPE* p
           pParam->nBufferAlignment == pLocalDef->nBufferAlignment)       // alignment is read only!
       {
 
-        QC_OMX_MSG_LOW("Before update buffer: min: %d, actual: %d\n",
+        QC_OMX_MSG_LOW("Before update buffer: min: %d, actual: %d",
             pLocalDef->nBufferCountMin, pLocalDef->nBufferCountMin);
-        QC_OMX_MSG_LOW("After update buffer: actual:%d, min: %d \n",
+        QC_OMX_MSG_LOW("After update buffer: actual:%d, min: %d",
             pParam->nBufferCountActual, pParam->nBufferCountMin);
 
         property.min_count   = pParam->nBufferCountMin;
@@ -1892,7 +1909,7 @@ OMX_ERRORTYPE Venc::adjust_profile_level( )
     }
     m_sParamProfileLevel.eLevel = (OMX_U32)m_sParamH263.eLevel;
   }
-  QC_OMX_MSG_MEDIUM("adjust_profile_level: level: %d \n", m_sParamProfileLevel.eLevel);
+  QC_OMX_MSG_MEDIUM("adjust_profile_level: level: %d", m_sParamProfileLevel.eLevel);
   return result;
 }
 
@@ -2608,7 +2625,7 @@ OMX_ERRORTYPE Venc::set_parameter(OMX_IN  OMX_HANDLETYPE hComponent,
   {
     case OMX_IndexParamVideoPortFormat:
       {
-        QC_OMX_MSG_MEDIUM("OMX_IndexParamVideoPortFormat");
+        QC_OMX_MSG_HIGH("OMX_IndexParamVideoPortFormat");
         result = update_param_port_fmt(reinterpret_cast<OMX_VIDEO_PARAM_PORTFORMATTYPE*>(pCompParam));
         if (result == OMX_ErrorNone)
             result = adjust_profile_level();
@@ -2616,7 +2633,7 @@ OMX_ERRORTYPE Venc::set_parameter(OMX_IN  OMX_HANDLETYPE hComponent,
       }
     case OMX_IndexParamPortDefinition:
       {
-        QC_OMX_MSG_MEDIUM("OMX_IndexParamPortDefinition");
+        QC_OMX_MSG_HIGH("OMX_IndexParamPortDefinition");
         result = update_param_port_def(reinterpret_cast<OMX_PARAM_PORTDEFINITIONTYPE*>(pCompParam));
         if (result == OMX_ErrorNone)
             result = adjust_profile_level();
@@ -2624,55 +2641,55 @@ OMX_ERRORTYPE Venc::set_parameter(OMX_IN  OMX_HANDLETYPE hComponent,
       }
     case OMX_IndexParamVideoInit:
       {
-        QC_OMX_MSG_MEDIUM("OMX_IndexParamVideoInit");
+        QC_OMX_MSG_HIGH("OMX_IndexParamVideoInit");
         result = update_param_video_init(reinterpret_cast<OMX_PORT_PARAM_TYPE*>(pCompParam));
         break;
       }
     case OMX_IndexParamVideoBitrate:
       {
-        QC_OMX_MSG_MEDIUM("OMX_IndexParamVideoBitrate");
+        QC_OMX_MSG_HIGH("OMX_IndexParamVideoBitrate");
         result = update_param_bitrate(reinterpret_cast<OMX_VIDEO_PARAM_BITRATETYPE*>(pCompParam));
         break;
       }
     case OMX_IndexParamVideoMpeg4:
       {
-        QC_OMX_MSG_MEDIUM("OMX_IndexParamVideoMpeg4");
+        QC_OMX_MSG_HIGH("OMX_IndexParamVideoMpeg4");
         result = update_param_mpeg4(reinterpret_cast<OMX_VIDEO_PARAM_MPEG4TYPE*>(pCompParam));
         break;
       }
     case OMX_IndexParamVideoProfileLevelCurrent:
       {
-        QC_OMX_MSG_MEDIUM("OMX_IndexParamVideoProfileLevelCurrent");
+        QC_OMX_MSG_HIGH("OMX_IndexParamVideoProfileLevelCurrent");
         result = update_param_profile_level(reinterpret_cast<OMX_VIDEO_PARAM_PROFILELEVELTYPE*>(pCompParam));
         break;
       }
     case OMX_IndexParamVideoErrorCorrection:
       {
-        QC_OMX_MSG_MEDIUM("OMX_IndexParamVideoErrorCorrection");
+        QC_OMX_MSG_HIGH("OMX_IndexParamVideoErrorCorrection");
         result = update_param_err_correct(reinterpret_cast<OMX_VIDEO_PARAM_ERRORCORRECTIONTYPE*>(pCompParam));
         break;
       }
     case OMX_IndexParamVideoH263:
       {
-        QC_OMX_MSG_MEDIUM("OMX_IndexParamVideoH263");
+        QC_OMX_MSG_HIGH("OMX_IndexParamVideoH263");
         result = update_param_h263(reinterpret_cast<OMX_VIDEO_PARAM_H263TYPE*>(pCompParam));
         break;
       }
     case OMX_IndexParamVideoAvc:
       {
-        QC_OMX_MSG_MEDIUM("OMX_IndexParamVideoAvc");
+        QC_OMX_MSG_HIGH("OMX_IndexParamVideoAvc");
         result = update_param_avc(reinterpret_cast<OMX_VIDEO_PARAM_AVCTYPE*>(pCompParam));
         break;
       }
     case OMX_IndexParamVideoQuantization:
       {
-        QC_OMX_MSG_MEDIUM("OMX_IndexParamVideoQuantization");
+        QC_OMX_MSG_HIGH("OMX_IndexParamVideoQuantization");
         result = update_param_quantization(reinterpret_cast<OMX_VIDEO_PARAM_QUANTIZATIONTYPE*>(pCompParam));
         break;
       }
     case OMX_IndexParamVideoIntraRefresh:
       {
-        QC_OMX_MSG_MEDIUM("OMX_IndexParamVideoIntraRefresh");
+        QC_OMX_MSG_HIGH("OMX_IndexParamVideoIntraRefresh");
         result = update_param_intra_refresh(reinterpret_cast<OMX_VIDEO_PARAM_INTRAREFRESHTYPE*>(pCompParam));
         break;
       }
@@ -2680,7 +2697,7 @@ OMX_ERRORTYPE Venc::set_parameter(OMX_IN  OMX_HANDLETYPE hComponent,
       {
         OMX_PARAM_COMPONENTROLETYPE *comp_role;
         comp_role = (OMX_PARAM_COMPONENTROLETYPE *) pCompParam;
-        QC_OMX_MSG_LOW("OMX_IndexParamStandardComponentRole");
+        QC_OMX_MSG_HIGH("OMX_IndexParamStandardComponentRole");
         if(!strncmp(m_pComponentName,"OMX.qcom.video.encoder.mpeg4",strlen("OMX.qcom.video.encoder.mpeg4")))
         {
           if(!strcmp((const char*)comp_role->cRole, pRoleMPEG4))
@@ -2726,6 +2743,7 @@ OMX_ERRORTYPE Venc::set_parameter(OMX_IN  OMX_HANDLETYPE hComponent,
       }
 
     case OMX_QcomIndexPlatformPvt:
+      QC_OMX_MSG_HIGH("OMX_QcomIndexPlatformPvt");
       result = OMX_ErrorNone;
       break;
     default:
@@ -2767,6 +2785,7 @@ OMX_ERRORTYPE Venc::get_config(OMX_IN  OMX_HANDLETYPE hComponent,
     case OMX_IndexConfigVideoBitrate:
       {
         OMX_VIDEO_CONFIG_BITRATETYPE* pParam = reinterpret_cast<OMX_VIDEO_CONFIG_BITRATETYPE*>(pCompConfig);
+        QC_OMX_MSG_HIGH("OMX_IndexConfigVideoBitrate");
         if (pParam->nPortIndex == (OMX_U32) PORT_INDEX_OUT)
         {
           memcpy(pParam, &m_sConfigBitrate, sizeof(m_sConfigBitrate));
@@ -2781,6 +2800,7 @@ OMX_ERRORTYPE Venc::get_config(OMX_IN  OMX_HANDLETYPE hComponent,
     case OMX_IndexConfigVideoFramerate:
       {
         OMX_CONFIG_FRAMERATETYPE* pParam = reinterpret_cast<OMX_CONFIG_FRAMERATETYPE*>(pCompConfig);
+        QC_OMX_MSG_HIGH("OMX_IndexConfigVideoFramerate");
         if (pParam->nPortIndex == (OMX_U32) PORT_INDEX_IN)
         {
           memcpy(pParam, &m_sConfigFramerate, sizeof(m_sConfigFramerate));
@@ -2795,6 +2815,7 @@ OMX_ERRORTYPE Venc::get_config(OMX_IN  OMX_HANDLETYPE hComponent,
     case OMX_IndexConfigCommonRotate:
       {
         OMX_CONFIG_ROTATIONTYPE* pParam = reinterpret_cast<OMX_CONFIG_ROTATIONTYPE*>(pCompConfig);
+        QC_OMX_MSG_HIGH("OMX_IndexConfigCommonRotate");
         if(m_eState != OMX_StateLoaded)
         {
           // we only allow this at init time!
@@ -2807,6 +2828,7 @@ OMX_ERRORTYPE Venc::get_config(OMX_IN  OMX_HANDLETYPE hComponent,
     case OMX_IndexConfigVideoIntraVOPRefresh:
       {
         OMX_CONFIG_INTRAREFRESHVOPTYPE* pParam = reinterpret_cast<OMX_CONFIG_INTRAREFRESHVOPTYPE*>(pCompConfig);
+        QC_OMX_MSG_HIGH("OMX_IndexConfigVideoIntraVOPRefresh");
         memcpy(pParam, &m_sConfigIntraRefreshVOP, sizeof(m_sConfigIntraRefreshVOP));
         break;
       }
@@ -2814,12 +2836,14 @@ OMX_ERRORTYPE Venc::get_config(OMX_IN  OMX_HANDLETYPE hComponent,
     case QOMX_IndexConfigVideoTemporalSpatialTradeOff:
       {
         QOMX_VIDEO_TEMPORALSPATIALTYPE* pParam = reinterpret_cast<QOMX_VIDEO_TEMPORALSPATIALTYPE*>(pCompConfig);
+        QC_OMX_MSG_HIGH("QOMX_IndexConfigVideoTemporalSpatialTradeOff");
         memcpy(pParam, &m_sConfigQpRange, sizeof(m_sConfigQpRange));
         break;
       }
     case QOMX_IndexConfigVideoIntraperiod:
       {
         QOMX_VIDEO_INTRAPERIODTYPE* pParam = reinterpret_cast<QOMX_VIDEO_INTRAPERIODTYPE*>(pCompConfig);
+        QC_OMX_MSG_HIGH("QOMX_IndexConfigVideoIntraperiod");
         memcpy(pParam, &m_sConfigIntraPeriod, sizeof(m_sConfigIntraPeriod));
         break;
       }
@@ -2827,6 +2851,7 @@ OMX_ERRORTYPE Venc::get_config(OMX_IN  OMX_HANDLETYPE hComponent,
     case OMX_IndexConfigVideoNalSize:
       {
         OMX_VIDEO_CONFIG_NALSIZE* pParam = reinterpret_cast<OMX_VIDEO_CONFIG_NALSIZE*>(pCompConfig);
+        QC_OMX_MSG_HIGH("OMX_IndexConfigVideoNalSize");
         memcpy(pParam, &m_sConfigNAL, sizeof(m_sConfigNAL));
         break;
       }
@@ -3006,7 +3031,7 @@ OMX_ERRORTYPE Venc::update_config_intra_vop_refresh(OMX_IN  OMX_CONFIG_INTRAREFR
       int nOutSize;
       if (pConfig->IntraRefreshVOP == OMX_TRUE)
       {
-        QC_OMX_MSG_HIGH("requesting iframe...");
+        QC_OMX_MSG_HIGH("request iframe");
         rc = ven_request_iframe(m_pDevice);
         if(rc)
         {
@@ -3181,45 +3206,45 @@ OMX_ERRORTYPE Venc::set_config(OMX_IN  OMX_HANDLETYPE hComponent,
   {
     case OMX_IndexConfigVideoBitrate:
       {
-        QC_OMX_MSG_MEDIUM("OMX_IndexConfigVideoBitrate");
+        QC_OMX_MSG_HIGH("OMX_IndexConfigVideoBitrate");
         result = update_config_bitrate(reinterpret_cast<OMX_VIDEO_CONFIG_BITRATETYPE*>(pCompConfig));
         break;
       }
     case OMX_IndexConfigVideoFramerate:
       {
-        QC_OMX_MSG_MEDIUM("OMX_IndexConfigVideoFramerate");
+        QC_OMX_MSG_HIGH("OMX_IndexConfigVideoFramerate");
         result = update_config_frame_rate(reinterpret_cast<OMX_CONFIG_FRAMERATETYPE*>(pCompConfig));
         break;
       }
     case OMX_IndexConfigCommonRotate:
       {
-        QC_OMX_MSG_MEDIUM("OMX_IndexConfigCommonRotate");
+        QC_OMX_MSG_HIGH("OMX_IndexConfigCommonRotate");
         result = update_config_rotate(reinterpret_cast<OMX_CONFIG_ROTATIONTYPE*>(pCompConfig));
         break;
       }
     case OMX_IndexConfigVideoIntraVOPRefresh:
       {
-        QC_OMX_MSG_MEDIUM("OMX_IndexConfigVideoIntraVOPRefresh");
+        QC_OMX_MSG_HIGH("OMX_IndexConfigVideoIntraVOPRefresh");
         result = update_config_intra_vop_refresh(reinterpret_cast<OMX_CONFIG_INTRAREFRESHVOPTYPE*>(pCompConfig));
         break;
       }
 #ifdef QCOM_OMX_VENC_EXT
     case QOMX_IndexConfigVideoTemporalSpatialTradeOff:
       {
-        QC_OMX_MSG_MEDIUM("QOMX_IndexConfigVideoTemporalSpatialTradeOff");
+        QC_OMX_MSG_HIGH("QOMX_IndexConfigVideoTemporalSpatialTradeOff");
         result = update_config_qp_range(reinterpret_cast<QOMX_VIDEO_TEMPORALSPATIALTYPE*>(pCompConfig));
         break;
       }
     case QOMX_IndexConfigVideoIntraperiod:
       {
-        QC_OMX_MSG_MEDIUM("QOMX_IndexConfigVideoIntraperiod");
+        QC_OMX_MSG_HIGH("QOMX_IndexConfigVideoIntraperiod");
         result = update_config_intra_period(reinterpret_cast<QOMX_VIDEO_INTRAPERIODTYPE*>(pCompConfig));
         break;
       }
 #endif
     case OMX_IndexConfigVideoNalSize:
       {
-        QC_OMX_MSG_MEDIUM("OMX_IndexConfigVideoNalSize");
+        QC_OMX_MSG_HIGH("OMX_IndexConfigVideoNalSize");
         result = update_config_nal_size(reinterpret_cast<OMX_VIDEO_CONFIG_NALSIZE*>(pCompConfig));
         break;
       }
@@ -3289,7 +3314,7 @@ OMX_ERRORTYPE Venc::use_buffer(OMX_IN OMX_HANDLETYPE hComponent,
   }
   if (nPortIndex == (OMX_U32) PORT_INDEX_IN)
   {
-    QC_OMX_MSG_MEDIUM("client allocated input buffer %p for component", pBuffer);
+    QC_OMX_MSG_HIGH("client allocated input buffer %p for component", pBuffer);
     if (nSizeBytes != m_sInPortDef.nBufferSize)
     {
       QC_OMX_MSG_ERROR("buffer size(%lu) does not match our requirements(%lu)",
@@ -3309,7 +3334,7 @@ OMX_ERRORTYPE Venc::use_buffer(OMX_IN OMX_HANDLETYPE hComponent,
     int bFail;
     int nOutSize;
 
-    QC_OMX_MSG_LOW("Input buffer: fd %d, offset: %d \n", ((struct venc_pmem *)pAppPrivate)->fd,
+    QC_OMX_MSG_LOW("Input buffer: fd %d, offset: %d", ((struct venc_pmem *)pAppPrivate)->fd,
         ((struct venc_pmem *)pAppPrivate)->offset);
 
     bFail = DeviceIoControl(m_nFd,
@@ -3344,7 +3369,7 @@ OMX_ERRORTYPE Venc::use_buffer(OMX_IN OMX_HANDLETYPE hComponent,
     }
     if (m_nInBuffAllocated == m_sInPortDef.nBufferCountActual)
     {
-      QC_OMX_MSG_LOW("I/P port populated");
+      QC_OMX_MSG_HIGH("I/P port populated");
       m_sInPortDef.bPopulated = OMX_TRUE;
     }
     if (i == m_sInPortDef.nBufferCountActual)
@@ -3355,7 +3380,7 @@ OMX_ERRORTYPE Venc::use_buffer(OMX_IN OMX_HANDLETYPE hComponent,
   }
   else if (nPortIndex == (OMX_U32) PORT_INDEX_OUT)
   {
-    QC_OMX_MSG_MEDIUM("client allocated output buffer 0x%x for component",(int) pBuffer);
+    QC_OMX_MSG_HIGH("client allocated output buffer 0x%x for component",(int) pBuffer);
     if (nSizeBytes != m_sOutPortDef.nBufferSize)
     {
       QC_OMX_MSG_ERROR("buffer size does not match our requirements");
@@ -3405,7 +3430,7 @@ OMX_ERRORTYPE Venc::use_buffer(OMX_IN OMX_HANDLETYPE hComponent,
     }
     if (m_nOutBuffAllocated == m_sOutPortDef.nBufferCountActual)
     {
-      QC_OMX_MSG_LOW("I/P port populated");
+      QC_OMX_MSG_HIGH("I/P port populated");
       m_sOutPortDef.bPopulated = OMX_TRUE;
     }
 
@@ -3423,7 +3448,7 @@ OMX_ERRORTYPE Venc::use_buffer(OMX_IN OMX_HANDLETYPE hComponent,
   if (BITMASK_PRESENT(m_nFlags, OMX_COMPONENT_IDLE_PENDING) &&
       m_sInPortDef.bPopulated && m_sOutPortDef.bPopulated)
   {
-    QC_OMX_MSG_PROFILE("Ports populated, go to idle state \n");
+    QC_OMX_MSG_HIGH("Ports populated, go to idle state");
     m_eState = OMX_StateIdle;
     m_sCallbacks.EventHandler(m_hSelf,
         m_pAppData,
@@ -3441,7 +3466,7 @@ OMX_ERRORTYPE Venc::allocate_buffer(OMX_IN OMX_HANDLETYPE hComponent,
                                     OMX_IN OMX_PTR pAppPrivate,
                                     OMX_IN OMX_U32 nSizeBytes)
 {
-  QC_OMX_MSG_MEDIUM("Attempt to allocate buffer of %d bytes", (int) nSizeBytes);
+  QC_OMX_MSG_HIGH("Attempt to allocate buffer of %d bytes", (int) nSizeBytes);
   int cnt, i, bFail;
   OMX_ERRORTYPE result = OMX_ErrorNone;
   OMX_BUFFERHEADERTYPE* pBufferHdr = NULL;
@@ -3523,6 +3548,7 @@ OMX_ERRORTYPE Venc::allocate_buffer(OMX_IN OMX_HANDLETYPE hComponent,
       } // pBufferHdr
       if (m_nOutBuffAllocated == m_sOutPortDef.nBufferCountActual)
       {
+        QC_OMX_MSG_HIGH("O/P port populated");
         m_sOutPortDef.bPopulated = OMX_TRUE;
       }
     }
@@ -3598,6 +3624,7 @@ OMX_ERRORTYPE Venc::allocate_buffer(OMX_IN OMX_HANDLETYPE hComponent,
 
       if (m_nInBuffAllocated == m_sInPortDef.nBufferCountActual)
       {
+        QC_OMX_MSG_HIGH("I/P port populated");
         m_sInPortDef.bPopulated = OMX_TRUE;
       }
     }
@@ -3612,7 +3639,7 @@ OMX_ERRORTYPE Venc::allocate_buffer(OMX_IN OMX_HANDLETYPE hComponent,
   if (BITMASK_PRESENT(m_nFlags, OMX_COMPONENT_IDLE_PENDING) &&
       m_sInPortDef.bPopulated && m_sOutPortDef.bPopulated)
   {
-    QC_OMX_MSG_PROFILE("Ports populated, go to idle state \n");
+    QC_OMX_MSG_HIGH("Ports populated, go to idle state");
     m_eState = OMX_StateIdle;
     m_sCallbacks.EventHandler(m_hSelf,
         m_pAppData,
@@ -3664,7 +3691,7 @@ OMX_ERRORTYPE Venc::free_buffer(OMX_IN  OMX_HANDLETYPE hComponent,
       delete [] m_pPrivateOutPortData;
       delete [] m_pOutBuffHeaders;
     }
-    QC_OMX_MSG_HIGH("Done with free_buffer, output \n");
+    QC_OMX_MSG_HIGH("Done with free_buffer, output");
   }
   else if (nPortIndex == PORT_INDEX_IN)
   {
@@ -3694,7 +3721,7 @@ OMX_ERRORTYPE Venc::free_buffer(OMX_IN  OMX_HANDLETYPE hComponent,
       delete [] m_pPrivateInPortData;
       delete [] m_pInBuffHeaders;
     }
-    QC_OMX_MSG_HIGH("Done with free_buffer, input \n");
+    QC_OMX_MSG_HIGH("Done with free_buffer, input");
   }
   else
   {
@@ -3722,7 +3749,7 @@ OMX_ERRORTYPE Venc::allocate_q6_buffers(struct venc_buffers *pbufs)
   int i, size, nReconSize, nWbSize, nCmdSize, nVlcSize;
   int width, height;
 
-  QC_OMX_MSG_MEDIUM("Attempt to allocate q6 buffers ");
+  QC_OMX_MSG_HIGH("Attempt to allocate q6 buffers ");
   
   if (m_pDevice->config.rotation.rotation == VEN_ROTATION_90 ||
       m_pDevice->config.rotation.rotation == VEN_ROTATION_270)
@@ -3760,10 +3787,10 @@ OMX_ERRORTYPE Venc::allocate_q6_buffers(struct venc_buffers *pbufs)
     result = pmem_alloc(&(pbufs->recon_buf[i]), nReconSize, VENC_PMEM_SMI);
     if (result == OMX_ErrorNone)
     {
-      QC_OMX_MSG_HIGH("allocated recon buffer: pVirt=0x%x, nPhy=0x%x, \n",
+      QC_OMX_MSG_HIGH("allocated recon_buff[%d]: pVirt=0x%x, nPhy=0x%x",i,
           pbufs->recon_buf[i].virt,
           pbufs->recon_buf[i].phys);
-      QC_OMX_MSG_HIGH("allocated recon buffer: fd=%d, offset=%d src=%d\n",
+      QC_OMX_MSG_HIGH("allocated recon_buf[%d]: fd=%d, offset=%d src=%d",i,
           pbufs->recon_buf[i].fd,
           pbufs->recon_buf[i].offset,
 	  pbufs->recon_buf[i].src);
@@ -3780,10 +3807,10 @@ OMX_ERRORTYPE Venc::allocate_q6_buffers(struct venc_buffers *pbufs)
     result = pmem_alloc(&(pbufs->wb_buf), nWbSize, VENC_PMEM_SMI);
     if (result == OMX_ErrorNone)
     {
-      QC_OMX_MSG_HIGH("allocated wb buffer: pVirt=0x%x, nPhy=0x%x,\n",
+      QC_OMX_MSG_HIGH("allocated wb buffer: pVirt=0x%x, nPhy=0x%x",
           pbufs->wb_buf.virt,
           pbufs->wb_buf.phys);
-      QC_OMX_MSG_HIGH("allocated wb buffer: fd=%d, offset=%d src=%d\n",
+      QC_OMX_MSG_HIGH("allocated wb buffer: fd=%d, offset=%d src=%d",
           pbufs->wb_buf.fd,
           pbufs->wb_buf.offset,
 	  pbufs->wb_buf.src);
@@ -3800,10 +3827,10 @@ OMX_ERRORTYPE Venc::allocate_q6_buffers(struct venc_buffers *pbufs)
     result = pmem_alloc(&(pbufs->cmd_buf), nCmdSize, VENC_PMEM_SMI);
     if (result == OMX_ErrorNone)
     {
-      QC_OMX_MSG_HIGH("allocated cmd buffer: pVirt=0x%x, nPhy=0x%x,\n",
+      QC_OMX_MSG_HIGH("allocated cmd buffer: pVirt=0x%x, nPhy=0x%x",
           pbufs->cmd_buf.virt,
           pbufs->cmd_buf.phys);
-      QC_OMX_MSG_HIGH("allocated cmd buffer: fd=%d, offset=%d src=%d\n",
+      QC_OMX_MSG_HIGH("allocated cmd buffer: fd=%d, offset=%d src=%d",
           pbufs->cmd_buf.fd,
           pbufs->cmd_buf.offset,
 	  pbufs->cmd_buf.src);
@@ -3820,10 +3847,10 @@ OMX_ERRORTYPE Venc::allocate_q6_buffers(struct venc_buffers *pbufs)
     result = pmem_alloc(&(pbufs->vlc_buf), nVlcSize, VENC_PMEM_EBI1);
     if (result == OMX_ErrorNone)
     {
-      QC_OMX_MSG_HIGH("allocated vlc buffer: pVirt=0x%x, nPhy=0x%x,\n",
+      QC_OMX_MSG_HIGH("allocated vlc buffer: pVirt=0x%x, nPhy=0x%x",
           pbufs->vlc_buf.virt,
           pbufs->vlc_buf.phys);
-      QC_OMX_MSG_HIGH("allocated vlc buffer: fd=%d, offset=%d src=%d\n",
+      QC_OMX_MSG_HIGH("allocated vlc buffer: fd=%d, offset=%d src=%d",
           pbufs->vlc_buf.fd,
           pbufs->vlc_buf.offset,
 	  pbufs->vlc_buf.src);
@@ -3857,6 +3884,7 @@ OMX_ERRORTYPE Venc::free_q6_buffers(struct venc_buffers *pbufs)
   OMX_ERRORTYPE result = OMX_ErrorNone;
   int i;
 
+  QC_OMX_MSG_HIGH("free q6 buffers");
   for (i = 0; i < VENC_MAX_RECON_BUFFERS; i++)
   {
     result = pmem_free(&(pbufs->recon_buf[i]));
@@ -3917,7 +3945,7 @@ OMX_ERRORTYPE Venc::fill_this_buffer(OMX_IN  OMX_HANDLETYPE hComponent,
 {
   (void) hComponent;
 
-  QC_OMX_MSG_LOW("Fill buffer with hdr:0x%x \n",pBuffer);
+  QC_OMX_MSG_LOW("Fill buffer with hdr:0x%x",pBuffer);
 
   OMX_ERRORTYPE result = OMX_ErrorNone;
 
@@ -3961,7 +3989,7 @@ OMX_ERRORTYPE Venc::set_callbacks(OMX_IN  OMX_HANDLETYPE hComponent,
 OMX_ERRORTYPE Venc::component_deinit(OMX_IN  OMX_HANDLETYPE hComponent)
 {
   OMX_ERRORTYPE result = OMX_ErrorNone;
-  QC_OMX_MSG_MEDIUM("deinitializing component...");
+  QC_OMX_MSG_HIGH("deinitializing component...");
 
   if (m_pMsgQ->PushMsg(VencMsgQ::MSG_ID_EXIT,
         NULL) == OMX_ErrorNone)
@@ -4067,29 +4095,29 @@ void *Venc::component_thread(void *pClassObj)
     switch (msg.id)
     {
       case VencMsgQ::MSG_ID_EXIT:
-        QC_OMX_MSG_LOW("got MSG_ID_EXIT");
+        QC_OMX_MSG_HIGH("got MSG_ID_EXIT");
 
         bRunning = OMX_FALSE;
         break;
       case VencMsgQ::MSG_ID_MARK_BUFFER:
-        QC_OMX_MSG_LOW("got MSG_ID_MARK_BUFFER for port %d", (int) msg.data.sMarkBuffer.nPortIndex);
+        QC_OMX_MSG_HIGH("got MSG_ID_MARK_BUFFER for port %d", (int) msg.data.sMarkBuffer.nPortIndex);
         pVenc->process_mark_buffer(msg.data.sMarkBuffer.nPortIndex,
             &msg.data.sMarkBuffer.sMarkData);
         break;
       case VencMsgQ::MSG_ID_PORT_ENABLE:
-        QC_OMX_MSG_LOW("got MSG_ID_PORT_ENABLE for port %d", (int) msg.data.nPortIndex);
+        QC_OMX_MSG_HIGH("got MSG_ID_PORT_ENABLE for port %d", (int) msg.data.nPortIndex);
         pVenc->process_port_enable(msg.data.nPortIndex);
         break;
       case VencMsgQ::MSG_ID_PORT_DISABLE:
-        QC_OMX_MSG_LOW("got MSG_ID_PORT_DISABLE for port %d", (int) msg.data.nPortIndex);
+        QC_OMX_MSG_HIGH("got MSG_ID_PORT_DISABLE for port %d", (int) msg.data.nPortIndex);
         pVenc->process_port_disable(msg.data.nPortIndex);
         break;
       case VencMsgQ::MSG_ID_FLUSH:
-        QC_OMX_MSG_LOW("got MSG_ID_FLUSH for port %d", (int) msg.data.nPortIndex);
+        QC_OMX_MSG_HIGH("got MSG_ID_FLUSH for port %d", (int) msg.data.nPortIndex);
         pVenc->process_flush(msg.data.nPortIndex);
         break;
       case VencMsgQ::MSG_ID_STATE_CHANGE:
-        QC_OMX_MSG_LOW("got MSG_ID_STATE_CHANGE");
+        QC_OMX_MSG_HIGH("got MSG_ID_STATE_CHANGE");
         pVenc->process_state_change(msg.data.eState);
         break;
       case VencMsgQ::MSG_ID_EMPTY_BUFFER:
@@ -4109,7 +4137,7 @@ void *Venc::component_thread(void *pClassObj)
         break;
     }
   }
-  QC_OMX_MSG_MEDIUM("component thread is exiting");
+  QC_OMX_MSG_HIGH("component thread is exiting");
   return 0;
 }
 
@@ -4117,7 +4145,7 @@ void *Venc::reader_thread_entry(void *pClassObj)
 {
   if (pClassObj)
   {
-    QC_OMX_MSG_MEDIUM("reader thread entry \n");
+    QC_OMX_MSG_HIGH("reader thread entry");
     (reinterpret_cast<Venc*>(pClassObj))->reader_thread();
   }
   else
@@ -4157,7 +4185,7 @@ void Venc::reader_thread()
     {
       if (msg.msg_code == VENC_MSG_STOP_READING_MSG)
       {
-        QC_OMX_MSG_LOW("reader thread exiting");
+        QC_OMX_MSG_HIGH("reader thread exiting");
         bExecute = OMX_FALSE;
       }
       else
@@ -4209,7 +4237,7 @@ void Venc::process_state_change(OMX_STATETYPE eState)
   {
     case OMX_StateInvalid:
       {
-        QC_OMX_MSG_MEDIUM("Attempt to go to OMX_StateInvalid");
+        QC_OMX_MSG_HIGH("Attempt to go to OMX_StateInvalid");
         m_eState = eState;
         m_sCallbacks.EventHandler(m_hSelf,
             m_pAppData,
@@ -4225,7 +4253,7 @@ void Venc::process_state_change(OMX_STATETYPE eState)
       }
     case OMX_StateLoaded:
       {
-        QC_OMX_MSG_MEDIUM("Attempt to go to OMX_StateLoaded");
+        QC_OMX_MSG_HIGH("Attempt to go to OMX_StateLoaded");
         if (m_eState == OMX_StateIdle)
         {
           if ((m_nInBuffAllocated == 0) && (m_nOutBuffAllocated == 0))
@@ -4251,7 +4279,7 @@ void Venc::process_state_change(OMX_STATETYPE eState)
       }
     case OMX_StateIdle:
       {
-        QC_OMX_MSG_MEDIUM("Attempt to go to OMX_StateIdle");
+        QC_OMX_MSG_HIGH("Attempt to go to OMX_StateIdle");
         if (m_eState == OMX_StateLoaded)
         {
           if (m_sInPortDef.bPopulated && m_sOutPortDef.bPopulated)
@@ -4292,7 +4320,7 @@ void Venc::process_state_change(OMX_STATETYPE eState)
       }
     case OMX_StateExecuting:
       {
-        QC_OMX_MSG_MEDIUM("Attempt to go to OMX_StateExecuting");
+        QC_OMX_MSG_HIGH("Attempt to go to OMX_StateExecuting");
         if (m_eState == OMX_StateIdle)
         {
           int driverRet;
@@ -4336,7 +4364,7 @@ void Venc::process_state_change(OMX_STATETYPE eState)
       }
     case OMX_StatePause:
       {
-        QC_OMX_MSG_MEDIUM("Attempt to go to OMX_StatePause");
+        QC_OMX_MSG_HIGH("Attempt to go to OMX_StatePause");
         if (m_eState == OMX_StateExecuting)
         {
           int driverRet;
@@ -4364,7 +4392,7 @@ void Venc::process_state_change(OMX_STATETYPE eState)
       }
     case OMX_StateWaitForResources:
       {
-        QC_OMX_MSG_MEDIUM("Attempt to go to OMX_StateWaitForResources");
+        QC_OMX_MSG_HIGH("Attempt to go to OMX_StateWaitForResources");
         /// @todo determine what to do with this transition, for now return an error
         QC_OMX_MSG_ERROR("Transitioning to OMX_StateWaitForResources");
         m_sCallbacks.EventHandler(m_hSelf,
@@ -4483,7 +4511,7 @@ void Venc::process_empty_buffer(OMX_BUFFERHEADERTYPE* pBufferHdr)
    }
    else
    {
-     QC_OMX_MSG_LOW("Push buffer %p \n", pBufferHdr);
+     QC_OMX_MSG_LOW("Push buffer %p", pBufferHdr);
      // this should not happen but print an error just in case
      if (m_pInBufferMgr->PushBuffer(pBufferHdr) != OMX_ErrorNone)
      {
@@ -4514,7 +4542,7 @@ void Venc::process_fill_buffer(OMX_BUFFERHEADERTYPE* pBufferHdr)
    pOutput->fd = pParam->pmem_fd;
    pOutput->offset = pParam->offset; */
 
-      QC_OMX_MSG_LOW("Fill_output: client_data:0x%x \n", pBufferHdr);
+      QC_OMX_MSG_LOW("Fill_output: client_data:0x%x", pBufferHdr);
       // output.ptr_buffer = (unsigned char *)pBufferHdr->pAppPrivate;
 
       pParam = reinterpret_cast<OMX_QCOM_PLATFORM_PRIVATE_PMEM_INFO *>(pBufferHdr->pPlatformPrivate);
@@ -4542,7 +4570,7 @@ void Venc::process_fill_buffer(OMX_BUFFERHEADERTYPE* pBufferHdr)
       }
       else
       {
-        QC_OMX_MSG_LOW("Push output buffer %p \n", pBufferHdr);
+        QC_OMX_MSG_LOW("Push output buffer %p", pBufferHdr);
         // this should not happen but print an error just in case
         if (m_pOutBufferMgr->PushBuffer(pBufferHdr) != OMX_ErrorNone)
         {
@@ -4568,23 +4596,23 @@ void Venc::process_driver_msg(struct venc_msg* pMsg)
         process_status_output_buffer_done(&pMsg->msg_data.buf, pMsg->status_code);
         break;
       case VENC_MSG_FLUSH:
-        QC_OMX_MSG_LOW("received VENC_MSG_FLUSH from driver");
+        QC_OMX_MSG_HIGH("received VENC_MSG_FLUSH from driver");
         process_status_flush_done(&pMsg->msg_data.flush_ret, pMsg->status_code);
         break;
       case VENC_MSG_START:
-        QC_OMX_MSG_LOW("received VENC_MSG_START from driver");
+        QC_OMX_MSG_HIGH("received VENC_MSG_START from driver");
         process_status_start_done(pMsg->status_code);
         break;
       case VENC_MSG_STOP:
-        QC_OMX_MSG_MEDIUM("received VENC_MSG_STOP from driver");
+        QC_OMX_MSG_HIGH("received VENC_MSG_STOP from driver");
         process_status_stop_done(pMsg->status_code);
         break;
       case VENC_MSG_PAUSE:
-        QC_OMX_MSG_MEDIUM("received VENC_MSG_PAUSE from driver");
+        QC_OMX_MSG_HIGH("received VENC_MSG_PAUSE from driver");
         process_status_pause_done(pMsg->status_code);
         break;
       case VENC_MSG_RESUME:
-        QC_OMX_MSG_MEDIUM("received VENC_MSG_RESUME from driver");
+        QC_OMX_MSG_HIGH("received VENC_MSG_RESUME from driver");
         process_status_resume_done(pMsg->status_code);
         break;
       case VENC_MSG_STOP_READING_MSG:   // fallthrough
@@ -4615,7 +4643,7 @@ void Venc::process_status_input_buffer_done(void* pArg, unsigned long nStatus)
 
   pBufferHdr = (OMX_BUFFERHEADERTYPE*)(pData->client_data);
 
-  QC_OMX_MSG_LOW("Pop buffer %p \n", pBufferHdr);
+  QC_OMX_MSG_LOW("Pop buffer %p", pBufferHdr);
   if (m_pInBufferMgr->PopBuffer(pBufferHdr) == OMX_ErrorNone)
   {
     if (m_sCallbacks.EmptyBufferDone(m_hSelf,
@@ -4647,7 +4675,7 @@ void Venc::process_status_output_buffer_done(void* pArg, unsigned long nStatus)
   }
 
   pBufferHdr = (OMX_BUFFERHEADERTYPE*)(pData->client_data);
-  QC_OMX_MSG_LOW("Pop buffer %p \n", pBufferHdr);
+  QC_OMX_MSG_LOW("Pop buffer %p", pBufferHdr);
   if (m_pOutBufferMgr->PopBuffer(pBufferHdr) == OMX_ErrorNone)
   {
     pBufferHdr->nFilledLen = pData->len;
@@ -4673,7 +4701,7 @@ void Venc::process_status_output_buffer_done(void* pArg, unsigned long nStatus)
       pBufferHdr->nFlags |= OMX_BUFFERFLAG_CODECCONFIG;
     }
 
-    QC_OMX_MSG_LOW("Before calling FillBufferDone callback \n");
+    QC_OMX_MSG_LOW("Before calling FillBufferDone callback");
     if (m_sCallbacks.FillBufferDone(m_hSelf,
           m_pAppData,
           pBufferHdr) != OMX_ErrorNone)
@@ -4821,7 +4849,7 @@ OMX_ERRORTYPE Venc::pmem_alloc(struct venc_pmem *pBuf, int size, int pmem_region
 {
   struct pmem_region region;
 
-  QC_OMX_MSG_HIGH("Opening pmem files with size 0x%x...",size);
+  QC_OMX_MSG_MEDIUM("Opening pmem files with size 0x%x...",size);
   if (pmem_region_id == VENC_PMEM_EBI1)
     pBuf->fd = open("/dev/pmem_adsp", O_RDWR);
   else if (pmem_region_id == VENC_PMEM_SMI)
@@ -4840,7 +4868,7 @@ OMX_ERRORTYPE Venc::pmem_alloc(struct venc_pmem *pBuf, int size, int pmem_region
   pBuf->offset = 0;
   pBuf->size = (size + 4095) & (~4095);
 
-  QC_OMX_MSG_HIGH("Allocate pmem of size:0x%x, fd:%d \n", size, pBuf->fd);
+  QC_OMX_MSG_HIGH("Allocate pmem of size:0x%x, fd:%d", size, pBuf->fd);
   pBuf->virt = mmap(NULL, pBuf->size, PROT_READ | PROT_WRITE,
       MAP_SHARED, pBuf->fd, 0);
 
@@ -4856,7 +4884,7 @@ OMX_ERRORTYPE Venc::pmem_alloc(struct venc_pmem *pBuf, int size, int pmem_region
 
 OMX_ERRORTYPE Venc::pmem_free(struct venc_pmem* pBuf)
 {
-  QC_OMX_MSG_HIGH("Free pmem of fd: %d, size:%d \n", pBuf->fd, pBuf->size);
+  QC_OMX_MSG_HIGH("Free pmem of fd: %d, size:%d", pBuf->fd, pBuf->size);
   close(pBuf->fd);
   pBuf->fd = -1;
   munmap(pBuf->virt, pBuf->size);
