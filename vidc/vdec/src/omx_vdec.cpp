@@ -283,7 +283,7 @@ bool omx_vdec::ts_arr_list::pop_min_ts(OMX_TICKS &ts)
   int min_idx = -1;
   OMX_TICKS min_ts = 0;
   int idx = 0;
-  
+
   for ( ; idx < MAX_NUM_INPUT_OUTPUT_BUFFERS; idx++)
   {
 
@@ -5761,7 +5761,7 @@ OMX_ERRORTYPE omx_vdec::push_input_buffer (OMX_HANDLETYPE hComp)
 OMX_ERRORTYPE omx_vdec::push_input_sc_codec(OMX_HANDLETYPE hComp)
 {
   OMX_U32 partial_frame = 1;
-  OMX_BOOL generate_ebd = OMX_TRUE,generate_eos = OMX_TRUE;
+  OMX_BOOL generate_ebd = OMX_TRUE;
   unsigned address,p2,id;
 
   DEBUG_PRINT_LOW("\n Start Parsing the bit stream address %p TimeStamp %d",
@@ -5784,8 +5784,6 @@ OMX_ERRORTYPE omx_vdec::push_input_sc_codec(OMX_HANDLETYPE hComp)
     if (frame_count == 0)
     {
       DEBUG_PRINT_LOW("\n H263/MPEG4 Codec First Frame ");
-      mp4h263_flags = psource_frame->nFlags;
-      mp4h263_timestamp = psource_frame->nTimeStamp;
 #ifdef MAX_RES_1080P
       if(codec_type_parse == CODEC_TYPE_MPEG4 ||
          codec_type_parse == CODEC_TYPE_DIVX) {
@@ -5799,19 +5797,7 @@ OMX_ERRORTYPE omx_vdec::push_input_sc_codec(OMX_HANDLETYPE hComp)
     }
     else
     {
-      pdest_frame->nTimeStamp = mp4h263_timestamp;
-      mp4h263_timestamp = psource_frame->nTimeStamp;
-      pdest_frame->nFlags = mp4h263_flags;
-      mp4h263_flags  = psource_frame->nFlags;
-
-      if(psource_frame->nFilledLen == 0)
-      {
-        pdest_frame->nFlags = mp4h263_flags;
-        generate_eos = OMX_FALSE;
-      } else {
-        pdest_frame->nFlags &= ~OMX_BUFFERFLAG_EOS;
-      }
-
+      pdest_frame->nFlags &= ~OMX_BUFFERFLAG_EOS;
       /*Push the frame to the Decoder*/
       if (empty_this_buffer_proxy(hComp,pdest_frame) != OMX_ErrorNone)
       {
@@ -5842,12 +5828,11 @@ OMX_ERRORTYPE omx_vdec::push_input_sc_codec(OMX_HANDLETYPE hComp)
 
   if (psource_frame->nFilledLen == 0)
   {
-    if ((psource_frame->nFlags & OMX_BUFFERFLAG_EOS) && generate_eos)
+    if ((psource_frame->nFlags & OMX_BUFFERFLAG_EOS))
     {
       if (pdest_frame)
       {
-        pdest_frame->nTimeStamp = mp4h263_timestamp;
-        pdest_frame->nFlags = mp4h263_flags | psource_frame->nFlags;
+        pdest_frame->nFlags |= psource_frame->nFlags;
         DEBUG_PRINT_LOW("\n Frame Found start Decoding Size =%d TimeStamp = %x",
                      pdest_frame->nFilledLen,pdest_frame->nTimeStamp);
         DEBUG_PRINT_LOW("\n Found a frame size = %d number = %d",
@@ -5959,6 +5944,11 @@ OMX_ERRORTYPE omx_vdec::push_input_h264 (OMX_HANDLETYPE hComp)
         nal_count++;
       }
 
+      if(m_frame_parser.mutils->nalu_type == NALU_TYPE_NON_IDR ||
+         m_frame_parser.mutils->nalu_type == NALU_TYPE_IDR) {
+        pdest_frame->nTimeStamp = h264_scratch.nTimeStamp;
+        pdest_frame->nFlags = h264_scratch.nFlags;
+      }
       if (!isNewFrame)
       {
         if ( (pdest_frame->nAllocLen - pdest_frame->nFilledLen) >=
@@ -5980,11 +5970,6 @@ OMX_ERRORTYPE omx_vdec::push_input_h264 (OMX_HANDLETYPE hComp)
       else
       {
         look_ahead_nal = true;
-        pdest_frame->nTimeStamp = h264_scratch.nTimeStamp;
-        pdest_frame->nFlags = h264_scratch.nFlags;
-        h264_scratch.nTimeStamp = psource_frame->nTimeStamp;
-        h264_scratch.nFlags = psource_frame->nFlags;
-
         DEBUG_PRINT_LOW("\n Frame Found start Decoding Size =%d TimeStamp = %x",
                      pdest_frame->nFilledLen,pdest_frame->nTimeStamp);
         DEBUG_PRINT_LOW("\n Found a frame size = %d number = %d",
@@ -6275,7 +6260,7 @@ OMX_ERRORTYPE omx_vdec::get_buffer_req(vdec_allocatorproperty *buffer_prop, bool
   {
     if (verify_extradata)
     {
-      if (drv_ctx.decoder_format == VDEC_CODECTYPE_H264) //Space for SEI extradata 
+      if (drv_ctx.decoder_format == VDEC_CODECTYPE_H264) //Space for SEI extradata
       {
         extra_data_size += (sizeof(OMX_OTHER_EXTRADATATYPE) +
                             sizeof(OMX_QCOM_EXTRADATA_FRAMEINFO) + 3)&(~3);

@@ -400,6 +400,7 @@ bool H264_Utils::isNewFrame(OMX_BUFFERHEADERTYPE *p_buf_hdr,
       if (nal_unit.nalu_type == NALU_TYPE_SEI)
         extradata_parser->parse_sei(p_buf_hdr);
 #endif
+      nalu_type = nal_unit.nalu_type;
       switch (nal_unit.nalu_type)
       {
         case NALU_TYPE_IDR:

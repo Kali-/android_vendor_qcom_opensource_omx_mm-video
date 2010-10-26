@@ -54,8 +54,6 @@ frame_parse::frame_parse():parse_state(A0),
                            accum_length(0),
                            bytes_tobeparsed(0),
                            mutils(NULL),
-                           time_stamp (0),
-                           flags(0),
                            start_code(NULL),
                            mask_code(NULL)
 {
@@ -150,9 +148,8 @@ int frame_parse::parse_sc_frame ( OMX_BUFFERHEADERTYPE *source,
     if (parse_state == A4 || parse_state == A5)
     {
         /*Check for minimun size should be 4*/
-        dest->nFlags = flags;
-        dest->nTimeStamp = time_stamp;
-        update_metadata(source->nTimeStamp,source->nFlags);
+        dest->nFlags = source->nFlags;
+        dest->nTimeStamp = source->nTimeStamp;
 
         if(start_code == H263_start_code)
         {
@@ -571,10 +568,4 @@ void frame_parse::flush ()
     state_nal = NAL_LENGTH_ACC;
     accum_length = 0;
     bytes_tobeparsed = 0;
-}
-
-void frame_parse::update_metadata (OMX_S64 ts ,unsigned int flgs)
-{
-    time_stamp = ts;
-    flags = flgs;
 }

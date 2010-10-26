@@ -72,8 +72,7 @@ public:
 	int parse_h264_nallength (OMX_BUFFERHEADERTYPE *source,
 		                        OMX_BUFFERHEADERTYPE *dest ,
 							              OMX_U32 *partialframe);
-  void flush ();
-  void update_metadata (OMX_S64 time_stamp ,unsigned int flags);
+	void flush ();
 	 frame_parse ();
 	~frame_parse ();
 
@@ -90,8 +89,6 @@ private:
    unsigned int nal_length;
    unsigned int accum_length;
    unsigned int bytes_tobeparsed;
-   OMX_S64 time_stamp;
-   unsigned int flags;
 };
 
 #endif /* FRAMEPARSER_H */
