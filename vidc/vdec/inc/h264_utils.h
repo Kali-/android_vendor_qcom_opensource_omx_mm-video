@@ -188,6 +188,7 @@ public:
                     OMX_IN OMX_U32 size_of_nal_length_field,
                     OMX_OUT OMX_BOOL &isNewFrame,
                     extra_data_parser *extradata_parser);
+    uint32 nalu_type;
 
 private:
     boolean extract_rbsp(OMX_IN   OMX_U8  *buffer,
