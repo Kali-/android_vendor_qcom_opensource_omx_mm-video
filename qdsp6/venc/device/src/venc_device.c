@@ -497,35 +497,10 @@ void ven_update_output_size(struct ven_device* dvenc)
   }
   else if (dvenc->config.base_config.codec_type == VEN_CODEC_H264)
   {
-    switch (dvenc->config.profile_level.level)
-    {
-      case VEN_LEVEL_H264_1:
-      case VEN_LEVEL_H264_1B:
-        dvenc->output_attrs.data_size = 152064;     // 148.5 * 1024
-        break;
-      case VEN_LEVEL_H264_1P1:
-        dvenc->output_attrs.data_size = 345600;     // 337.5 * 1024
-        break;
-      case VEN_LEVEL_H264_1P2:
-      case VEN_LEVEL_H264_1P3:
-      case VEN_LEVEL_H264_2:
-        dvenc->output_attrs.data_size = 891 << 10;  // 891.0 * 1024
-        break;
-      case VEN_LEVEL_H264_2P1:
-        dvenc->output_attrs.data_size = 1782 << 10; // 1782.0 * 1024
-        break;
-      case VEN_LEVEL_H264_2P2:
-      case VEN_LEVEL_H264_3:
-        dvenc->output_attrs.data_size = 3110400;    // 3037.5 * 1024
-        break;
-      case VEN_LEVEL_H264_3P1:
-        dvenc->output_attrs.data_size = 6750 << 10; // 6750.0 * 1024
-        break;
-      default:
-        QC_OMX_MSG_ERROR("invalid level specified");
-        break;
-    }
-    dvenc->output_attrs.data_size = dvenc->output_attrs.data_size;
+    // Compression of 50% of the YUV size
+    dvenc->output_attrs.data_size = (int) (width * height * 0.5) * 3 / 2;
+    // FIX IT as per the standard !!!
+    dvenc->output_attrs.data_size = 2*dvenc->output_attrs.data_size;
   }
   else
   {
@@ -623,7 +598,7 @@ static int ven_set_default_config(struct ven_device *dvenc)
 
   // disable error resilience
   pconfig->short_header.status = 0;
-  pconfig->hec_interval.header_extension = 0;
+  pconfig->header_extension.hec_interval = 0;
   pconfig->data_partition.status = 0;
 
   return ret;
@@ -649,7 +624,7 @@ static void ven_change_codec(struct ven_device * dvenc)
     pconfig->session_qp.pframe_qp = 14;
 
     pconfig->short_header.status = 0;
-    pconfig->hec_interval.header_extension = 0;
+    pconfig->header_extension.hec_interval = 0;
     pconfig->data_partition.status = 0;
   }
   else if (pconfig->base_config.codec_type == VEN_CODEC_H263)
@@ -668,7 +643,7 @@ static void ven_change_codec(struct ven_device * dvenc)
 
     pconfig->short_header.status = 0;
     pconfig->ac_prediction.status = 0;
-    pconfig->hec_interval.header_extension = 0;
+    pconfig->header_extension.hec_interval = 0;
     pconfig->data_partition.status = 0;
   }
   else if (pconfig->base_config.codec_type == VEN_CODEC_H264)
@@ -687,7 +662,7 @@ static void ven_change_codec(struct ven_device * dvenc)
 
     pconfig->short_header.status = 0;
     pconfig->ac_prediction.status = 0;
-    pconfig->hec_interval.header_extension = 0;
+    pconfig->header_extension.hec_interval = 0;
     pconfig->data_partition.status = 0;
   }
   else
@@ -964,7 +939,7 @@ static int ven_validate_config(struct ven_config_type* pConfig)
       }
 
       // hec only valid for resolutions less than or equal to wqvga
-      if (pConfig->hec_interval.header_extension > 0)
+      if (pConfig->header_extension.hec_interval > 0)
       {
          condition = pConfig->base_config.input_width > VEN_WQVGA_DX ||
                      pConfig->base_config.input_height > VEN_WVQGA_DY;
@@ -1010,7 +985,7 @@ static int ven_validate_config(struct ven_config_type* pConfig)
       condition = pConfig->ac_prediction.status != 0 ||
                   pConfig->short_header.status != 0 ||
                   pConfig->data_partition.status != 0 ||
-                  pConfig->hec_interval.header_extension != 0;
+                  pConfig->header_extension.hec_interval != 0;
       if (condition)
       {
          VEN_INVAL_PARAM("mpeg4 params can't be set for h263");
@@ -1062,7 +1037,7 @@ static int ven_validate_config(struct ven_config_type* pConfig)
       condition = pConfig->ac_prediction.status != 0 ||
                   pConfig->short_header.status != 0 ||
                   pConfig->data_partition.status != 0 ||
-                  pConfig->hec_interval.header_extension != 0;
+                  pConfig->header_extension.hec_interval != 0;
       if (condition)
       {
          VEN_INVAL_PARAM("mpeg4 params can't be set for h264");
@@ -1226,7 +1201,7 @@ static int ven_translate_config(struct ven_config_type* psrc,
 
     pmp4->time_resolution = psrc->vop_timing.vop_time_resolution;
     pmp4->ac_prediction = psrc->ac_prediction.status == 1 ? 1 : 0;
-    pmp4->hec_interval = psrc->hec_interval.header_extension; /// @int egrate need to have HEC int erval in driver api. also fix this hack in the OMX layer
+    pmp4->hec_interval = psrc->header_extension.hec_interval; /// @int egrate need to have HEC int erval in driver api. also fix this hack in the OMX layer
     pmp4->data_partition = psrc->data_partition.status == 1 ? 1 : 0;
     pmp4->short_header = psrc->short_header.status == 1 ? 1 : 0;
   }
@@ -1969,23 +1944,23 @@ int ven_get_rotation(struct ven_device* dvenc,
   return 0;
 }
 int ven_set_hec(struct ven_device* dvenc,
-    struct ven_switch* hex)
+    struct ven_header_extension* hex)
 {
   if(!hex || !dvenc)
     return -1;
-  memcpy(&dvenc->config.hec_interval, hex, sizeof(struct ven_header_extension));
-  QC_OMX_MSG_HIGH("%s: header_extension = %d",__func__,
-    (dvenc->config.hec_interval).header_extension);
+  memcpy(&dvenc->config.header_extension, hex, sizeof(struct ven_header_extension));
+  QC_OMX_MSG_HIGH("%s: hec_interval = %d",__func__,
+    (dvenc->config.header_extension).hec_interval);
   return 0;
 }
 int ven_get_hec(struct ven_device* dvenc,
-    struct ven_switch* hex)
+    struct ven_header_extension* hex)
 {
   if(!hex || !dvenc)
     return -1;
-  QC_OMX_MSG_HIGH("%s: header_extension = %d",__func__,
-    (dvenc->config.hec_interval).header_extension);
-  memcpy(hex, &dvenc->config.hec_interval, sizeof(struct ven_header_extension));
+  QC_OMX_MSG_HIGH("%s: hec_interval = %d",__func__,
+    (dvenc->config.header_extension).hec_interval);
+  memcpy(hex, &dvenc->config.header_extension, sizeof(struct ven_header_extension));
   return 0;
 }
 int ven_set_data_partition(struct ven_device* dvenc,

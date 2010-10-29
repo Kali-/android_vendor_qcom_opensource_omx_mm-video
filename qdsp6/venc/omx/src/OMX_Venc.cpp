@@ -1534,13 +1534,20 @@ OMX_ERRORTYPE Venc::driver_set_default_config()
   ////////////////////////////////////////
   if (result == OMX_ErrorNone)
   {
-    struct ven_switch hec; // for default config
-    hec.status = (unsigned char) m_sErrorCorrection.bEnableHEC;//@integrate this is a hack // == OMX_TRUE ? 1 : 0;
-
-    rc = ven_set_hec(m_pDevice, &hec);
+    struct ven_header_extension hex; // for default config
+    memset(&hex, 0, sizeof(ven_header_extension));
+    if (m_sErrorCorrection.bEnableHEC == OMX_TRUE)
+    {
+      hex.hec_interval = 1; // for default config
+      if (m_sParamMPEG4.nHeaderExtension > 0)
+      {
+        hex.hec_interval = m_sParamMPEG4.nHeaderExtension;
+      }
+    }
+    rc = ven_set_hec(m_pDevice, &hex);
     if(rc)
     {
-      QC_OMX_MSG_ERROR("failed to set hec");
+      QC_OMX_MSG_ERROR("failed to set hex");
       result = translate_driver_error(GetLastError());
     }
   }
@@ -2133,17 +2140,23 @@ OMX_ERRORTYPE Venc::update_param_mpeg4(OMX_IN OMX_VIDEO_PARAM_MPEG4TYPE* pParam)
       }
 
       ////////////////////////////////////////
-      // set header extension coding
+      // set header extension coding in update_param_mpeg4(...)
       ////////////////////////////////////////
       if (result == OMX_ErrorNone)
       {
-        struct ven_switch hec; // for mp4 update
-        hec.status = (unsigned char) pParam->nHeaderExtension; /// @integrate do we need to add a param to HEC
-
-        rc = ven_set_hec(m_pDevice, &hec);
+        struct ven_header_extension hex;
+        memset(&hex, 0, sizeof(ven_header_extension));
+        if (pParam->nHeaderExtension > 0)
+        {
+          hex.hec_interval = pParam->nHeaderExtension;
+          /* keep nHeaderExtension suplied by client with component */
+		  m_sParamMPEG4.nHeaderExtension = pParam->nHeaderExtension;
+		  m_sErrorCorrection.bEnableHEC = OMX_TRUE;
+        }
+        rc = ven_set_hec(m_pDevice, &hex);
         if(rc)
         {
-          QC_OMX_MSG_ERROR("failed to set hec");
+          QC_OMX_MSG_ERROR("failed to set hex");
           result = translate_driver_error(GetLastError());
         }
       }
@@ -2266,22 +2279,36 @@ OMX_ERRORTYPE Venc::update_param_err_correct(OMX_IN OMX_VIDEO_PARAM_ERRORCORRECT
       }
 
       ////////////////////////////////////////
-      // set header extension coding
+      // set header extension coding in update_param_err_correct(...)
       ////////////////////////////////////////
       if (result == OMX_ErrorNone)
       {
-        // make sure we don't overwrite HEC interval with a boolean value
-        if (m_sParamMPEG4.nHeaderExtension == 0)
+        struct ven_header_extension hex;
+        memset(&hex, 0, sizeof(ven_header_extension));
+        if (pParam->bEnableHEC == OMX_TRUE)
         {
-          struct ven_switch hec; // for ER config
-          hec.status = (unsigned char) pParam->bEnableHEC;///@integrate this is a hack // == OMX_TRUE ? 1 : 0;
+          hex.hec_interval = 1;
+          /* keep bEnableHEC suplied by client with component */
+          m_sErrorCorrection.bEnableHEC = pParam->bEnableHEC;
 
-          rc = ven_set_hec(m_pDevice, &hec);
-          if(rc)
+          /* by this time, nHeaderExtension value supplied by client (through index OMX_IndexParamVideoMpeg4) */
+          /* should reflect in nHeaderExtension, if not default value we set it as 1 will be used */
+          if (m_sParamMPEG4.nHeaderExtension > 0)
           {
-            QC_OMX_MSG_ERROR("failed to set hec");
-            result = translate_driver_error(GetLastError());
+            hex.hec_interval = m_sParamMPEG4.nHeaderExtension;
           }
+        }
+        else
+        {
+          /* reset component HEC parameters */
+          m_sErrorCorrection.bEnableHEC = OMX_FALSE;
+          m_sParamMPEG4.nHeaderExtension = 0;
+        }
+        rc = ven_set_hec(m_pDevice, &hex);
+        if(rc)
+        {
+          QC_OMX_MSG_ERROR("failed to set hex");
+          result = translate_driver_error(GetLastError());
         }
       }
 
