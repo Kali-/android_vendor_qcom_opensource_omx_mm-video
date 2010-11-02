@@ -1066,14 +1066,23 @@ OMX_ERRORTYPE  omx_venc::set_config(OMX_IN OMX_HANDLETYPE      hComp,
          reinterpret_cast<OMX_CONFIG_ROTATIONTYPE*>(configData);
       OMX_S32 nRotation;
 
+      if(pParam->nPortIndex != PORT_INDEX_IN){
+           DEBUG_PRINT_ERROR("ERROR: Unsupported port index: %u", pParam->nPortIndex);
+           return OMX_ErrorBadPortIndex;
+      }
+      if( pParam->nRotation == 0   ||
+          pParam->nRotation == 90  ||
+          pParam->nRotation == 180 ||
+          pParam->nRotation == 270 ) {
+          DEBUG_PRINT_HIGH("\nset_config: Rotation Angle %u", pParam->nRotation);
+      } else {
+          DEBUG_PRINT_ERROR("ERROR: un supported Rotation %u", pParam->nRotation);
+          return OMX_ErrorUnsupportedSetting;
+      }
       nRotation = pParam->nRotation - m_sConfigFrameRotation.nRotation;
       if(nRotation < 0)
         nRotation = -nRotation;
-
-      DEBUG_PRINT_HIGH("\nset_config: Rotation Angle %u/%d",
-         pParam->nRotation, nRotation);
-      if(pParam->nPortIndex == PORT_INDEX_IN && (nRotation == 90 ||
-          nRotation == 270)) {
+      if(nRotation == 90 || nRotation == 270) {
           DEBUG_PRINT_HIGH("\nset_config: updating device Dims");
           if(handle->venc_set_config(configData,
              OMX_IndexConfigCommonRotate) != true) {
@@ -1096,8 +1105,7 @@ OMX_ERRORTYPE  omx_venc::set_config(OMX_IN OMX_HANDLETYPE      hComp,
                   m_sConfigFrameRotation.nRotation = pParam->nRotation;
            }
        } else {
-           DEBUG_PRINT_ERROR("ERROR: Unsupported port index: %u", pParam->nPortIndex);
-           return OMX_ErrorBadPortIndex;
+          m_sConfigFrameRotation.nRotation = pParam->nRotation;
       }
       break;
     }
