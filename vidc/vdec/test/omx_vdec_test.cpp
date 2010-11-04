@@ -233,6 +233,8 @@ int disable_output_port();
 int enable_output_port();
 int output_port_reconfig();
 void free_output_buffers();
+int open_display();
+void close_display();
 /************************************************************************/
 /*              GLOBAL INIT                 */
 /************************************************************************/
@@ -790,10 +792,7 @@ void* fbd_thread(void* pArg)
           DEBUG_PRINT_ERROR("Error in enqueueing fbd_data\n");
         }
         else
-        {
-          free_op_buf_cnt++;
           sem_post(&fbd_sem);
-        }
         pthread_mutex_unlock(&fbd_lock);
     }
     else
@@ -1319,32 +1318,11 @@ int main(int argc, char **argv)
 
     if (displayYuv)
     {
-      //QPERF_RESET(render_fb);
-#ifdef _ANDROID_
-      DEBUG_PRINT("\n Opening /dev/graphics/fb0");
-      fb_fd = open("/dev/graphics/fb0", O_RDWR);
-#else
-      DEBUG_PRINT("\n Opening /dev/fb0");
-      fb_fd = open("/dev/fb0", O_RDWR);
-#endif
-        if (fb_fd < 0) {
-            printf("[omx_vdec_test] - ERROR - can't open framebuffer!\n");
-            return -1;
-        }
-
-        DEBUG_PRINT("\n fb_fd = %d", fb_fd);
-        if (ioctl(fb_fd, FBIOGET_FSCREENINFO, &finfo) < 0)
-        {
-            printf("[omx_vdec_test] - ERROR - can't retrieve fscreenInfo!\n");
-            close(fb_fd);
-            return -1;
-        }
-        if (ioctl(fb_fd, FBIOGET_VSCREENINFO, &vinfo) < 0)
-        {
-            printf("[omx_vdec_test] - ERROR - can't retrieve vscreenInfo!\n");
-            close(fb_fd);
-            return -1;
-        }
+      if (open_display() != 0)
+      {
+        printf("\n Error opening display! Video won't be displayed...");
+        displayYuv = 0;
+      }
     }
 
     run_tests();
@@ -1376,13 +1354,7 @@ int main(int argc, char **argv)
       DEBUG_PRINT_ERROR("Error - sem_destroy failed %d\n", errno);
     }
     if (displayYuv)
-    {
-      overlay_unset();
-      close(fb_fd);
-      fb_fd = -1;
-      //QPERF_TERMINATE(render_fb);
-    }
-    //QPERF_TERMINATE(client_decode);
+      close_display();
     return 0;
 }
 
@@ -1483,7 +1455,11 @@ int run_tests()
         pthread_cond_wait(&eos_cond, &eos_lock);
 
     if (currentStatus == PORT_SETTING_CHANGE_STATE)
+    {
+      pthread_mutex_unlock(&eos_lock);
       cmd_error = output_port_reconfig();
+      pthread_mutex_lock(&eos_lock);
+    }
   }
   pthread_mutex_unlock(&eos_lock);
 
@@ -2970,6 +2946,7 @@ void overlay_set()
     vid_buf_front_id = overlayp->id;
     DEBUG_PRINT("\n vid_buf_front_id = %u", vid_buf_front_id);
     drawBG();
+    displayYuv = 2;
 }
 
 int overlay_fb(struct OMX_BUFFERHEADERTYPE *pBufHdr)
@@ -3277,7 +3254,18 @@ int output_port_reconfig()
     stride = portFmt.format.video.nStride;
     sliceheight = portFmt.format.video.nSliceHeight;
 
-    if(displayYuv)
+    if (displayYuv == 2)
+    {
+      DEBUG_PRINT("Reconfiguration at middle of playback...");
+      close_display();
+      if (open_display() != 0)
+      {
+        printf("\n Error opening display! Video won't be displayed...");
+        displayYuv = 0;
+      }
+    }
+
+    if (displayYuv)
         overlay_set();
 
     if (enable_output_port() != 0)
@@ -3289,9 +3277,8 @@ int output_port_reconfig()
 void free_output_buffers()
 {
     int index = 0;
-    OMX_BUFFERHEADERTYPE *pBuffer;
-    do {
-        pBuffer = (OMX_BUFFERHEADERTYPE *) pop(fbd_queue);
+    OMX_BUFFERHEADERTYPE *pBuffer = (OMX_BUFFERHEADERTYPE *)pop(fbd_queue);
+    while (pBuffer) {
         printf("\n In Free Buffer call");
         printf("\n pOutYUVBufHdrs %p p_eglHeaders %p output_use_buffer %d",
                pOutYUVBufHdrs,p_eglHeaders,output_use_buffer);
@@ -3311,7 +3298,8 @@ void free_output_buffers()
         }
         printf("\n Free output buffer");
         OMX_FreeBuffer(dec_handle, 1, pBuffer);
-    }while (pBuffer);
+        pBuffer = (OMX_BUFFERHEADERTYPE *)pop(fbd_queue);
+    }
 }
 
 static bool align_pmem_buffers(int pmem_fd, OMX_U32 buffer_size,
@@ -3332,3 +3320,39 @@ static bool align_pmem_buffers(int pmem_fd, OMX_U32 buffer_size,
   return true;
 }
 
+int open_display()
+{
+#ifdef _ANDROID_
+  DEBUG_PRINT("\n Opening /dev/graphics/fb0");
+  fb_fd = open("/dev/graphics/fb0", O_RDWR);
+#else
+  DEBUG_PRINT("\n Opening /dev/fb0");
+  fb_fd = open("/dev/fb0", O_RDWR);
+#endif
+  if (fb_fd < 0) {
+    printf("[omx_vdec_test] - ERROR - can't open framebuffer!\n");
+    return -1;
+  }
+
+  DEBUG_PRINT("\n fb_fd = %d", fb_fd);
+  if (ioctl(fb_fd, FBIOGET_FSCREENINFO, &finfo) < 0)
+  {
+    printf("[omx_vdec_test] - ERROR - can't retrieve fscreenInfo!\n");
+    close(fb_fd);
+    return -1;
+  }
+  if (ioctl(fb_fd, FBIOGET_VSCREENINFO, &vinfo) < 0)
+  {
+    printf("[omx_vdec_test] - ERROR - can't retrieve vscreenInfo!\n");
+    close(fb_fd);
+    return -1;
+  }
+  return 0;
+}
+
+void close_display()
+{
+  overlay_unset();
+  close(fb_fd);
+  fb_fd = -1;
+}
