@@ -1766,10 +1766,10 @@ bool venc_dev::venc_set_encode_framerate(OMX_U32 encode_framerate, OMX_U32 confi
   venc_ioctl_msg ioctl_msg = {NULL, NULL};
   struct venc_framerate frame_rate_cfg;
 
-  DEBUG_PRINT_LOW("\n venc_set_encode_framerate: framerate(Q16) = %u",
-    encode_framerate);
-
   Q16ToFraction(encode_framerate,frame_rate_cfg.fps_numerator,frame_rate_cfg.fps_denominator);
+
+  DEBUG_PRINT_LOW("\n venc_set_encode_framerate: framerate(Q16) = %u,NR: %d, DR: %d",
+                  encode_framerate,frame_rate_cfg.fps_numerator,frame_rate_cfg.fps_denominator);
 
   ioctl_msg.in = (void*)&frame_rate_cfg;
   ioctl_msg.out = NULL;

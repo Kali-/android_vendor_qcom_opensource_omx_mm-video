@@ -482,12 +482,7 @@ OMX_ERRORTYPE  omx_venc::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
 
         DEBUG_PRINT_LOW("\n i/p previous actual cnt = %d\n", m_sInPortDef.nBufferCountActual);
         DEBUG_PRINT_LOW("\n i/p previous min cnt = %d\n", m_sInPortDef.nBufferCountMin);
-        m_sInPortDef.format.video.nFrameWidth = portDefn->format.video.nFrameWidth;
-        m_sInPortDef.format.video.nFrameHeight = portDefn->format.video.nFrameHeight;
-        m_sInPortDef.format.video.xFramerate = portDefn->format.video.xFramerate;
-        m_sInPortDef.format.video.nBitrate = portDefn->format.video.nBitrate;
-        m_sInPortDef.format.video.eColorFormat = portDefn->format.video.eColorFormat;
-
+        memcpy(&m_sInPortDef, portDefn,sizeof(OMX_PARAM_PORTDEFINITIONTYPE));
 
         /*Query Input Buffer Requirements*/
         dev_get_buf_req   (&m_sInPortDef.nBufferCountMin,
@@ -512,9 +507,7 @@ OMX_ERRORTYPE  omx_venc::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
           DEBUG_PRINT_ERROR("\nERROR: venc_set_param output failed");
           return OMX_ErrorUnsupportedSetting;
         }
-        m_sOutPortDef.format.video.nFrameWidth  = portDefn->format.video.nFrameWidth;
-        m_sOutPortDef.format.video.nFrameHeight = portDefn->format.video.nFrameHeight;
-
+        memcpy(&m_sOutPortDef,portDefn,sizeof(struct OMX_PARAM_PORTDEFINITIONTYPE));
         update_profile_level(); //framerate , bitrate
 
         DEBUG_PRINT_LOW("\n o/p previous actual cnt = %d\n", m_sOutPortDef.nBufferCountActual);
