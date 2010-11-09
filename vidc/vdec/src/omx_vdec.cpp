@@ -413,6 +413,8 @@ omx_vdec::omx_vdec(): m_state(OMX_StateInvalid),
                       ouput_egl_buffers(false),
                       h264_parser(NULL),
                       client_extradata(0),
+                      h264_last_au_ts(LLONG_MAX),
+                      h264_last_au_flags(0),
 #ifdef _ANDROID_
                       m_heap_ptr(NULL),
 #endif
@@ -2037,6 +2039,8 @@ bool omx_vdec::execute_input_flush()
     nal_count = 0;
     look_ahead_nal = false;
     frame_count = 0;
+    h264_last_au_ts = LLONG_MAX;
+    h264_last_au_flags = 0;
     DEBUG_PRINT_LOW("\n Initialize parser");
     if (m_frame_parser.mutils)
     {
@@ -4515,8 +4519,8 @@ OMX_ERRORTYPE  omx_vdec::empty_this_buffer(OMX_IN OMX_HANDLETYPE         hComp,
     return OMX_ErrorBadParameter;
   }
 
-  DEBUG_PRINT_LOW("ETB: bufhdr = %p, bufhdr->pBuffer = %p bufhdr->nTimeStamp = %lld",
-    buffer, buffer->pBuffer, buffer->nTimeStamp);
+  DEBUG_PRINT_LOW("[ETB] BHdr(%p) pBuf(%p) nTS(%lld) nFL(%lu)",
+    buffer, buffer->pBuffer, buffer->nTimeStamp, buffer->nFilledLen);
   if (arbitrary_bytes)
   {
     post_event ((unsigned)hComp,(unsigned)buffer,
@@ -4714,8 +4718,8 @@ OMX_ERRORTYPE  omx_vdec::empty_this_buffer_proxy(OMX_IN OMX_HANDLETYPE         h
     m_frame_parser.flush();
   }
 
-  DEBUG_PRINT_LOW("Decode Input Sz %d Ts %lld",
-    frameinfo.datalen, frameinfo.timestamp);
+  DEBUG_PRINT_LOW("[ETBP] pBuf(%p) nTS(%lld) Sz(%d)",
+    frameinfo.bufferaddr, frameinfo.timestamp, frameinfo.datalen);
   ioctl_msg.in = &frameinfo;
   ioctl_msg.out = NULL;
   if (ioctl(drv_ctx.video_driver_fd,VDEC_IOCTL_DECODE_FRAME,
@@ -5508,6 +5512,7 @@ OMX_ERRORTYPE omx_vdec::empty_buffer_done(OMX_HANDLETYPE         hComp,
         DEBUG_PRINT_LOW("\n Push input from buffer done address of Buffer %p",buffer);
         pdest_frame = buffer;
         buffer->nFilledLen = 0;
+        buffer->nTimeStamp = LLONG_MAX;
         push_input_buffer (hComp);
       }
       else
@@ -5622,7 +5627,7 @@ int omx_vdec::async_message_process (void *context, void* message)
   case VDEC_MSG_RESP_OUTPUT_FLUSHED:
   case VDEC_MSG_RESP_OUTPUT_BUFFER_DONE:
     omxhdr = (OMX_BUFFERHEADERTYPE*)vdec_msg->msgdata.output_frame.client_data;
-    DEBUG_PRINT_LOW("Op from driver Buf(%p) Ts(%lld) Pic_type(%u)",
+    DEBUG_PRINT_LOW("[RespBufDone] Buf(%p) Ts(%lld) Pic_type(%u)",
       omxhdr, vdec_msg->msgdata.output_frame.time_stamp,
       vdec_msg->msgdata.output_frame.pic_type);
     if (omxhdr && omxhdr->pOutputPortPrivate &&
@@ -5740,6 +5745,7 @@ OMX_ERRORTYPE omx_vdec::push_input_buffer (OMX_HANDLETYPE hComp)
         m_input_free_q.pop_entry(&address,&p2,&id);
         pdest_frame = (OMX_BUFFERHEADERTYPE *)address;
         pdest_frame->nFilledLen = 0;
+        pdest_frame->nTimeStamp = LLONG_MAX;
         DEBUG_PRINT_LOW("\n Address of Pmem Buffer %p",pdest_frame);
       }
     }
@@ -5985,13 +5991,18 @@ OMX_ERRORTYPE omx_vdec::push_input_h264 (OMX_HANDLETYPE hComp)
 #endif
         m_frame_parser.mutils->isNewFrame(&h264_scratch, 0, isNewFrame);
         nal_count++;
+        if (VALID_TS(h264_last_au_ts) && !VALID_TS(pdest_frame->nTimeStamp)) {
+          pdest_frame->nTimeStamp = h264_last_au_ts;
+          pdest_frame->nFlags = h264_last_au_flags;
+        }
+        if(m_frame_parser.mutils->nalu_type == NALU_TYPE_NON_IDR ||
+           m_frame_parser.mutils->nalu_type == NALU_TYPE_IDR) {
+          h264_last_au_ts = h264_scratch.nTimeStamp;
+          h264_last_au_flags = h264_scratch.nFlags;
+        } else
+          h264_last_au_ts = LLONG_MAX;
       }
 
-      if(m_frame_parser.mutils->nalu_type == NALU_TYPE_NON_IDR ||
-         m_frame_parser.mutils->nalu_type == NALU_TYPE_IDR) {
-        pdest_frame->nTimeStamp = h264_scratch.nTimeStamp;
-        pdest_frame->nFlags = h264_scratch.nFlags;
-      }
       if (!isNewFrame)
       {
         if ( (pdest_frame->nAllocLen - pdest_frame->nFilledLen) >=
@@ -6064,6 +6075,7 @@ OMX_ERRORTYPE omx_vdec::push_input_h264 (OMX_HANDLETYPE hComp)
             pdest_frame = (OMX_BUFFERHEADERTYPE *) address;
             DEBUG_PRINT_LOW("\n Pop the next pdest_buffer %p",pdest_frame);
             pdest_frame->nFilledLen = 0;
+            pdest_frame->nTimeStamp = LLONG_MAX;
           }
         }
       }

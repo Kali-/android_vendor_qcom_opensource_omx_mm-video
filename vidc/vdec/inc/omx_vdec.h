@@ -634,6 +634,8 @@ private:
     unsigned char m_hwdevice_name[80];
     FILE *m_device_file_ptr;
     enum vc1_profile_type m_vc1_profile;
+    OMX_S64 h264_last_au_ts;
+    OMX_U32 h264_last_au_flags;
 
     OMX_S64 prev_ts;
     bool rst_prev_ts;
