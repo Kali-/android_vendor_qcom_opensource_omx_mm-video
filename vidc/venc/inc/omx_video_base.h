@@ -415,13 +415,11 @@ public:
   OMX_ERRORTYPE get_supported_profile_level(OMX_VIDEO_PARAM_PROFILELEVELTYPE *profileLevelType);
   inline void omx_report_error ()
   {
-    m_state = OMX_StateInvalid;
-    if(m_pCallbacks.EventHandler)
+    if(m_pCallbacks.EventHandler && !m_error_propogated)
     {
+      m_error_propogated = true;
       m_pCallbacks.EventHandler(&m_cmp,m_app_data,
                                 OMX_EventError,OMX_ErrorHardware,0,NULL);
-      m_pCallbacks.EventHandler(&m_cmp,m_app_data,
-                                OMX_EventError, OMX_ErrorInvalidState,0, NULL);
     }
   }
 
@@ -433,7 +431,7 @@ public:
 
   pthread_mutex_t       m_lock;
   sem_t                 m_cmd_lock;
-
+  bool              m_error_propogated;
 
   //sem to handle the minimum procesing of commands
 

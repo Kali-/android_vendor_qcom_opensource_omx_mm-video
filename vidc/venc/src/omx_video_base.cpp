@@ -236,7 +236,8 @@ omx_video::omx_video(): m_state(OMX_StateInvalid),
                         m_use_input_pmem(OMX_FALSE),
                         m_use_output_pmem(OMX_FALSE),
                         m_etb_count(0),
-                        m_fbd_count(0)
+                        m_fbd_count(0),
+                        m_error_propogated(false)
 {
   DEBUG_PRINT_HIGH("\n omx_video(): Inside Constructor()");
   memset(&m_cmp,0,sizeof(m_cmp));
@@ -362,20 +363,10 @@ void omx_video::process_event_cb(void *ctxt, unsigned char id)
 
           case OMX_EventError:
             DEBUG_PRINT_ERROR("\nERROR: OMX_EventError: p2 = %d\n", p2);
-            if(p2 == OMX_StateInvalid)
+            if(p2 == OMX_ErrorHardware)
             {
-              pThis->m_state = (OMX_STATETYPE) p2;
-              pThis->m_pCallbacks.EventHandler(&pThis->m_cmp, pThis->m_app_data,
-                                               OMX_EventError, OMX_ErrorInvalidState, p2, NULL);
-            }
-            else if(p2 == OMX_ErrorHardware)
-            {
-              pThis->m_state = OMX_StateInvalid;
               pThis->m_pCallbacks.EventHandler(&pThis->m_cmp, pThis->m_app_data,
                                                OMX_EventError,OMX_ErrorHardware,0,NULL);
-              pThis->m_pCallbacks.EventHandler(&pThis->m_cmp, pThis->m_app_data,
-                                               OMX_EventError, OMX_ErrorInvalidState, p2, NULL);
-
             }
             else
             {
@@ -2946,6 +2937,7 @@ OMX_ERRORTYPE  omx_video::empty_this_buffer_proxy(OMX_IN OMX_HANDLETYPE         
   if(dev_empty_buf(buffer, pmem_data_buf) != true)
   {
     DEBUG_PRINT_ERROR("\nERROR: ETBProxy: dev_empty_buf failed");
+    post_event ((unsigned int)buffer,0,OMX_COMPONENT_GENERATE_EBD);
     /*Generate an async error and move to invalid state*/
     pending_input_buffers--;
     return OMX_ErrorBadParameter;
@@ -3056,6 +3048,7 @@ OMX_ERRORTYPE  omx_video::fill_this_buffer_proxy(
   if(dev_fill_buf(bufferAdd, pmem_data_buf) != true)
   {
     DEBUG_PRINT_ERROR("\nERROR: dev_fill_buf() Failed");
+    post_event ((unsigned int)bufferAdd,0,OMX_COMPONENT_GENERATE_FBD);
     pending_output_buffers--;
     return OMX_ErrorBadParameter;
   }
