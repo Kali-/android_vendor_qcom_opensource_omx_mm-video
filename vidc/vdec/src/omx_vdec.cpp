@@ -1275,6 +1275,7 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
     DEBUG_PRINT_HIGH("\n omx_vdec::component_init() success");
   }
 
+  memset(&h264_mv_buff,0,sizeof(struct h264_mv_buffer));
   return eRet;
 }
 
@@ -3467,6 +3468,15 @@ OMX_ERRORTYPE  omx_vdec::use_output_buffer(
      (*bufferHdr)->pAppPrivate = appData;
      BITMASK_SET(&m_out_bm_count,i);
 
+#ifdef MAX_RES_1080P
+  if(drv_ctx.decoder_format == VDEC_CODECTYPE_H264)
+  {
+    //allocate H264_mv_buffer
+    eRet = vdec_alloc_h264_mv();
+    if (eRet)
+      DEBUG_PRINT_ERROR("ERROR in allocating MV buffers\n");
+  }
+#endif
   }
   return eRet;
 }
@@ -3717,7 +3727,12 @@ OMX_ERRORTYPE omx_vdec::free_output_buffer(OMX_BUFFERHEADERTYPE *bufferHdr)
        drv_ctx.ptr_outputbuffer[0].pmem_fd = -1;
     }
   }
-
+#ifdef MAX_RES_1080P
+  if(drv_ctx.decoder_format == VDEC_CODECTYPE_H264)
+  {
+    vdec_dealloc_h264_mv();
+  }
+#endif
   return OMX_ErrorNone;
 
 }
@@ -4143,6 +4158,15 @@ OMX_ERRORTYPE  omx_vdec::allocate_output_buffer(
         pPlatformEntry++;
         pPlatformList++;
       }
+#ifdef MAX_RES_1080P
+      if(eRet == OMX_ErrorNone && drv_ctx.decoder_format == VDEC_CODECTYPE_H264)
+      {
+        //Allocate the h264_mv_buffer
+        eRet = vdec_alloc_h264_mv();
+        if(eRet)
+          DEBUG_PRINT_ERROR("ERROR in allocating MV buffers\n");
+      }
+#endif
     }
     else
     {
@@ -7008,3 +7032,112 @@ void omx_vdec::append_terminator_extradata(OMX_OTHER_EXTRADATATYPE *extra)
   extra->nDataSize = 0;
   extra->data[0] = 0;
 }
+
+#ifdef MAX_RES_1080P
+OMX_ERRORTYPE omx_vdec::vdec_alloc_h264_mv()
+{
+  OMX_U32 pmem_fd = -1;
+  OMX_U32 width, height, size, alignment;
+  void *buf_addr = NULL;
+  struct vdec_ioctl_msg ioctl_msg;
+  struct pmem_allocation allocation;
+  struct vdec_h264_mv h264_mv;
+  struct vdec_mv_buff_size mv_buff_size;
+
+  mv_buff_size.width = drv_ctx.video_resolution.frame_width;
+  mv_buff_size.height = drv_ctx.video_resolution.frame_height;
+
+  ioctl_msg.in = NULL;
+  ioctl_msg.out = (void*)&mv_buff_size;
+
+  if (ioctl (drv_ctx.video_driver_fd,VDEC_IOCTL_GET_MV_BUFFER_SIZE, (void*)&ioctl_msg) < 0)
+  {
+    DEBUG_PRINT_ERROR("\n GET_MV_BUFFER_SIZE Failed for width: %d, Height %d" ,
+      mv_buff_size.width, mv_buff_size.height);
+    return OMX_ErrorInsufficientResources;
+  }
+
+  DEBUG_PRINT_ERROR("GET_MV_BUFFER_SIZE returned: Size: %d and alignment: %d",
+                    mv_buff_size.size, mv_buff_size.alignment);
+
+  size = mv_buff_size.size * drv_ctx.op_buf.actualcount;
+  alignment = mv_buff_size.alignment;
+
+  DEBUG_PRINT_LOW("Entered vdec_alloc_h264_mv act_width: %d, act_height: %d, size: %d, alignment %d\n",
+                   drv_ctx.video_resolution.frame_width, drv_ctx.video_resolution.frame_height,size,alignment);
+
+  pmem_fd = open(PMEM_DEVICE, O_RDWR);
+
+  if ((int)(pmem_fd) < 0)
+      return OMX_ErrorInsufficientResources;
+
+  allocation.size = size;
+  allocation.align = clip2(alignment);
+
+  if (allocation.align != 8192)
+    allocation.align = 8192;
+
+  if (ioctl(pmem_fd, PMEM_ALLOCATE_ALIGNED, &allocation) < 0)
+  {
+    DEBUG_PRINT_ERROR("\n Aligment(%u) failed with pmem driver Sz(%lu)",
+      allocation.align, allocation.size);
+    return OMX_ErrorInsufficientResources;
+  }
+
+  buf_addr = mmap(NULL, size,
+               PROT_READ | PROT_WRITE,
+               MAP_SHARED, pmem_fd, 0);
+
+  if (buf_addr == (void*) MAP_FAILED)
+  {
+    close(pmem_fd);
+    pmem_fd = -1;
+    DEBUG_PRINT_ERROR("Error returned in allocating recon buffers buf_addr: %p\n",buf_addr);
+    return OMX_ErrorInsufficientResources;
+  }
+
+  DEBUG_PRINT_LOW("\n Allocated virt:%p, FD: %d of size %d count: %d \n", buf_addr,
+                   pmem_fd, size, drv_ctx.op_buf.actualcount);
+
+  h264_mv.size = size;
+  h264_mv.count = drv_ctx.op_buf.actualcount;
+  h264_mv.pmem_fd = pmem_fd;
+  h264_mv.offset = 0;
+
+  ioctl_msg.in = (void*)&h264_mv;
+  ioctl_msg.out = NULL;
+
+  if (ioctl (drv_ctx.video_driver_fd,VDEC_IOCTL_SET_H264_MV_BUFFER, (void*)&ioctl_msg) < 0)
+  {
+    DEBUG_PRINT_ERROR("Failed to set the H264_mv_buffers\n");
+    return OMX_ErrorInsufficientResources;
+  }
+
+  h264_mv_buff.buffer = (unsigned char *) buf_addr;
+  h264_mv_buff.size = size;
+  h264_mv_buff.count = drv_ctx.op_buf.actualcount;
+  h264_mv_buff.offset = 0;
+  h264_mv_buff.pmem_fd = pmem_fd;
+  DEBUG_PRINT_LOW("\n Saving virt:%p, FD: %d of size %d count: %d \n", h264_mv_buff.buffer,
+                   h264_mv_buff.pmem_fd, h264_mv_buff.size, drv_ctx.op_buf.actualcount);
+  return OMX_ErrorNone;
+}
+
+void omx_vdec::vdec_dealloc_h264_mv()
+{
+    if(h264_mv_buff.pmem_fd > 0)
+    {
+      if(!ioctl(drv_ctx.video_driver_fd, VDEC_IOCTL_FREE_H264_MV_BUFFER,NULL))
+        DEBUG_PRINT_ERROR("VDEC_IOCTL_FREE_H264_MV_BUFFER failed");
+      munmap(h264_mv_buff.buffer, h264_mv_buff.size);
+      close(h264_mv_buff.pmem_fd);
+      DEBUG_PRINT_LOW("\n Cleaning H264_MV buffer of size %d \n",h264_mv_buff.size);
+      h264_mv_buff.pmem_fd = -1;
+      h264_mv_buff.offset = 0;
+      h264_mv_buff.size = 0;
+      h264_mv_buff.count = 0;
+      h264_mv_buff.buffer = NULL;
+    }
+}
+
+#endif

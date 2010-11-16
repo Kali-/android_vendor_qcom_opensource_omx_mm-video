@@ -540,6 +540,11 @@ private:
         x = x + 1;
         return x;
     }
+#ifdef MAX_RES_1080P
+    OMX_ERRORTYPE vdec_alloc_h264_mv();
+    void vdec_dealloc_h264_mv();
+#endif
+
     inline void omx_report_error ()
     {
         DEBUG_PRINT_ERROR("\nERROR: Sending OMX_EventError to Client");
@@ -661,6 +666,17 @@ private:
 #ifdef MAX_RES_1080P
     MP4_Utils mp4_headerparser;
 #endif
+
+    struct h264_mv_buffer{
+        unsigned char* buffer;
+        int size;
+        int count;
+        int pmem_fd;
+        int offset;
+    };
+
+    h264_mv_buffer h264_mv_buff;
+
 #ifdef OMX_VDEC_PERF
     perf_metrics fps_metrics;
     perf_metrics dec_time;

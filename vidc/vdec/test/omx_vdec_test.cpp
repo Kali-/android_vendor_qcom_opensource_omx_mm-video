@@ -3279,14 +3279,14 @@ void free_output_buffers()
     int index = 0;
     OMX_BUFFERHEADERTYPE *pBuffer = (OMX_BUFFERHEADERTYPE *)pop(fbd_queue);
     while (pBuffer) {
-        printf("\n In Free Buffer call");
-        printf("\n pOutYUVBufHdrs %p p_eglHeaders %p output_use_buffer %d",
+        DEBUG_PRINT("\n In Free Buffer call");
+        DEBUG_PRINT("\n pOutYUVBufHdrs %p p_eglHeaders %p output_use_buffer %d",
                pOutYUVBufHdrs,p_eglHeaders,output_use_buffer);
         if(pOutYUVBufHdrs && p_eglHeaders && output_use_buffer)
         {
            index = pBuffer - pOutYUVBufHdrs[0];
-           printf("\n Index of free buffer %d",index);
-           printf("\n Address freed %p size freed %d",pBuffer->pBuffer,
+           DEBUG_PRINT("\n Index of free buffer %d",index);
+           DEBUG_PRINT("\n Address freed %p size freed %d",pBuffer->pBuffer,
                   pBuffer->nAllocLen);
            munmap((void *)egl_virt_addr[index],pBuffer->nAllocLen);
            if(p_eglHeaders[index])
@@ -3296,7 +3296,7 @@ void free_output_buffers()
                p_eglHeaders[index] = NULL;
            }
         }
-        printf("\n Free output buffer");
+        DEBUG_PRINT("\n Free output buffer");
         OMX_FreeBuffer(dec_handle, 1, pBuffer);
         pBuffer = (OMX_BUFFERHEADERTYPE *)pop(fbd_queue);
     }
