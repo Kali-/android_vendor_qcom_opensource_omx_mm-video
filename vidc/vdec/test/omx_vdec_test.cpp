@@ -481,6 +481,45 @@ int process_current_command(const char *seq_command)
     return 0;
 }
 
+void PrintFramePackArrangement(OMX_QCOM_FRAME_PACK_ARRANGEMENT framePackingArrangement)
+{
+   printf("id (%d)\n",
+          framePackingArrangement.id);
+   printf("cancel_flag (%d)\n",
+          framePackingArrangement.cancel_flag);
+   printf("type (%d)\n",
+          framePackingArrangement.type);
+   printf("quincunx_sampling_flag (%d)\n",
+          framePackingArrangement.quincunx_sampling_flag);
+   printf("content_interpretation_type (%d)\n",
+          framePackingArrangement.content_interpretation_type);
+   printf("spatial_flipping_flag (%d)\n",
+          framePackingArrangement.spatial_flipping_flag);
+   printf("frame0_flipped_flag (%d)\n",
+          framePackingArrangement.frame0_flipped_flag);
+   printf("field_views_flag (%d)\n",
+          framePackingArrangement.field_views_flag);
+   printf("current_frame_is_frame0_flag (%d)\n",
+          framePackingArrangement.current_frame_is_frame0_flag);
+   printf("frame0_self_contained_flag (%d)\n",
+          framePackingArrangement.frame0_self_contained_flag);
+   printf("frame1_self_contained_flag (%d)\n",
+          framePackingArrangement.frame1_self_contained_flag);
+   printf("frame0_grid_position_x (%d)\n",
+          framePackingArrangement.frame0_grid_position_x);
+   printf("frame0_grid_position_y (%d)\n",
+          framePackingArrangement.frame0_grid_position_y);
+   printf("frame1_grid_position_x (%d)\n",
+          framePackingArrangement.frame1_grid_position_x);
+   printf("frame1_grid_position_y (%d)\n",
+          framePackingArrangement.frame1_grid_position_y);
+   printf("reserved_byte (%d)\n",
+          framePackingArrangement.reserved_byte);
+   printf("repetition_period (%d)\n",
+          framePackingArrangement.repetition_period);
+   printf("extension_flag (%d)\n",
+          framePackingArrangement.extension_flag);
+}
 void* ebd_thread(void* pArg)
 {
   while(currentStatus != ERROR_STATE)
@@ -709,6 +748,13 @@ void* fbd_thread(void* pArg)
     /* closing the files.*/
     /********************************************************************/
     if (pBuffer->nFlags & OMX_BUFFERFLAG_EOS ) {
+
+      OMX_QCOM_FRAME_PACK_ARRANGEMENT framePackingArrangement; 
+      OMX_GetConfig(dec_handle,
+                   (OMX_INDEXTYPE)OMX_QcomIndexConfigVideoFramePackingArrangement,
+                    &framePackingArrangement);
+      PrintFramePackArrangement(framePackingArrangement);
+
       DEBUG_PRINT("***************************************************\n");
       DEBUG_PRINT("FillBufferDone: End Of Stream Reached\n");
       DEBUG_PRINT("***************************************************\n");
@@ -1648,7 +1694,7 @@ int Play_Decoder()
     OMX_SetParameter(dec_handle,(OMX_INDEXTYPE)OMX_QcomIndexParamConcealMBMapExtraData,
                      (OMX_PTR)&extra_data);
 #endif
-#if 0
+#if 1
     OMX_SetParameter(dec_handle,(OMX_INDEXTYPE)OMX_QcomIndexParamFrameInfoExtraData,
                      (OMX_PTR)&extra_data);
 #endif

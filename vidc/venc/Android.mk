@@ -87,6 +87,7 @@ include $(CLEAR_VARS)
 
 mm-venc-test720p-inc            := $(TARGET_OUT_HEADERS)/mm-core/omxcore
 mm-venc-test720p-inc            += $(LOCAL_PATH)/inc
+mm-venc-test720p-inc            += $(OMX_VIDEO_PATH)/vidc/common/inc
 
 LOCAL_MODULE                    := mm-venc-omx-test720p
 LOCAL_CFLAGS                    := $(libmm-venc-def)

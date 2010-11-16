@@ -66,6 +66,7 @@ REFERENCES
 #include "camera_test.h"
 #include "fb_test.h"
 #include "venc_util.h"
+#include "extra_data_handler.h"
 
 //////////////////////////
 // MACROS
@@ -291,6 +292,8 @@ static int m_nTimeStamp = 0;
 static int m_nFrameIn = 0; // frames pushed to encoder
 static int m_nFrameOut = 0; // frames returned by encoder
 static int m_nAVCSliceMode = 0;
+FILE *m_pConfigFile;
+char m_configFilename [128] = "/data/configFile.cfg";
 
 static bool m_bWatchDogKicked = false;
 
@@ -347,7 +350,45 @@ int PmemFree(OMX_QCOM_PLATFORM_PRIVATE_PMEM_INFO* pMem, void* pvirt, int nSize)
    pMem->pmem_fd = -1;
    return 0;
 }
-
+void PrintFramePackArrangement(OMX_QCOM_FRAME_PACK_ARRANGEMENT framePackingArrangement)
+{
+    printf("id (%d)\n",
+           framePackingArrangement.id);
+    printf("cancel_flag (%d)\n",
+           framePackingArrangement.cancel_flag);
+    printf("type (%d)\n",
+           framePackingArrangement.type);
+    printf("quincunx_sampling_flag (%d)\n",
+           framePackingArrangement.quincunx_sampling_flag);
+   printf("content_interpretation_type (%d)\n",
+          framePackingArrangement.content_interpretation_type);
+   printf("spatial_flipping_flag (%d)\n",
+          framePackingArrangement.spatial_flipping_flag);
+   printf("frame0_flipped_flag (%d)\n",
+          framePackingArrangement.frame0_flipped_flag);
+   printf("field_views_flag (%d)\n",
+          framePackingArrangement.field_views_flag);
+   printf("current_frame_is_frame0_flag (%d)\n",
+          framePackingArrangement.current_frame_is_frame0_flag);
+   printf("frame0_self_contained_flag (%d)\n",
+          framePackingArrangement.frame0_self_contained_flag);
+   printf("frame1_self_contained_flag (%d)\n",
+          framePackingArrangement.frame1_self_contained_flag);
+   printf("frame0_grid_position_x (%d)\n",
+          framePackingArrangement.frame0_grid_position_x);
+   printf("frame0_grid_position_y (%d)\n",
+          framePackingArrangement.frame0_grid_position_y);
+   printf("frame1_grid_position_x (%d)\n",
+          framePackingArrangement.frame1_grid_position_x);
+   printf("frame1_grid_position_y (%d)\n",
+          framePackingArrangement.frame1_grid_position_y);
+   printf("reserved_byte (%d)\n",
+          framePackingArrangement.reserved_byte);
+   printf("repetition_period (%d)\n",
+          framePackingArrangement.repetition_period);
+   printf("extension_flag (%d)\n",
+          framePackingArrangement.extension_flag);
+}
 void SetState(OMX_STATETYPE eState)
 {
 #define GOTO_STATE(eState)                      \
@@ -783,6 +824,65 @@ result = OMX_SetParameter(m_hHandle,
             }
          }
       }
+
+//////////////////////OMX_VIDEO_PARAM_INTRAREFRESHTYPE///////////////////
+#endif
+#if 1
+///////////////////FRAMEPACKING DATA///////////////////
+      OMX_QCOM_FRAME_PACK_ARRANGEMENT framePackingArrangement;
+      memset(&framePackingArrangement, 0, sizeof(framePackingArrangement));
+      m_pConfigFile = fopen(m_configFilename, "r");
+      if (m_pConfigFile != NULL)
+      {
+         //read all frame packing data
+         framePackingArrangement.nPortIndex = (OMX_U32)PORT_INDEX_OUT;
+         int totalSizeToRead = FRAME_PACK_SIZE * sizeof(OMX_U32);
+         char *pFramePack = (char *) &(framePackingArrangement.id);
+         while ( ( (fscanf(m_pConfigFile, "%d", pFramePack)) != EOF ) &&
+                 (totalSizeToRead != 0) )
+         {
+            //printf("Addr = %p, Value read = %d, sizeToRead remaining=%d\n",
+            //       pFramePack, *pFramePack, totalSizeToRead);
+            pFramePack += sizeof(OMX_U32);
+            totalSizeToRead -= sizeof(OMX_U32);
+         }
+         //close the file.
+         fclose(m_pConfigFile);
+
+         printf("Frame Packing data from config file:\n");
+         PrintFramePackArrangement(framePackingArrangement);
+      }
+      else
+      {
+         D("\n Config file does not exist or could not be opened.");
+         //set the default values
+         framePackingArrangement.nPortIndex = (OMX_U32)PORT_INDEX_OUT;
+         framePackingArrangement.id = 123;
+         framePackingArrangement.cancel_flag = false;
+         framePackingArrangement.type = 3;
+         framePackingArrangement.quincunx_sampling_flag = false;
+         framePackingArrangement.content_interpretation_type = 23;
+         framePackingArrangement.spatial_flipping_flag = true;
+         framePackingArrangement.frame0_flipped_flag = false;
+         framePackingArrangement.field_views_flag = true;
+         framePackingArrangement.current_frame_is_frame0_flag = false;
+         framePackingArrangement.frame0_self_contained_flag = true;
+         framePackingArrangement.frame1_self_contained_flag = false;
+         framePackingArrangement.frame0_grid_position_x = 3;
+         framePackingArrangement.frame0_grid_position_y = 15;
+         framePackingArrangement.frame1_grid_position_x = 11;
+         framePackingArrangement.frame1_grid_position_y = 7;
+         framePackingArrangement.reserved_byte = 222;
+         framePackingArrangement.repetition_period = 16381;
+         framePackingArrangement.extension_flag = true;
+
+         printf("Frame Packing Defaults :\n");
+         PrintFramePackArrangement(framePackingArrangement);
+      }
+      result = OMX_SetConfig(m_hHandle,
+                (OMX_INDEXTYPE)OMX_QcomIndexConfigVideoFramePackingArrangement,
+                (OMX_PTR) &framePackingArrangement);
+      CHK(result);
 
 //////////////////////OMX_VIDEO_PARAM_INTRAREFRESHTYPE///////////////////
 #endif
