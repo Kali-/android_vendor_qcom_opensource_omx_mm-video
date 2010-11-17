@@ -987,6 +987,9 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
     return OMX_ErrorInsufficientResources;
   }
 
+  drv_ctx.frame_rate.fps_numerator = DEFAULT_FPS;
+  drv_ctx.frame_rate.fps_denominator = 1;
+
 #ifdef OUTPUT_BUFFER_LOG
   outputBufferFile1 = fopen (outputfilename, "ab");
 #endif
@@ -2331,8 +2334,13 @@ OMX_ERRORTYPE  omx_vdec::get_parameter(OMX_IN OMX_HANDLETYPE     hComp,
       portDefn->nVersion.nVersion = OMX_SPEC_VERSION;
       portDefn->nSize = sizeof(portDefn);
       portDefn->eDomain    = OMX_PortDomainVideo;
-      portDefn->format.video.xFramerate = drv_ctx.frame_rate.fps_numerator /
-                                          drv_ctx.frame_rate.fps_denominator;
+      if (drv_ctx.frame_rate.fps_denominator > 0)
+        portDefn->format.video.xFramerate = drv_ctx.frame_rate.fps_numerator /
+                                            drv_ctx.frame_rate.fps_denominator;
+      else {
+        DEBUG_PRINT_ERROR("Error: Divide by zero \n");
+        return OMX_ErrorBadParameter;
+      }
       if (0 == portDefn->nPortIndex)
       {
         portDefn->eDir =  OMX_DirInput;
