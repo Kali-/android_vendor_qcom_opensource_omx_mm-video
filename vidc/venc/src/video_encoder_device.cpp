@@ -203,6 +203,21 @@ bool venc_dev::venc_open(OMX_U32 codec)
   }
 
   DEBUG_PRINT_LOW("\nm_nDriver_fd = %d\n", m_nDriver_fd);
+#ifdef SINGLE_ENCODER_INSTANCE
+  OMX_U32 num_instances = 0;
+  ioctl_msg.in = NULL;
+  ioctl_msg.out = &num_instances;
+  if(ioctl (m_nDriver_fd, VEN_IOCTL_GET_NUMBER_INSTANCES, (void*)&ioctl_msg) < 0 )
+  {
+    DEBUG_PRINT_ERROR("\nERROR: Request number of encoder instances failed");
+  }
+  else if (num_instances > 1)
+  {
+    DEBUG_PRINT_ERROR("\nSecond encoder instance rejected!");
+    venc_close();
+    return false;
+  }
+#endif
   // set the basic configuration of the video encoder driver
   m_sVenc_cfg.input_width = OMX_CORE_QCIF_WIDTH;
   m_sVenc_cfg.input_height= OMX_CORE_QCIF_HEIGHT;

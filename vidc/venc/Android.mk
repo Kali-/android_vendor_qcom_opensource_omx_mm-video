@@ -48,6 +48,7 @@ libmm-venc-def += -DENABLE_DEBUG_HIGH
 libmm-venc-def += -DENABLE_DEBUG_ERROR
 libmm-venc-def += -UINPUT_BUFFER_LOG
 libmm-venc-def += -UOUTPUT_BUFFER_LOG
+libmm-venc-def += -USINGLE_ENCODER_INSTANCE
 ifeq "$(findstring msm7630,$(QCOM_TARGET_PRODUCT))" "msm7630"
 libmm-venc-def += -DMAX_RES_720P
 endif
