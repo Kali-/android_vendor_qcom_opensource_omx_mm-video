@@ -1521,19 +1521,27 @@ bool venc_dev::venc_set_entropy_config(OMX_BOOL enable, OMX_U32 i_cabac_level)
   struct venc_entropycfg entropy_cfg;
 
   memset(&entropy_cfg,0,sizeof(entropy_cfg));
-  DEBUG_PRINT_LOW("\n venc_set_entropy_config: CABAC = %u", enable);
+  DEBUG_PRINT_LOW("\n venc_set_entropy_config: CABAC = %u level: %u", enable, i_cabac_level);
 
   if(enable &&(codec_profile.profile != VEN_PROFILE_H264_BASELINE)){
     entropy_cfg.longentropysel = VEN_ENTROPY_MODEL_CABAC;
       if (i_cabac_level == 0) {
          entropy_cfg.cabacmodel = VEN_CABAC_MODEL_0;
       }
+#ifdef MAX_RES_1080P
+      else
+      {
+        DEBUG_PRINT_HIGH("Invalid model set (%d) defaulting to  model 0",i_cabac_level);
+        entropy_cfg.cabacmodel = VEN_CABAC_MODEL_0;
+      }
+#else
       else if (i_cabac_level == 1) {
          entropy_cfg.cabacmodel = VEN_CABAC_MODEL_1;
       }
       else if (i_cabac_level == 2) {
          entropy_cfg.cabacmodel = VEN_CABAC_MODEL_2;
       }
+#endif
   }
   else if(!enable){
     entropy_cfg.longentropysel = VEN_ENTROPY_MODEL_CAVLC;
@@ -1555,14 +1563,11 @@ bool venc_dev::venc_set_entropy_config(OMX_BOOL enable, OMX_U32 i_cabac_level)
   return true;
 }
 
-bool venc_dev::venc_set_multislice_cfg(OMX_INDEXTYPE Codec, OMX_U32 nSlicesize) // MB - OR- GOB
+bool venc_dev::venc_set_multislice_cfg(OMX_INDEXTYPE Codec, OMX_U32 nSlicesize) // MB
 {
  venc_ioctl_msg ioctl_msg = {NULL, NULL};
   bool status = true;
   struct venc_multiclicecfg multislice_cfg;
-
-  DEBUG_PRINT_LOW("\n %s(): mode = %u, size = %u", __func__, multislice.mslice_mode,
-                  multislice.mslice_size);
 
   if((Codec != OMX_IndexParamVideoH263)  && (nSlicesize)){
     multislice_cfg.mslice_mode = VEN_MSLICE_CNT_MB;
@@ -1572,6 +1577,9 @@ bool venc_dev::venc_set_multislice_cfg(OMX_INDEXTYPE Codec, OMX_U32 nSlicesize) 
     multislice_cfg.mslice_mode = VEN_MSLICE_OFF;
     multislice_cfg.mslice_size = 0;
   }
+
+  DEBUG_PRINT_LOW("\n %s(): mode = %u, size = %u", __func__, multislice_cfg.mslice_mode,
+                  multislice_cfg.mslice_size);
 
   ioctl_msg.in = (void*)&multislice_cfg;
   ioctl_msg.out = NULL;
@@ -1666,15 +1674,7 @@ bool venc_dev::venc_set_error_resilience(OMX_VIDEO_PARAM_ERRORCORRECTIONTYPE* er
    if (( m_sVenc_cfg.codectype != OMX_VIDEO_CodingH263) &&
             (error_resilience->nResynchMarkerSpacing)) {
      multislice_cfg.mslice_mode = VEN_MSLICE_CNT_BYTE;
-
-     if (error_resilience->nResynchMarkerSpacing <= 1919) {
-       DEBUG_PRINT_ERROR("\n slice size (%d) is less than min SliceSize (1920 Bytes), Defaulting to 1920 Bytes"
-                         " Bytes/slice", error_resilience->nResynchMarkerSpacing);
-       multislice_cfg.mslice_size = 1920;
-       }
-     else {
        multislice_cfg.mslice_size = error_resilience->nResynchMarkerSpacing;
-       }
      }
    else if (m_sVenc_cfg.codectype == OMX_VIDEO_CodingH263 &&
             error_resilience->bEnableDataPartitioning) {
@@ -1719,6 +1719,7 @@ bool venc_dev::venc_set_inloop_filter(OMX_VIDEO_AVCLOOPFILTERTYPE loopfilter)
   else if(loopfilter == OMX_VIDEO_AVCLoopFilterDisableSliceBoundary){
     filter_cfg.db_mode = VEN_DB_SKIP_SLICE_BNDRY;
   }
+  filter_cfg.slicealpha_offset = filter_cfg.slicebeta_offset = 0;
 
   ioctl_msg.in = (void*)&filter_cfg;
   ioctl_msg.out = NULL;
