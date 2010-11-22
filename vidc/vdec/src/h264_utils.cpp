@@ -517,6 +517,8 @@ void h264_stream_parser::reset()
   memset(&sei_pic_timing, 0, sizeof(sei_pic_timing));
   memset(&pan_scan_param, 0, sizeof(pan_scan_param));
   pan_scan_param.rect_id = NO_PAN_SCAN_BIT;
+  memset(&frame_packing_arrangement,0,sizeof(frame_packing_arrangement));
+  frame_packing_arrangement.cancel_flag = 1;
 }
 
 void h264_stream_parser::init_bitstream(OMX_U8* data, OMX_U32 size)
@@ -667,6 +669,9 @@ void h264_stream_parser::parse_sei()
         break;
         case PAN_SCAN_RECT:
           sei_pan_scan();
+        break;
+        case SEI_PAYLOAD_FRAME_PACKING_ARRANGEMENT:
+          parse_frame_pack();
         break;
         default:
           DEBUG_PRINT_LOW("-->SEI payload type [%u] not implemented! size[%u]", payload_type, payload_size);
@@ -1067,7 +1072,48 @@ OMX_S64 h264_stream_parser::calculate_fixed_fps_ts(OMX_S64 timestamp, OMX_U32 De
   return vui_param.fixed_fps_prev_ts;
 }
 
+
+void h264_stream_parser::parse_frame_pack()
+{
+  DEBUG_PRINT_LOW("\n%s:%d parse_frame_pack", __func__, __LINE__);
+  frame_packing_arrangement.id = uev();
+  frame_packing_arrangement.cancel_flag = extract_bits(1);
+  if(!frame_packing_arrangement.cancel_flag) {
+     frame_packing_arrangement.type = extract_bits(7);
+     frame_packing_arrangement.quincunx_sampling_flag = extract_bits(1);
+     frame_packing_arrangement.content_interpretation_type = extract_bits(6);
+     frame_packing_arrangement.spatial_flipping_flag = extract_bits(1);
+     frame_packing_arrangement.frame0_flipped_flag = extract_bits(1);
+     frame_packing_arrangement.field_views_flag = extract_bits(1);
+     frame_packing_arrangement.current_frame_is_frame0_flag = extract_bits(1);
+     frame_packing_arrangement.frame0_self_contained_flag = extract_bits(1);
+     frame_packing_arrangement.frame1_self_contained_flag = extract_bits(1);
+
+     if(!frame_packing_arrangement.quincunx_sampling_flag &&
+        frame_packing_arrangement.type != 5) {
+        frame_packing_arrangement.frame0_grid_position_x = extract_bits(4);
+        frame_packing_arrangement.frame0_grid_position_y = extract_bits(4);
+        frame_packing_arrangement.frame1_grid_position_x = extract_bits(4);
+        frame_packing_arrangement.frame1_grid_position_y = extract_bits(4);
+     }
+     frame_packing_arrangement.reserved_byte = extract_bits(8);
+     frame_packing_arrangement.repetition_period = uev();
+   }
+   frame_packing_arrangement.extension_flag = extract_bits(1);
+
+}
+
 /* API'S EXPOSED TO OMX COMPONENT */
+
+void h264_stream_parser::get_frame_pack_data(
+	OMX_QCOM_FRAME_PACK_ARRANGEMENT *frame_pack)
+{
+   DEBUG_PRINT_LOW("\n%s:%d get frame data", __func__, __LINE__);
+   memcpy(&frame_pack->id,&frame_packing_arrangement.id,
+   FRAME_PACK_SIZE*sizeof(OMX_U32));
+   return;
+}
+
 
 void h264_stream_parser::parse_nal(OMX_U8* data_ptr, OMX_U32 data_len, OMX_U32 nal_type)
 {

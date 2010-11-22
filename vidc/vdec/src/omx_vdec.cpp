@@ -66,10 +66,13 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 FILE *inputBufferFile1;
 char inputfilename [] = "/data/input-bitstream.\0\0\0\0";
 #endif
-
 #ifdef OUTPUT_BUFFER_LOG
 FILE *outputBufferFile1;
 char outputfilename [] = "/data/output.yuv";
+#endif
+#ifdef OUTPUT_EXTRADATA_LOG
+FILE *outputExtradataFile;
+char ouputextradatafilename [] = "/data/extradata";
 #endif
 
 #define DEFAULT_FPS 30
@@ -983,6 +986,9 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
 
 #ifdef OUTPUT_BUFFER_LOG
   outputBufferFile1 = fopen (outputfilename, "ab");
+#endif
+#ifdef OUTPUT_EXTRADATA_LOG
+  outputExtradataFile = fopen (ouputextradatafilename, "ab");
 #endif
 
   // Copy the role information which provides the decoder kind
@@ -2968,25 +2974,8 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
       break;
     case OMX_QcomIndexParamFrameInfoExtraData:
       {
-#ifdef MAX_RES_1080P
-        struct vdec_ioctl_msg ioctl_msg = {NULL, NULL};
-
-        drv_ctx.extradata = 0;
-        if (drv_ctx.decoder_format == VDEC_CODECTYPE_H264)
-            drv_ctx.extradata |= VDEC_EXTRADATA_SEI;
-
-        ioctl_msg.in = &drv_ctx.extradata;
-        ioctl_msg.out = NULL;
-        if (ioctl(drv_ctx.video_driver_fd, VDEC_IOCTL_SET_EXTRADATA,
-            (void*)&ioctl_msg) < 0)
-        {
-            DEBUG_PRINT_ERROR("\nSet extradata failed");
-            eRet = OMX_ErrorUnsupportedSetting;
-        }
-#else
         eRet = enable_extradata(OMX_FRAMEINFO_EXTRADATA,
                                 ((QOMX_ENABLETYPE *)paramData)->bEnable);
-#endif
        break;
       }
     case OMX_QcomIndexParamInterlaceExtraData:
@@ -3083,9 +3072,16 @@ OMX_ERRORTYPE  omx_vdec::get_config(OMX_IN OMX_HANDLETYPE      hComp,
     }
   case OMX_QcomIndexConfigVideoFramePackingArrangement:
     {
-      OMX_QCOM_FRAME_PACK_ARRANGEMENT *configFmt =
-        (OMX_QCOM_FRAME_PACK_ARRANGEMENT *) configData;
-      extra_data_handle.get_frame_pack_data(configFmt);
+      if (drv_ctx.decoder_format == VDEC_CODECTYPE_H264)
+      {
+        OMX_QCOM_FRAME_PACK_ARRANGEMENT *configFmt =
+          (OMX_QCOM_FRAME_PACK_ARRANGEMENT *) configData;
+        h264_parser->get_frame_pack_data(configFmt);
+      }
+      else
+      {
+        DEBUG_PRINT_ERROR("get_config: Framepack data not supported for non H264 codecs");
+      }
       break;
     }
     default:
@@ -5017,6 +5013,9 @@ OMX_ERRORTYPE  omx_vdec::component_deinit(OMX_IN OMX_HANDLETYPE hComp)
 #ifdef OUTPUT_BUFFER_LOG
     fclose (outputBufferFile1);
 #endif
+#ifdef OUTPUT_EXTRADATA_LOG
+    fclose (outputExtradataFile);
+#endif
   DEBUG_PRINT_HIGH("\n omx_vdec::component_deinit() complete");
   return OMX_ErrorNone;
 }
@@ -5470,8 +5469,6 @@ OMX_ERRORTYPE omx_vdec::fill_buffer_done(OMX_HANDLETYPE hComp,
   }
 #endif
 
-  extra_data_handle.parse_extra_data(buffer);
-
   /* For use buffer we need to copy the data */
 
   if (m_cb.FillBufferDone)
@@ -5507,7 +5504,30 @@ OMX_ERRORTYPE omx_vdec::fill_buffer_done(OMX_HANDLETYPE hComp,
         proc_frms = 0;
       }
 #endif
+
+#ifdef OUTPUT_EXTRADATA_LOG
+  if (outputExtradataFile)
+  {
+
+    OMX_OTHER_EXTRADATATYPE *p_extra = NULL;
+    p_extra = (OMX_OTHER_EXTRADATATYPE *)
+           ((unsigned)(buffer->pBuffer + buffer->nOffset +
+            buffer->nFilledLen + 3)&(~3));
+    while(p_extra &&
+          (OMX_U8*)p_extra < (buffer->pBuffer + buffer->nAllocLen) )
+    {
+      DEBUG_PRINT_LOW("\nWRITING extradata, size=%d,type=%d",p_extra->nSize, p_extra->eType);
+      fwrite (p_extra,1,p_extra->nSize,outputExtradataFile);
+      if (p_extra->eType == OMX_ExtraDataNone)
+      {
+        break;
+      }
+      p_extra = (OMX_OTHER_EXTRADATATYPE *) (((OMX_U8 *) p_extra) + p_extra->nSize);
     }
+  }
+#endif
+    }
+
     pPMEMInfo = (OMX_QCOM_PLATFORM_PRIVATE_PMEM_INFO *)
                 ((OMX_QCOM_PLATFORM_PRIVATE_LIST *)
                 buffer->pPlatformPrivate)->entryList->entry;
@@ -6778,6 +6798,7 @@ void omx_vdec::handle_extradata(OMX_BUFFERHEADERTYPE *p_buf_hdr)
       p_buf_hdr->nFlags &= ~OMX_BUFFERFLAG_EXTRADATA;
     }
   }
+
 #ifdef PROCESS_SEI_AND_VUI_IN_EXTRADATA
   if (drv_ctx.decoder_format == VDEC_CODECTYPE_H264)
   {
@@ -6814,8 +6835,10 @@ void omx_vdec::handle_extradata(OMX_BUFFERHEADERTYPE *p_buf_hdr)
         ((struct vdec_output_frameinfo *)p_buf_hdr->pOutputPortPrivate)->pic_type);
     p_extra = (OMX_OTHER_EXTRADATATYPE *) (((OMX_U8 *) p_extra) + p_extra->nSize);
   }
-  if (p_buf_hdr->nFlags & OMX_BUFFERFLAG_EXTRADATA)
+  if (p_buf_hdr->nFlags & OMX_BUFFERFLAG_EXTRADATA){
+    DEBUG_PRINT_LOW("\n%s: Appending terminator extradata \n",__func__);
     append_terminator_extradata(p_extra);
+  }
 }
 
 OMX_ERRORTYPE omx_vdec::enable_extradata(OMX_U32 requested_extradata, bool enable)
