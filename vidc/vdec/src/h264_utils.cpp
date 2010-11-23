@@ -49,6 +49,8 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "omx_vdec.h"
 #include <string.h>
 #include <stdlib.h>
+#include <limits.h>
+#include <sys/time.h>
 
 /* =======================================================================
 

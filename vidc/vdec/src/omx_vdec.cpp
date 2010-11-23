@@ -46,6 +46,7 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <errno.h>
 #include "omx_vdec.h"
 #include <fcntl.h>
+#include <limits.h>
 
 #ifndef _ANDROID_
 #include <stropts.h>

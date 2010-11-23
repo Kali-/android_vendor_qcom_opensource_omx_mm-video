@@ -42,6 +42,11 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <pthread.h>
 #include <semaphore.h>
 #include "OMX_QCOMExtns.h"
+#include <sys/time.h>
+
+#ifdef _CHROME_
+#include <linux/android_pmem.h>
+#endif
 
 #ifdef _ANDROID_
 #include <binder/MemoryHeapBase.h>
