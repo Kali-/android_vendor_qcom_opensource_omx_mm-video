@@ -46,7 +46,6 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <errno.h>
 #include "omx_vdec.h"
 #include <fcntl.h>
-#include <cutils/properties.h>
 
 #ifndef _ANDROID_
 #include <stropts.h>
@@ -54,6 +53,7 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #endif //_ANDROID_
 
 #ifdef _ANDROID_
+#include <cutils/properties.h>
 #undef USE_EGL_IMAGE_GPU
 #endif
 
@@ -242,7 +242,7 @@ unsigned omx_vdec::omx_cmd_queue::get_q_msg_type()
     return m_q[m_read].id;
 }
 
-
+#ifdef _ANDROID_
 omx_vdec::ts_arr_list::ts_arr_list()
 {
   //initialize timestamps array
@@ -341,6 +341,7 @@ bool omx_vdec::ts_arr_list::reset_ts_list()
   }
   return ret;
 }
+#endif
 
 // factory function executed by the core to create instances
 void *get_omx_component_factory_fn(void)
@@ -438,11 +439,12 @@ omx_vdec::omx_vdec(): m_state(OMX_StateInvalid),
   m_vendor_config.pData = NULL;
   pthread_mutex_init(&m_lock, NULL);
   sem_init(&m_cmd_lock,0,0);
-
+#ifdef _ANDROID_
   char property_value[PROPERTY_VALUE_MAX] = {0};
   property_get("vidc.dec.debug.ts", property_value, "0");
   m_debug_timestamp = atoi(property_value);
   DEBUG_PRINT_HIGH("vidc.dec.debug.ts value is %d",m_debug_timestamp);
+#endif
 }
 
 
@@ -2081,10 +2083,12 @@ bool omx_vdec::execute_input_flush()
     prev_ts = LLONG_MAX;
     rst_prev_ts = true;
   }
+#ifdef _ANDROID_
   if (m_debug_timestamp)
   {
     m_timestamp_list.reset_ts_list();
   }
+#endif
   DEBUG_PRINT_HIGH("\n OMX flush i/p Port complete PenBuf(%d)", pending_input_buffers);
   return bRet;
 }
@@ -4712,12 +4716,13 @@ OMX_ERRORTYPE  omx_vdec::empty_this_buffer_proxy(OMX_IN OMX_HANDLETYPE         h
   frameinfo.pmem_fd = temp_buffer->pmem_fd;
   frameinfo.pmem_offset = temp_buffer->offset;
   frameinfo.timestamp = buffer->nTimeStamp;
-
+#ifdef _ANDROID_
   if (m_debug_timestamp)
   {
     DEBUG_PRINT_LOW("\n Inserting TIMESTAMP (%lld) into queue", buffer->nTimeStamp);
     m_timestamp_list.insert_ts(buffer->nTimeStamp);
   }
+#endif
 
 #ifdef INPUT_BUFFER_LOG
   if (inputBufferFile1)
@@ -4985,11 +4990,12 @@ OMX_ERRORTYPE  omx_vdec::component_deinit(OMX_IN OMX_HANDLETYPE hComp)
     m_ftb_q.m_read = m_ftb_q.m_write =0;
     m_cmd_q.m_read = m_cmd_q.m_write =0;
     m_etb_q.m_read = m_etb_q.m_write =0;
-
+#ifdef _ANDROID_
     if (m_debug_timestamp)
     {
       m_timestamp_list.reset_ts_list();
     }
+#endif
 
     DEBUG_PRINT_LOW("\n Calling VDEC_IOCTL_STOP_NEXT_MSG");
     (void)ioctl(drv_ctx.video_driver_fd, VDEC_IOCTL_STOP_NEXT_MSG,
@@ -5605,7 +5611,7 @@ int omx_vdec::async_message_process (void *context, void* message)
 
   omx = reinterpret_cast<omx_vdec*>(context);
 
-
+#ifdef _ANDROID_
   if (omx->m_debug_timestamp)
   {
     if ( (vdec_msg->msgcode == VDEC_MSG_RESP_OUTPUT_BUFFER_DONE) &&
@@ -5622,6 +5628,7 @@ int omx_vdec::async_message_process (void *context, void* message)
       }
     }
   }
+#endif
 
   switch (vdec_msg->msgcode)
   {

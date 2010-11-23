@@ -145,7 +145,9 @@ extern "C" {
 #define OMX_CORE_WVGA_HEIGHT         480
 #define OMX_CORE_WVGA_WIDTH          800
 
+#ifdef _ANDROID_
 #define MAX_NUM_INPUT_OUTPUT_BUFFERS 32
+#endif
 
 #define OMX_FRAMEINFO_EXTRADATA 0x00010000
 #define OMX_INTERLACE_EXTRADATA 0x00020000
@@ -414,6 +416,7 @@ private:
 
     };
 
+#ifdef _ANDROID_
     struct ts_entry
     {
         OMX_TICKS timestamp;
@@ -431,6 +434,7 @@ private:
         bool pop_min_ts(OMX_TICKS &ts);
         bool reset_ts_list();
     };
+#endif
 
     bool allocate_done(void);
     bool allocate_input_done(void);
@@ -574,8 +578,10 @@ private:
     OMX_BUFFERHEADERTYPE  *m_inp_mem_ptr;
     // Output memory pointer
     OMX_BUFFERHEADERTYPE  *m_out_mem_ptr;
+#ifdef _ANDROID_
     // Timestamp list
     ts_arr_list           m_timestamp_list;
+#endif
 
     bool input_flush_progress;
     bool output_flush_progress;
@@ -649,7 +655,9 @@ private:
     OMX_NATIVE_WINDOWTYPE m_display_id;
     h264_stream_parser *h264_parser;
     OMX_U32 client_extradata;
+#ifdef _ANDROID_
     bool m_debug_timestamp;
+#endif
 #ifdef MAX_RES_1080P
     MP4_Utils mp4_headerparser;
 #endif
