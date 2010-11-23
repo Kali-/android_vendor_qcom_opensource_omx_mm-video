@@ -29,7 +29,9 @@ CPPFLAGS += -DMAX_RES_1080P
 CPPFLAGS += -Du32="unsigned int"
 CPPFLAGS += -Du8="unsigned char"
 CPPFLAGS += -Iinc
+CPPFLAGS += -I../common/inc
 CPPFLAGS += -Isrc
+CPPFLAGS += -I../common/src
 
 # linker flags
 LDFLAGS += -L$(SYSROOT)/usr/lib
@@ -64,6 +66,7 @@ SRCS := src/frameparser.cpp
 SRCS += src/h264_utils.cpp
 SRCS += src/mp4_utils.cpp
 SRCS += src/omx_vdec.cpp
+SRCS += ../common/src/extra_data_handler.cpp
 
 LDLIBS := -lpthread
 LDLIBS += -lrt

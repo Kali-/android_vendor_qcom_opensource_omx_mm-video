@@ -30,7 +30,9 @@ CPPFLAGS += -DMAX_RES_1080P
 CPPFLAGS += -Du32="unsigned int"
 CPPFLAGS += -Du8="unsigned char"
 CPPFLAGS += -Iinc
+CPPFLAGS += -I../common/inc
 CPPFLAGS += -Isrc
+CPPFLAGS += -I../common/src
 
 # linker flags
 LDFLAGS += -L$(SYSROOT)/usr/lib
@@ -64,6 +66,7 @@ install:
 SRCS := src/omx_video_base.cpp
 SRCS += src/omx_video_encoder.cpp
 SRCS += src/video_encoder_device.cpp
+SRCS += ../common/src/extra_data_handler.cpp
 
 LDLIBS := -lpthread
 LDLIBS += -lrt
