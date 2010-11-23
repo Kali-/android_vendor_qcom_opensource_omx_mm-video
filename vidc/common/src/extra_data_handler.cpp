@@ -28,9 +28,6 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "extra_data_handler.h"
 
-#define DEBUG_PRINT_LOW
-#define DEBUG_PRINT_ERROR LOGE
-
 extra_data_handler::extra_data_handler()
 {
    rbsp_buf = (OMX_U8 *) calloc(1,100);
