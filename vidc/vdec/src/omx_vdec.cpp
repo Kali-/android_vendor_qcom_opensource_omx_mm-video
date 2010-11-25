@@ -5887,19 +5887,28 @@ OMX_ERRORTYPE omx_vdec::push_input_sc_codec(OMX_HANDLETYPE hComp)
     else
     {
       pdest_frame->nFlags &= ~OMX_BUFFERFLAG_EOS;
-      /*Push the frame to the Decoder*/
-      if (empty_this_buffer_proxy(hComp,pdest_frame) != OMX_ErrorNone)
+      if(pdest_frame->nFilledLen)
       {
-        return OMX_ErrorBadParameter;
-      }
-      frame_count++;
-      pdest_frame = NULL;
+        /*Push the frame to the Decoder*/
+        if (empty_this_buffer_proxy(hComp,pdest_frame) != OMX_ErrorNone)
+        {
+          return OMX_ErrorBadParameter;
+        }
+        frame_count++;
+        pdest_frame = NULL;
 
-      if (m_input_free_q.m_size)
+        if (m_input_free_q.m_size)
+        {
+          m_input_free_q.pop_entry(&address,&p2,&id);
+          pdest_frame = (OMX_BUFFERHEADERTYPE *) address;
+          pdest_frame->nFilledLen = 0;
+        }
+      }
+      else if(!(psource_frame->nFlags & OMX_BUFFERFLAG_EOS))
       {
-        m_input_free_q.pop_entry(&address,&p2,&id);
-        pdest_frame = (OMX_BUFFERHEADERTYPE *) address;
-        pdest_frame->nFilledLen = 0;
+        DEBUG_PRINT_ERROR("\nZero len buffer return back to POOL");
+        m_input_free_q.insert_entry((unsigned) pdest_frame,NULL,NULL);
+        pdest_frame = NULL;
       }
     }
   }
@@ -5917,7 +5926,7 @@ OMX_ERRORTYPE omx_vdec::push_input_sc_codec(OMX_HANDLETYPE hComp)
 
   if (psource_frame->nFilledLen == 0)
   {
-    if ((psource_frame->nFlags & OMX_BUFFERFLAG_EOS))
+    if (psource_frame->nFlags & OMX_BUFFERFLAG_EOS)
     {
       if (pdest_frame)
       {
