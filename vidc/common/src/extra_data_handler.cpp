@@ -190,11 +190,11 @@ OMX_S32 extra_data_handler::parse_sei(OMX_U8 *buffer, OMX_U32 buffer_length)
 
     switch(payload_type) {
       case SEI_PAYLOAD_FRAME_PACKING_ARRANGEMENT:
-        DEBUG_PRINT_ERROR("\nIn %s() Frame Packing SEI ", __func__);
+        DEBUG_PRINT_LOW("\nIn %s() Frame Packing SEI ", __func__);
         parse_frame_pack(payload_size);
       break;
       default:
-        DEBUG_PRINT_ERROR("\nERROR: In %s() Not Supported SEI NAL ", __func__);
+        DEBUG_PRINT_LOW("\nINFO: In %s() Not Supported SEI NAL ", __func__);
       break;
     }
   }

@@ -256,7 +256,8 @@ enum SEI_PAYLOAD_TYPE
   FULL_FRAME_FREEZE_RELEASE,
   FULL_FRAME_SNAPSHOT,
   PROGRESSIVE_REFINEMENT_SEGMENT_START,
-  PROGRESSIVE_REFINEMENT_SEGMENT_END
+  PROGRESSIVE_REFINEMENT_SEGMENT_END,
+  SEI_PAYLOAD_FRAME_PACKING_ARRANGEMENT = 0x2D
 };
 
 typedef struct
@@ -340,6 +341,7 @@ class h264_stream_parser
     void parse_nal(OMX_U8* data_ptr, OMX_U32 data_len,
                    OMX_U32 nal_type = NALU_TYPE_UNSPECIFIED);
     OMX_S64 process_ts_with_sei_vui(OMX_S64 timestamp);
+    void get_frame_pack_data(OMX_QCOM_FRAME_PACK_ARRANGEMENT *frame_pack);
   private:
     void init_bitstream(OMX_U8* data, OMX_U32 size);
     OMX_U32 extract_bits(OMX_U32 n);
@@ -359,6 +361,7 @@ class h264_stream_parser
     OMX_U32 get_nal_unit_type(OMX_U32 *nal_unit_type);
     OMX_S64 calculate_buf_period_ts(OMX_S64 timestamp);
     OMX_S64 calculate_fixed_fps_ts(OMX_S64 timestamp, OMX_U32 DeltaTfiDivisor);
+    void parse_frame_pack();
 
     OMX_U32 curr_32_bit;
     OMX_U32 bits_read;
@@ -371,6 +374,7 @@ class h264_stream_parser
     h264_sei_buf_period sei_buf_period;
     h264_sei_pic_timing sei_pic_timing;
     h264_pan_scan pan_scan_param;
+    OMX_QCOM_FRAME_PACK_ARRANGEMENT frame_packing_arrangement;
 };
 
 #endif /* H264_UTILS_H */
