@@ -6061,6 +6061,14 @@ OMX_ERRORTYPE omx_vdec::push_input_h264 (OMX_HANDLETYPE hComp)
            m_frame_parser.mutils->nalu_type == NALU_TYPE_IDR) {
           h264_last_au_ts = h264_scratch.nTimeStamp;
           h264_last_au_flags = h264_scratch.nFlags;
+#ifndef PROCESS_SEI_AND_VUI_IN_EXTRADATA
+          if (client_extradata & OMX_TIMEINFO_EXTRADATA)
+          {
+            OMX_S64 ts_in_sei = h264_parser->process_ts_with_sei_vui(h264_last_au_ts);
+            if (!VALID_TS(h264_last_au_ts))
+              h264_last_au_ts = ts_in_sei;
+          }
+#endif
         } else
           h264_last_au_ts = LLONG_MAX;
       }
@@ -6116,14 +6124,6 @@ OMX_ERRORTYPE omx_vdec::push_input_h264 (OMX_HANDLETYPE hComp)
             DEBUG_PRINT_LOW("\n Reset the EOS Flag");
             pdest_frame->nFlags &= ~OMX_BUFFERFLAG_EOS;
           }
-#ifndef PROCESS_SEI_AND_VUI_IN_EXTRADATA
-          if (client_extradata & OMX_TIMEINFO_EXTRADATA)
-          {
-            OMX_S64 ts_in_sei = h264_parser->process_ts_with_sei_vui(pdest_frame->nTimeStamp);
-            if (!VALID_TS(pdest_frame->nTimeStamp))
-              pdest_frame->nTimeStamp = ts_in_sei;
-          }
-#endif
           /*Push the frame to the Decoder*/
           if (empty_this_buffer_proxy(hComp,pdest_frame) != OMX_ErrorNone)
           {
