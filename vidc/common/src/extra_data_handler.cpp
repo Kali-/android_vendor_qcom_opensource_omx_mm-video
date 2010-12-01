@@ -340,13 +340,11 @@ OMX_U32 extra_data_handler::create_frame_pack()
 OMX_S32 extra_data_handler::create_rbsp(OMX_U8 *buf, OMX_U32 nalu_type)
 {
    OMX_U32 i, j = 7;
-
    for(i = 0;i < 3;i++)
    *buf++ = 0x00;
    *buf++ = H264_START_CODE;
    *buf++ = nalu_type;
-   *buf |= (sei_payload_type & 0x000000FF);
-   buf++;
+   *buf++ = (sei_payload_type & 0x000000FF);
    *buf++ = byte_ptr;
 
     for(i = 0;i < byte_ptr ;i += 2) {
