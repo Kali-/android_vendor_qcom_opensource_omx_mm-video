@@ -111,27 +111,27 @@ void* async_message_thread (void *input)
   struct vdec_ioctl_msg ioctl_msg;
   struct vdec_msginfo vdec_msg;
   omx_vdec *omx = reinterpret_cast<omx_vdec*>(input);
-
+  int error_code = 0;
   DEBUG_PRINT_HIGH("omx_vdec: Async thread start\n");
   while (1)
   {
     ioctl_msg.in = NULL;
     ioctl_msg.out = (void*)&vdec_msg;
-
     /*Wait for a message from the video decoder driver*/
-    if (ioctl ( omx->drv_ctx.video_driver_fd,VDEC_IOCTL_GET_NEXT_MSG,
-                (void*)&ioctl_msg) < 0)
+    error_code = ioctl ( omx->drv_ctx.video_driver_fd,VDEC_IOCTL_GET_NEXT_MSG,
+                         (void*)&ioctl_msg);
+    if (error_code == -512) // ERESTARTSYS
+    {
+      DEBUG_PRINT_ERROR("\n ERESTARTSYS received in ioctl read next msg!");
+    }
+    else if (error_code < 0)
     {
       DEBUG_PRINT_ERROR("\n Error in ioctl read next msg");
       break;
-    }
-    else
+    }        /*Call Instance specific process function*/
+    else if (omx->async_message_process(input,&vdec_msg) < 0)
     {
-      /*Call Instance specific process function*/
-      if (omx->async_message_process(input,&vdec_msg) < 0)
-      {
-        DEBUG_PRINT_ERROR("\nERROR:Wrong ioctl message");
-      }
+      DEBUG_PRINT_ERROR("\nERROR:Wrong ioctl message");
     }
   }
   DEBUG_PRINT_HIGH("omx_vdec: Async thread stop\n");
