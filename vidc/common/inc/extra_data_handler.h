@@ -33,9 +33,33 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <string.h>
 #include <stdlib.h>
 #include "OMX_QCOMExtns.h"
-#include<utils/Log.h>
 #include<linux/msm_vidc_dec.h>
 
+#ifdef _ANDROID_
+extern "C"{
+#include<utils/Log.h>
+}
+#ifdef ENABLE_DEBUG_LOW
+#define DEBUG_PRINT_LOW LOGE
+#else
+#define DEBUG_PRINT_LOW
+#endif
+#ifdef ENABLE_DEBUG_HIGH
+#define DEBUG_PRINT_HIGH LOGE
+#else
+#define DEBUG_PRINT_HIGH
+#endif
+#ifdef ENABLE_DEBUG_ERROR
+#define DEBUG_PRINT_ERROR LOGE
+#else
+#define DEBUG_PRINT_ERROR
+#endif
+
+#else //_ANDROID_
+#define DEBUG_PRINT_LOW printf
+#define DEBUG_PRINT_HIGH printf
+#define DEBUG_PRINT_ERROR printf
+#endif // _ANDROID_
 
 #define SEI_PAYLOAD_FRAME_PACKING_ARRANGEMENT 0x2D
 #define H264_START_CODE 0x01
