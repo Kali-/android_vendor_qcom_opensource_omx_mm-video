@@ -30,6 +30,7 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define __EXTRA_DATA_HANDLER_H__
 
 #include <stdio.h>
+#include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
 #include "OMX_QCOMExtns.h"
