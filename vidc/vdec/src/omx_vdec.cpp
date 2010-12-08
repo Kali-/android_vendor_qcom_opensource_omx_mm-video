@@ -3000,6 +3000,17 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
       eRet = enable_extradata(OMX_TIMEINFO_EXTRADATA,
                               ((QOMX_ENABLETYPE *)paramData)->bEnable);
       break;
+    case OMX_QcomIndexParamVideoDivx:
+      {
+#ifdef MAX_RES_720P
+        QOMX_VIDEO_PARAM_DIVXTYPE* divXType = (QOMX_VIDEO_PARAM_DIVXTYPE *) paramData;
+        if(divXType->eFormat == QOMX_VIDEO_DIVXFormat311) {
+            DEBUG_PRINT_HIGH("set_parameter: DivX 3.11 not supported in 7x30 core.");
+            eRet = OMX_ErrorUnsupportedSetting;
+        }
+#endif
+      }
+      break;
     default:
     {
       DEBUG_PRINT_ERROR("Setparameter: unknown param %d\n", paramIndex);
