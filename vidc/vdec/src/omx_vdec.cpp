@@ -6956,7 +6956,7 @@ OMX_ERRORTYPE omx_vdec::enable_extradata(OMX_U32 requested_extradata, bool enabl
 
 OMX_U32 omx_vdec::count_MB_in_extradata(OMX_OTHER_EXTRADATATYPE *extra)
 {
-  OMX_U32 num_MB = 0, byte_count = 0;
+  OMX_U32 num_MB = 0, byte_count = 0, num_MB_in_frame = 0;
   OMX_U8 *data_ptr = extra->data, data = 0;
   while (byte_count < extra->nDataSize)
   {
@@ -6969,7 +6969,9 @@ OMX_U32 omx_vdec::count_MB_in_extradata(OMX_OTHER_EXTRADATATYPE *extra)
     data_ptr++;
     byte_count++;
   }
-  return num_MB;
+  num_MB_in_frame = ((drv_ctx.video_resolution.frame_width + 15) *
+                     (drv_ctx.video_resolution.frame_height + 15)) >> 8;
+  return ((num_MB_in_frame > 0)?(num_MB * 100 / num_MB_in_frame) : 0);
 }
 
 void omx_vdec::append_interlace_extradata(OMX_OTHER_EXTRADATATYPE *extra)
