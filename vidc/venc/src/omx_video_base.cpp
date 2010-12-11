@@ -3587,7 +3587,7 @@ OMX_ERRORTYPE omx_video::get_supported_profile_level(OMX_VIDEO_PARAM_PROFILELEVE
   if(!profileLevelType)
     return OMX_ErrorBadParameter;
 
-  if(profileLevelType->nPortIndex == 0) {
+  if(profileLevelType->nPortIndex == 1) {
     if (m_sOutPortDef.format.video.eCompressionFormat == OMX_VIDEO_CodingAVC)
     {
       if (profileLevelType->nProfileIndex == 0)
@@ -3662,7 +3662,7 @@ OMX_ERRORTYPE omx_video::get_supported_profile_level(OMX_VIDEO_PARAM_PROFILELEVE
   if(!profileLevelType)
     return OMX_ErrorBadParameter;
 
-  if(profileLevelType->nPortIndex == 0) {
+  if(profileLevelType->nPortIndex == 1) {
     if (m_sOutPortDef.format.video.eCompressionFormat == OMX_VIDEO_CodingAVC)
     {
       if (profileLevelType->nProfileIndex == 0)
