@@ -547,9 +547,9 @@ private:
 
     inline void omx_report_error ()
     {
-        DEBUG_PRINT_ERROR("\nERROR: Sending OMX_EventError to Client");
         if (m_cb.EventHandler && !m_error_propogated)
         {
+            DEBUG_PRINT_ERROR("\nERROR: Sending OMX_EventError to Client");
             m_error_propogated = true;
             m_cb.EventHandler(&m_cmp,m_app_data,
                   OMX_EventError,OMX_ErrorHardware,0,NULL);

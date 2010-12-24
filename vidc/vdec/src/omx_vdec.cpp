@@ -679,78 +679,90 @@ void omx_vdec::process_event_cb(void *ctxt, unsigned char id)
 
         case OMX_COMPONENT_GENERATE_EVENT_INPUT_FLUSH:
           DEBUG_PRINT_HIGH("\n Driver flush i/p Port complete");
-          pThis->execute_input_flush();
-          if (pThis->m_cb.EventHandler)
+          if (!pThis->input_flush_progress)
           {
-            if (p2 != VDEC_S_SUCCESS)
+            DEBUG_PRINT_ERROR("\n WARNING: Unexpected flush from driver");
+          }
+          else
+          {
+            pThis->execute_input_flush();
+            if (pThis->m_cb.EventHandler)
             {
-              DEBUG_PRINT_ERROR("\nOMX_COMPONENT_GENERATE_EVENT_INPUT_FLUSH failure");
-              pThis->omx_report_error ();
-            }
-            else
-            {
-              /*Check if we need generate event for Flush done*/
-              if(BITMASK_PRESENT(&pThis->m_flags,
-                                 OMX_COMPONENT_INPUT_FLUSH_PENDING))
+              if (p2 != VDEC_S_SUCCESS)
               {
-                BITMASK_CLEAR (&pThis->m_flags,OMX_COMPONENT_INPUT_FLUSH_PENDING);
-                DEBUG_PRINT_LOW("\n Input Flush completed - Notify Client");
-                pThis->m_cb.EventHandler(&pThis->m_cmp, pThis->m_app_data,
-                                         OMX_EventCmdComplete,OMX_CommandFlush,
-                                         OMX_CORE_INPUT_PORT_INDEX,NULL );
+                DEBUG_PRINT_ERROR("\nOMX_COMPONENT_GENERATE_EVENT_INPUT_FLUSH failure");
+                pThis->omx_report_error ();
               }
-              if (BITMASK_PRESENT(&pThis->m_flags,
-                                       OMX_COMPONENT_IDLE_PENDING))
+              else
               {
-                if (!pThis->output_flush_progress)
+                /*Check if we need generate event for Flush done*/
+                if(BITMASK_PRESENT(&pThis->m_flags,
+                                   OMX_COMPONENT_INPUT_FLUSH_PENDING))
                 {
-                   DEBUG_PRINT_LOW("\n Output flush done hence issue stop");
-                   if (ioctl (pThis->drv_ctx.video_driver_fd,
-                              VDEC_IOCTL_CMD_STOP,NULL ) < 0)
-                   {
-                     DEBUG_PRINT_ERROR("\n VDEC_IOCTL_CMD_STOP failed");
-                     pThis->omx_report_error ();
-                   }
+                  BITMASK_CLEAR (&pThis->m_flags,OMX_COMPONENT_INPUT_FLUSH_PENDING);
+                  DEBUG_PRINT_LOW("\n Input Flush completed - Notify Client");
+                  pThis->m_cb.EventHandler(&pThis->m_cmp, pThis->m_app_data,
+                                           OMX_EventCmdComplete,OMX_CommandFlush,
+                                           OMX_CORE_INPUT_PORT_INDEX,NULL );
+                }
+                if (BITMASK_PRESENT(&pThis->m_flags,
+                                         OMX_COMPONENT_IDLE_PENDING))
+                {
+                  if (!pThis->output_flush_progress)
+                  {
+                     DEBUG_PRINT_LOW("\n Output flush done hence issue stop");
+                     if (ioctl (pThis->drv_ctx.video_driver_fd,
+                                VDEC_IOCTL_CMD_STOP,NULL ) < 0)
+                     {
+                       DEBUG_PRINT_ERROR("\n VDEC_IOCTL_CMD_STOP failed");
+                       pThis->omx_report_error ();
+                     }
+                  }
                 }
               }
             }
           }
-
           break;
 
         case OMX_COMPONENT_GENERATE_EVENT_OUTPUT_FLUSH:
           DEBUG_PRINT_HIGH("\n Driver flush o/p Port complete");
-          pThis->execute_output_flush();
-
-          if (pThis->m_cb.EventHandler)
+          if (!pThis->output_flush_progress)
           {
-            if (p2 != VDEC_S_SUCCESS)
+            DEBUG_PRINT_ERROR("\n WARNING: Unexpected flush from driver");
+          }
+          else
+          {
+            pThis->execute_output_flush();
+            if (pThis->m_cb.EventHandler)
             {
-              DEBUG_PRINT_ERROR("\n OMX_COMPONENT_GENERATE_EVENT_OUTPUT_FLUSH failed");
-              pThis->omx_report_error ();
-            }
-            else
-            {
-              /*Check if we need generate event for Flush done*/
-              if(BITMASK_PRESENT(&pThis->m_flags,
-                                 OMX_COMPONENT_OUTPUT_FLUSH_PENDING))
+              if (p2 != VDEC_S_SUCCESS)
               {
-                DEBUG_PRINT_LOW("\n Notify Output Flush done");
-                BITMASK_CLEAR (&pThis->m_flags,OMX_COMPONENT_OUTPUT_FLUSH_PENDING);
-                pThis->m_cb.EventHandler(&pThis->m_cmp, pThis->m_app_data,
-                                         OMX_EventCmdComplete,OMX_CommandFlush,
-                                         OMX_CORE_OUTPUT_PORT_INDEX,NULL );
+                DEBUG_PRINT_ERROR("\n OMX_COMPONENT_GENERATE_EVENT_OUTPUT_FLUSH failed");
+                pThis->omx_report_error ();
               }
-              if (BITMASK_PRESENT(&pThis->m_flags ,OMX_COMPONENT_IDLE_PENDING))
+              else
               {
-                if (!pThis->input_flush_progress)
+                /*Check if we need generate event for Flush done*/
+                if(BITMASK_PRESENT(&pThis->m_flags,
+                                   OMX_COMPONENT_OUTPUT_FLUSH_PENDING))
                 {
-                  DEBUG_PRINT_LOW("\n Input flush done hence issue stop");
-                  if (ioctl (pThis->drv_ctx.video_driver_fd,
-                             VDEC_IOCTL_CMD_STOP,NULL ) < 0)
+                  DEBUG_PRINT_LOW("\n Notify Output Flush done");
+                  BITMASK_CLEAR (&pThis->m_flags,OMX_COMPONENT_OUTPUT_FLUSH_PENDING);
+                  pThis->m_cb.EventHandler(&pThis->m_cmp, pThis->m_app_data,
+                                           OMX_EventCmdComplete,OMX_CommandFlush,
+                                           OMX_CORE_OUTPUT_PORT_INDEX,NULL );
+                }
+                if (BITMASK_PRESENT(&pThis->m_flags ,OMX_COMPONENT_IDLE_PENDING))
+                {
+                  if (!pThis->input_flush_progress)
                   {
-                    DEBUG_PRINT_ERROR("\n VDEC_IOCTL_CMD_STOP failed");
-                    pThis->omx_report_error ();
+                    DEBUG_PRINT_LOW("\n Input flush done hence issue stop");
+                    if (ioctl (pThis->drv_ctx.video_driver_fd,
+                               VDEC_IOCTL_CMD_STOP,NULL ) < 0)
+                    {
+                      DEBUG_PRINT_ERROR("\n VDEC_IOCTL_CMD_STOP failed");
+                      pThis->omx_report_error ();
+                    }
                   }
                 }
               }
@@ -5488,7 +5500,17 @@ OMX_ERRORTYPE omx_vdec::fill_buffer_done(OMX_HANDLETYPE hComp,
   static OMX_U32 proc_frms = 0;
 #endif
   if (!buffer || (buffer - m_out_mem_ptr) >= drv_ctx.op_buf.actualcount)
+  {
+    DEBUG_PRINT_ERROR("\n [FBD] ERROR in ptr(%p)", buffer);
     return OMX_ErrorBadParameter;
+  }
+  else if (output_flush_progress)
+  {
+    DEBUG_PRINT_LOW("FBD: Buffer (%p) flushed", buffer);
+    buffer->nFilledLen = 0;
+    buffer->nTimeStamp = 0;
+    buffer->nFlags &= ~OMX_BUFFERFLAG_EXTRADATA;
+  }
 
   DEBUG_PRINT_LOW("\n fill_buffer_done: bufhdr = %p, bufhdr->pBuffer = %p",
       buffer, buffer->pBuffer);
@@ -5496,7 +5518,7 @@ OMX_ERRORTYPE omx_vdec::fill_buffer_done(OMX_HANDLETYPE hComp,
 
   if (buffer->nFlags & OMX_BUFFERFLAG_EOS)
   {
-    DEBUG_PRINT_LOW("\n Output EOS has been reached");
+    DEBUG_PRINT_HIGH("\n Output EOS has been reached");
     if (psource_frame)
     {
       m_cb.EmptyBufferDone(&m_cmp, m_app_data, psource_frame);
@@ -5523,14 +5545,7 @@ OMX_ERRORTYPE omx_vdec::fill_buffer_done(OMX_HANDLETYPE hComp,
 
   if (m_cb.FillBufferDone)
   {
-    if (output_flush_progress)
-    {
-      DEBUG_PRINT_LOW("FBD: Buffer (%p) flushed", buffer);
-      buffer->nFilledLen = 0;
-      buffer->nTimeStamp = 0;
-      buffer->nFlags &= ~OMX_BUFFERFLAG_EXTRADATA;
-    }
-    else if (buffer->nFilledLen > 0)
+    if (buffer->nFilledLen > 0)
     {
       if (client_extradata)
         handle_extradata(buffer);

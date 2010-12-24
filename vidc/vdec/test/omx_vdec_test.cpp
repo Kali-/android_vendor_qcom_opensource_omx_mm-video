@@ -580,8 +580,10 @@ void* fbd_thread(void* pArg)
   int canDisplay = 1, contigous_drop_frame = 0, bytes_written = 0, ret = 0;
   OMX_S64 base_timestamp = 0, lastTimestamp = 0;
   OMX_BUFFERHEADERTYPE *pBuffer = NULL;
-  while(currentStatus != ERROR_STATE)
+  pthread_mutex_lock(&eos_lock);
+  while(currentStatus != ERROR_STATE && !bOutputEosReached)
   {
+    pthread_mutex_unlock(&eos_lock);
     DEBUG_PRINT("Inside %s\n", __FUNCTION__);
     if(flush_output_progress)
     {
@@ -598,6 +600,7 @@ void* fbd_thread(void* pArg)
       if (free_op_buf_cnt == portFmt.nBufferCountActual)
         free_output_buffers();
       pthread_mutex_unlock(&fbd_lock);
+      pthread_mutex_lock(&eos_lock);
       continue;
     }
     pthread_mutex_unlock(&enable_lock);
@@ -607,6 +610,7 @@ void* fbd_thread(void* pArg)
     if (pBuffer == NULL)
     {
       DEBUG_PRINT("Error - No pBuffer to dequeue\n");
+      pthread_mutex_lock(&eos_lock);
       continue;
     }
     else if (pBuffer->nFilledLen > 0)
@@ -666,7 +670,12 @@ void* fbd_thread(void* pArg)
           if (display_time)
               usleep(display_time);
           ret = overlay_fb(pBuffer);
-          if (ret != 0) break;
+          if (ret != 0)
+          {
+            printf("\nERROR in overlay_fb, disabling display!");
+            close_display();
+            displayYuv = 0;
+          }
           usleep(render_time);
           contigous_drop_frame = 0;
       }
@@ -743,42 +752,22 @@ void* fbd_thread(void* pArg)
         }
     }
 
-    pthread_mutex_lock(&eos_lock);
-    if (bOutputEosReached)
-    {
-        pthread_mutex_unlock(&eos_lock);
-        break;
-    }
-    pthread_mutex_unlock(&eos_lock);
     /********************************************************************/
     /* De-Initializing the open max and relasing the buffers and */
     /* closing the files.*/
     /********************************************************************/
-    if (pBuffer->nFlags & OMX_BUFFERFLAG_EOS ) {
-
+    if (pBuffer->nFlags & OMX_BUFFERFLAG_EOS )
+    {
       OMX_QCOM_FRAME_PACK_ARRANGEMENT framePackingArrangement; 
       OMX_GetConfig(dec_handle,
                    (OMX_INDEXTYPE)OMX_QcomIndexConfigVideoFramePackingArrangement,
                     &framePackingArrangement);
       PrintFramePackArrangement(framePackingArrangement);
-
       DEBUG_PRINT("***************************************************\n");
       DEBUG_PRINT("FillBufferDone: End Of Stream Reached\n");
       DEBUG_PRINT("***************************************************\n");
       pthread_mutex_lock(&eos_lock);
       bOutputEosReached = true;
-      pthread_cond_broadcast(&eos_cond);
-      pthread_mutex_unlock(&eos_lock);
-      if(seq_enabled)
-      {
-          seq_enabled = 0;
-          sem_post(&seq_sem);
-          printf("\n Posted seq_sem in EOS");
-      }
-      DEBUG_PRINT("***************************************************\n");
-      DEBUG_PRINT("FBD_THREAD bOutputEosReached %d\n", bOutputEosReached);
-      //QPERF_END(client_decode);
-      //QPERF_SET_ITERATION(client_decode, fbd_cnt);
       break;
     }
 
@@ -798,8 +787,13 @@ void* fbd_thread(void* pArg)
     else
     {
         pthread_mutex_lock(&fbd_lock);
-        OMX_FillThisBuffer(dec_handle, pBuffer);
-        free_op_buf_cnt--;
+        pthread_mutex_lock(&eos_lock);
+        if (!bOutputEosReached)
+        {
+          OMX_FillThisBuffer(dec_handle, pBuffer);
+          free_op_buf_cnt--;
+        }
+        pthread_mutex_unlock(&eos_lock);
         pthread_mutex_unlock(&fbd_lock);
     }
     pthread_mutex_unlock(&enable_lock);
@@ -809,7 +803,16 @@ void* fbd_thread(void* pArg)
       printf("\n Posted seq_sem Frm(%d) Req(%d)", fbd_cnt, cmd_data);
       cmd_data = ~(unsigned)0;
     }
+    pthread_mutex_lock(&eos_lock);
   }
+  if(seq_enabled)
+  {
+      seq_enabled = 0;
+      sem_post(&seq_sem);
+      printf("\n Posted seq_sem in EOS");
+  }
+  pthread_cond_broadcast(&eos_cond);
+  pthread_mutex_unlock(&eos_lock);
   return NULL;
 }
 
@@ -869,7 +872,6 @@ OMX_ERRORTYPE EventHandler(OMX_IN OMX_HANDLETYPE hComponent,
                 DEBUG_PRINT("Event error in the middle of Decode \n");
                 pthread_mutex_lock(&eos_lock);
                 bOutputEosReached = true;
-                pthread_cond_broadcast(&eos_cond);
                 pthread_mutex_unlock(&eos_lock);
                 if(seq_enabled)
                 {
@@ -906,7 +908,6 @@ OMX_ERRORTYPE EventHandler(OMX_IN OMX_HANDLETYPE hComponent,
             if (nData1 == 1 && (nData2 & OMX_BUFFERFLAG_EOS)) {
                 pthread_mutex_lock(&eos_lock);
                 bOutputEosReached = true;
-                pthread_cond_broadcast(&eos_cond);
                 pthread_mutex_unlock(&eos_lock);
                 if(seq_enabled)
                 {
@@ -2189,13 +2190,14 @@ static void do_freeHandle_and_clean_up(bool isDueToError)
     OMX_GetState(dec_handle, &state);
     if (state == OMX_StateExecuting || state == OMX_StatePause)
     {
-      DEBUG_PRINT("Requestin transition to idle");
+      DEBUG_PRINT("Requesting transition to Idle");
       OMX_SendCommand(dec_handle, OMX_CommandStateSet, OMX_StateIdle, 0);
       wait_for_event();
     }
     OMX_GetState(dec_handle, &state);
     if (state == OMX_StateIdle)
     {
+      DEBUG_PRINT("Requesting transition to Loaded");
       OMX_SendCommand(dec_handle, OMX_CommandStateSet, OMX_StateLoaded, 0);
       for(bufCnt=0; bufCnt < input_buf_cnt; ++bufCnt)
       {
