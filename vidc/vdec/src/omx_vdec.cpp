@@ -61,6 +61,8 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifdef USE_EGL_IMAGE_GPU
 #include <EGL/egl.h>
 #include <EGL/eglQCOM.h>
+#define EGL_BUFFER_HANDLE_QCOM 0x4F00
+#define EGL_BUFFER_OFFSET_QCOM 0x4F01
 #endif
 
 #ifdef INPUT_BUFFER_LOG
@@ -3400,6 +3402,18 @@ OMX_ERRORTYPE  omx_vdec::use_output_buffer(
 
   if (!m_out_mem_ptr) {
     eRet = allocate_output_headers();
+#ifdef MAX_RES_1080P
+    if(drv_ctx.decoder_format == VDEC_CODECTYPE_H264)
+    {
+      //allocate H264_mv_buffer
+      eRet = vdec_alloc_h264_mv();
+      if (eRet) {
+        DEBUG_PRINT_ERROR("ERROR in allocating MV buffers\n");
+        return OMX_ErrorInsufficientResources;
+      }
+    }
+#endif
+
   }
 
   if (eRet == OMX_ErrorNone) {
@@ -3498,16 +3512,6 @@ OMX_ERRORTYPE  omx_vdec::use_output_buffer(
      (*bufferHdr)->pBuffer = buffer;
      (*bufferHdr)->pAppPrivate = appData;
      BITMASK_SET(&m_out_bm_count,i);
-
-#ifdef MAX_RES_1080P
-  if(drv_ctx.decoder_format == VDEC_CODECTYPE_H264)
-  {
-    //allocate H264_mv_buffer
-    eRet = vdec_alloc_h264_mv();
-    if (eRet)
-      DEBUG_PRINT_ERROR("ERROR in allocating MV buffers\n");
-  }
-#endif
   }
   return eRet;
 }
@@ -4194,8 +4198,10 @@ OMX_ERRORTYPE  omx_vdec::allocate_output_buffer(
       {
         //Allocate the h264_mv_buffer
         eRet = vdec_alloc_h264_mv();
-        if(eRet)
+        if(eRet) {
           DEBUG_PRINT_ERROR("ERROR in allocating MV buffers\n");
+          return OMX_ErrorInsufficientResources;
+        }
       }
 #endif
     }
@@ -5115,7 +5121,7 @@ OMX_ERRORTYPE  omx_vdec::use_EGL_image(OMX_IN OMX_HANDLETYPE                hCom
 
 #ifdef USE_EGL_IMAGE_GPU
    PFNEGLQUERYIMAGEQUALCOMMPROC egl_queryfunc;
-   EGLint fd = -1, offset = 0;
+   EGLint fd = -1, offset = 0,pmemPtr = 0;
 #else
    int fd = -1, offset = 0;
 #endif
@@ -5129,17 +5135,17 @@ OMX_ERRORTYPE  omx_vdec::use_EGL_image(OMX_IN OMX_HANDLETYPE                hCom
         return OMX_ErrorInsufficientResources;
    }
    egl_queryfunc = (PFNEGLQUERYIMAGEQUALCOMMPROC)
-     eglGetProcAddress("eglQueryImageKHR");
-   egl_queryfunc(m_display_id, eglImage, EGL_BUFFER_HANDLE_QCOM,
-            &fd);
-    egl_queryfunc(m_display_id, eglImage, EGL_BUFFER_OFFSET_QCOM,
-          &offset);
+                    eglGetProcAddress("eglQueryImageKHR");
+   egl_queryfunc(m_display_id, eglImage, EGL_BUFFER_HANDLE_QCOM,&fd);
+   egl_queryfunc(m_display_id, eglImage, EGL_BUFFER_OFFSET_QCOM,&offset);
+   egl_queryfunc(m_display_id, eglImage, EGL_BITMAP_POINTER_KHR,&pmemPtr);
 #else //with OMX test app
     struct temp_egl {
         int pmem_fd;
         int offset;
     };
     struct temp_egl *temp_egl_id;
+    void * pmemPtr = (void *) eglImage;
     temp_egl_id = (struct temp_egl *)eglImage;
     fd = temp_egl_id->pmem_fd;
     offset = temp_egl_id->offset;
@@ -5157,7 +5163,7 @@ OMX_ERRORTYPE  omx_vdec::use_EGL_image(OMX_IN OMX_HANDLETYPE                hCom
    ouput_egl_buffers = true;
    if (OMX_ErrorNone != use_buffer(hComp,bufferHdr, port,
        (void *)&pmem_list, drv_ctx.op_buf.buffer_size,
-        (OMX_U8 *)eglImage)) {
+        (OMX_U8 *)pmemPtr)) {
      DEBUG_PRINT_ERROR("use buffer call failed for egl image\n");
      return OMX_ErrorInsufficientResources;
    }
