@@ -35,7 +35,7 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "omx_video_common.h"
 #include <linux/msm_vidc_enc.h>
 
-#define MAX_RECON_BUFFERS 3
+#define MAX_RECON_BUFFERS 4
 
 void* async_venc_message_thread (void *);
 
@@ -99,7 +99,7 @@ private:
   struct venc_voptimingcfg        voptimecfg;
 
   bool venc_set_profile_level(OMX_U32 eProfile,OMX_U32 eLevel);
-  bool venc_set_intra_period(OMX_U32 nPFrames);
+  bool venc_set_intra_period(OMX_U32 nPFrames, OMX_U32 nBFrames);
   bool venc_set_target_bitrate(OMX_U32 nTargetBitrate, OMX_U32 config);
   bool venc_set_ratectrl_cfg(OMX_VIDEO_CONTROLRATETYPE eControlRate);
   bool venc_set_session_qp(OMX_U32 i_frame_qp, OMX_U32 p_frame_qp);

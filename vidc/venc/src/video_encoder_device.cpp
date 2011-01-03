@@ -620,17 +620,19 @@ bool venc_dev::venc_set_param(void *paramData,OMX_INDEXTYPE index )
           DEBUG_PRINT_ERROR("\nERROR: Request for setting vop_timing failed");
           return false;
         }
-        if(!venc_set_intra_period (pParam->nPFrames))
-        {
-          DEBUG_PRINT_ERROR("\nERROR: Request for setting intra period failed");
-          return false;
-        }
-
         m_profile_set = false;
         m_level_set = false;
         if(!venc_set_profile_level (pParam->eProfile, pParam->eLevel))
         {
           DEBUG_PRINT_ERROR("\nERROR: Unsuccessful in updating Profile and level");
+          return false;
+        }
+        else
+          pParam->nBFrames = (pParam->eProfile == OMX_VIDEO_MPEG4ProfileAdvancedSimple)? 1 : 0;
+
+        if(!venc_set_intra_period (pParam->nPFrames,pParam->nBFrames))
+        {
+          DEBUG_PRINT_ERROR("\nERROR: Request for setting intra period failed");
           return false;
         }
         if(!venc_set_multislice_cfg(OMX_IndexParamVideoMpeg4,pParam->nSliceHeaderSpacing))
@@ -651,17 +653,17 @@ bool venc_dev::venc_set_param(void *paramData,OMX_INDEXTYPE index )
       DEBUG_PRINT_LOW("venc_set_param: OMX_IndexParamVideoH263\n");
       if(pParam->nPortIndex == (OMX_U32) PORT_INDEX_OUT)
       {
-        if(venc_set_intra_period (pParam->nPFrames) == false)
-        {
-          DEBUG_PRINT_ERROR("\nERROR: Request for setting intra period failed");
-          return false;
-        }
-
         m_profile_set = false;
         m_level_set = false;
         if(!venc_set_profile_level (pParam->eProfile, pParam->eLevel))
         {
           DEBUG_PRINT_ERROR("\nERROR: Unsuccessful in updating Profile and level");
+          return false;
+        }
+        pParam->nBFrames = 0;
+        if(venc_set_intra_period (pParam->nPFrames, pParam->nBFrames) == false)
+        {
+          DEBUG_PRINT_ERROR("\nERROR: Request for setting intra period failed");
           return false;
         }
       }
@@ -677,11 +679,6 @@ bool venc_dev::venc_set_param(void *paramData,OMX_INDEXTYPE index )
       OMX_VIDEO_PARAM_AVCTYPE* pParam = (OMX_VIDEO_PARAM_AVCTYPE*)paramData;
       if(pParam->nPortIndex == (OMX_U32) PORT_INDEX_OUT)
       {
-        if(!venc_set_intra_period (pParam->nPFrames))
-        {
-          DEBUG_PRINT_ERROR("\nERROR: Request for setting intra period failed");
-          return false;
-        }
         DEBUG_PRINT_LOW("pParam->eProfile :%d ,pParam->eLevel %d\n",
             pParam->eProfile,pParam->eLevel);
 
@@ -694,7 +691,14 @@ bool venc_dev::venc_set_param(void *paramData,OMX_INDEXTYPE index )
                             pParam->eProfile, pParam->eLevel);
           return false;
         }
+        else
+          pParam->nBFrames = (pParam->eProfile != OMX_VIDEO_AVCProfileBaseline)? 1 : 0;
 
+        if(!venc_set_intra_period (pParam->nPFrames, pParam->nBFrames))
+        {
+          DEBUG_PRINT_ERROR("\nERROR: Request for setting intra period failed");
+          return false;
+        }
         if(!venc_set_entropy_config (pParam->bEntropyCodingCABAC, pParam->nCabacInitIdc))
         {
           DEBUG_PRINT_ERROR("\nERROR: Request for setting Entropy failed");
@@ -861,7 +865,7 @@ bool venc_dev::venc_set_config(void *configData, OMX_INDEXTYPE index)
       (QOMX_VIDEO_INTRAPERIODTYPE *)configData;
       if(intraperiod->nPortIndex == (OMX_U32) PORT_INDEX_OUT)
       {
-        if(venc_set_intra_period(intraperiod->nPFrames) == false)
+        if(venc_set_intra_period(intraperiod->nPFrames, intraperiod->nBFrames) == false)
         {
           DEBUG_PRINT_ERROR("\nERROR: Request for setting intra period failed");
           return false;
@@ -950,12 +954,12 @@ unsigned venc_dev::venc_start(void)
   venc_config_print();
 
 #ifdef MAX_RES_1080P
-  if((codec_profile.profile != VEN_PROFILE_MPEG4_ASP) ||
-     (codec_profile.profile != VEN_PROFILE_H264_HIGH) ||
-     (codec_profile.profile != VEN_PROFILE_H264_MAIN))
-   {
-     recon_buffers_count = MAX_RECON_BUFFERS - 1;
-   }
+  if((codec_profile.profile == VEN_PROFILE_MPEG4_SP) ||
+     (codec_profile.profile == VEN_PROFILE_H264_BASELINE) ||
+     (codec_profile.profile == VEN_PROFILE_H263_BASELINE))
+    recon_buffers_count = MAX_RECON_BUFFERS - 2;
+  else
+    recon_buffers_count = MAX_RECON_BUFFERS;
 
   if (!venc_allocate_recon_buffers())
     return ioctl(m_nDriver_fd, VEN_IOCTL_CMD_START, NULL);
@@ -1662,7 +1666,7 @@ bool venc_dev::venc_set_voptiming_cfg( OMX_U32 TimeIncRes)
   return true;
 }
 
-bool venc_dev::venc_set_intra_period(OMX_U32 nPFrames)
+bool venc_dev::venc_set_intra_period(OMX_U32 nPFrames, OMX_U32 nBFrames)
 {
   venc_ioctl_msg ioctl_msg = {NULL,NULL};
   struct venc_intraperiod intraperiod_cfg;
@@ -1670,6 +1674,27 @@ bool venc_dev::venc_set_intra_period(OMX_U32 nPFrames)
   DEBUG_PRINT_LOW("\n venc_set_intra_period: nPFrames = %u",
     nPFrames);
   intraperiod_cfg.num_pframes = nPFrames;
+  if((codec_profile.profile == VEN_PROFILE_MPEG4_ASP) ||
+     (codec_profile.profile == VEN_PROFILE_H264_MAIN) ||
+     (codec_profile.profile == VEN_PROFILE_H264_HIGH))
+  {
+    if(nBFrames == 1)
+    {
+      intraperiod_cfg.num_bframes = nBFrames;
+    }
+    else if (nBFrames > 1)
+    {
+      DEBUG_PRINT_ERROR("WARNING: Invalid number of B frames set (%d) defaulting to 1",nBFrames);
+      intraperiod_cfg.num_bframes = 1;
+    }
+    else
+      intraperiod_cfg.num_bframes = 0;
+  }
+  else
+    intraperiod_cfg.num_bframes = 0;
+
+  DEBUG_PRINT_ERROR("\n venc_set_intra_period: nPFrames = %u nBFrames = %u",
+                    nPFrames, nBFrames);
   ioctl_msg.in = (void*)&intraperiod_cfg;
   ioctl_msg.out = NULL;
   if(ioctl (m_nDriver_fd,VEN_IOCTL_SET_INTRA_PERIOD,(void*)&ioctl_msg)< 0)
@@ -1678,7 +1703,8 @@ bool venc_dev::venc_set_intra_period(OMX_U32 nPFrames)
     return false;
   }
 
-  intra_period.num_pframes = nPFrames;
+  intra_period.num_pframes = intraperiod_cfg.num_pframes;
+  intra_period.num_bframes = intraperiod_cfg.num_bframes;
   return true;
 }
 

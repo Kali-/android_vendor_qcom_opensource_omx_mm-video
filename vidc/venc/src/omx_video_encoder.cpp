@@ -577,21 +577,22 @@ OMX_ERRORTYPE  omx_venc::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
     {
       OMX_VIDEO_PARAM_MPEG4TYPE* pParam = (OMX_VIDEO_PARAM_MPEG4TYPE*)paramData;
       DEBUG_PRINT_LOW("set_parameter: OMX_IndexParamVideoMpeg4");
+      if(m_sParamMPEG4.eProfile == OMX_VIDEO_MPEG4ProfileAdvancedSimple)
+      {
+        if(pParam->nBFrames > 1)
+        {
+          DEBUG_PRINT_ERROR("WARNING: BFrames was set to %d,  defaulting to 1", pParam->nBFrames);
+        }
+        pParam->nBFrames = 1;
+      }
+      else
+        pParam->nBFrames = 0;
+
       if(handle->venc_set_param(paramData,OMX_IndexParamVideoMpeg4) != true)
       {
         return OMX_ErrorUnsupportedSetting;
       }
-      //.. more than one variable storing the npframes,profile,level details
-      m_sParamMPEG4.nPFrames = pParam->nPFrames;
-      m_sParamMPEG4.eProfile = pParam->eProfile;
-      m_sParamMPEG4.eLevel = pParam->eLevel;
-      m_sParamMPEG4.bACPred = pParam->bACPred;
-      m_sParamMPEG4.nTimeIncRes = pParam->nTimeIncRes;
-      m_sParamMPEG4.bReversibleVLC = pParam->bReversibleVLC;
-      m_sParamMPEG4.nSliceHeaderSpacing = pParam->nSliceHeaderSpacing;
-
-      m_sParamProfileLevel.eProfile = pParam->eProfile;
-      m_sParamProfileLevel.eLevel = pParam->eLevel;
+      memcpy(&m_sParamMPEG4,pParam, sizeof(struct OMX_VIDEO_PARAM_MPEG4TYPE));
       break;
     }
   case OMX_IndexParamVideoH263:
@@ -602,39 +603,35 @@ OMX_ERRORTYPE  omx_venc::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
       {
         return OMX_ErrorUnsupportedSetting;
       }
-      //.. more than one variable storing the npframes,profile,level details
-      m_sParamH263.nPFrames = pParam->nPFrames;
-      m_sParamH263.eProfile = pParam->eProfile;
-      m_sParamH263.eLevel = pParam->eLevel;
-
-      m_sParamProfileLevel.eProfile = pParam->eProfile;
-      m_sParamProfileLevel.eLevel = pParam->eLevel;
+      memcpy(&m_sParamH263,pParam, sizeof(struct OMX_VIDEO_PARAM_H263TYPE));
       break;
     }
   case OMX_IndexParamVideoAvc:
     {
       OMX_VIDEO_PARAM_AVCTYPE* pParam = (OMX_VIDEO_PARAM_AVCTYPE*)paramData;
       DEBUG_PRINT_LOW("set_parameter: OMX_IndexParamVideoAvc");
-      if(pParam->nRefFrames != 1)
+
+      if((m_sParamAVC.eProfile == OMX_VIDEO_AVCProfileHigh)||
+         (m_sParamAVC.eProfile == OMX_VIDEO_AVCProfileMain))
+      {
+        if(pParam->nBFrames > 1)
+        {
+          DEBUG_PRINT_ERROR("WARNING: BFrames was set (%d)  defaulting to 1", pParam->nBFrames);
+        }
+        pParam->nBFrames = 1;
+        pParam->nRefFrames = 2;
+      }
+      else
       {
         pParam->nRefFrames = 1;
-        DEBUG_PRINT_ERROR("\nInvalid number of Reference Frame Set, defaulting to 1");
+        pParam->nBFrames = 0;
       }
+
       if(handle->venc_set_param(paramData,OMX_IndexParamVideoAvc) != true)
       {
         return OMX_ErrorUnsupportedSetting;
       }
-      //.. more than one variable storing the npframes,profile,level details
-      m_sParamAVC.nPFrames = pParam->nPFrames;
-      m_sParamAVC.eProfile = pParam->eProfile;
-      m_sParamAVC.eLevel = pParam->eLevel;
-      m_sParamAVC.bEntropyCodingCABAC = pParam->bEntropyCodingCABAC;
-      m_sParamAVC.nCabacInitIdc = pParam->nCabacInitIdc;
-      m_sParamAVC.eLoopFilterMode = pParam->eLoopFilterMode;
-      m_sParamAVC.nRefFrames = pParam->nRefFrames;
-
-      m_sParamProfileLevel.eProfile = pParam->eProfile;
-      m_sParamProfileLevel.eLevel = pParam->eLevel;
+      memcpy(&m_sParamAVC,pParam, sizeof(struct OMX_VIDEO_PARAM_AVCTYPE));
       break;
     }
   case OMX_IndexParamVideoProfileLevelCurrent:
@@ -1005,11 +1002,16 @@ OMX_ERRORTYPE  omx_venc::set_config(OMX_IN OMX_HANDLETYPE      hComp,
           return OMX_ErrorUnsupportedSetting;
         }
         m_sIntraperiod.nPFrames = pParam->nPFrames;
+        m_sIntraperiod.nBFrames = pParam->nBFrames;
         m_sIntraperiod.nIDRPeriod = pParam->nIDRPeriod;
 
         if(m_sOutPortFormat.eCompressionFormat == OMX_VIDEO_CodingMPEG4)
         {
           m_sParamMPEG4.nPFrames = pParam->nPFrames;
+          if(m_sParamMPEG4.eProfile != OMX_VIDEO_MPEG4ProfileSimple)
+            m_sParamMPEG4.nBFrames = pParam->nBFrames;
+          else
+            m_sParamMPEG4.nBFrames = 0;
         }
         else if(m_sOutPortFormat.eCompressionFormat == OMX_VIDEO_CodingH263)
         {
@@ -1018,6 +1020,10 @@ OMX_ERRORTYPE  omx_venc::set_config(OMX_IN OMX_HANDLETYPE      hComp,
         else
         {
           m_sParamAVC.nPFrames = pParam->nPFrames;
+          if(m_sParamAVC.eProfile != OMX_VIDEO_AVCProfileBaseline)
+            m_sParamAVC.nBFrames = pParam->nBFrames;
+          else
+            m_sParamAVC.nBFrames = 0;
         }
       }
       else
