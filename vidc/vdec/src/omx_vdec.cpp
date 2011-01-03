@@ -7148,7 +7148,7 @@ void omx_vdec::vdec_dealloc_h264_mv()
 {
     if(h264_mv_buff.pmem_fd > 0)
     {
-      if(!ioctl(drv_ctx.video_driver_fd, VDEC_IOCTL_FREE_H264_MV_BUFFER,NULL))
+      if(ioctl(drv_ctx.video_driver_fd, VDEC_IOCTL_FREE_H264_MV_BUFFER,NULL) < 0)
         DEBUG_PRINT_ERROR("VDEC_IOCTL_FREE_H264_MV_BUFFER failed");
       munmap(h264_mv_buff.buffer, h264_mv_buff.size);
       close(h264_mv_buff.pmem_fd);

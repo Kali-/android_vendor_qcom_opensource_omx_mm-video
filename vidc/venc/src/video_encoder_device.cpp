@@ -1020,7 +1020,10 @@ OMX_U32 venc_dev::pmem_allocate(OMX_U32 size, OMX_U32 alignment, OMX_U32 count)
   pmem_fd = open(PMEM_DEVICE, O_RDWR);
 
   if ((int)(pmem_fd) < 0)
-      return -1;
+  {
+	DEBUG_PRINT_ERROR("\n Failed to get an pmem handle");
+	return -1;
+  }
 
   allocation.size = size;
   allocation.align = clip2(alignment);
@@ -1079,7 +1082,7 @@ OMX_U32 venc_dev::pmem_free()
   {
     if(recon_buff[cnt].pmem_fd)
     {
-      if(!ioctl(m_nDriver_fd, VEN_IOCTL_FREE_RECON_BUFFER ,NULL))
+      if(ioctl(m_nDriver_fd, VEN_IOCTL_FREE_RECON_BUFFER ,NULL) < 0)
         DEBUG_PRINT_ERROR("VEN_IOCTL_FREE_RECON_BUFFER failed");
       munmap(recon_buff[cnt].virtual_address, recon_buff[cnt].size);
       close(recon_buff[cnt].pmem_fd);
