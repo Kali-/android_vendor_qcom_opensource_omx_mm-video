@@ -267,6 +267,23 @@ enum ResyncMarkerType
    RESYNC_MARKER_GOB       ///< GOB resync marker for H.263
 };
 
+union DynamicConfigData
+{
+   OMX_VIDEO_CONFIG_BITRATETYPE bitrate;
+   OMX_CONFIG_FRAMERATETYPE framerate;
+   QOMX_VIDEO_INTRAPERIODTYPE intraperiod;
+   OMX_CONFIG_INTRAREFRESHVOPTYPE intravoprefresh;
+   OMX_CONFIG_ROTATIONTYPE rotation;
+   float f_framerate;
+};
+
+struct DynamicConfig
+{
+   bool pending;
+   unsigned frame_num;
+   OMX_INDEXTYPE config_param;
+   union DynamicConfigData config_data;
+};
 //////////////////////////
 // MODULE VARS
 //////////////////////////
@@ -292,10 +309,9 @@ static int m_nTimeStamp = 0;
 static int m_nFrameIn = 0; // frames pushed to encoder
 static int m_nFrameOut = 0; // frames returned by encoder
 static int m_nAVCSliceMode = 0;
-FILE *m_pConfigFile;
-char m_configFilename [128] = "/data/configFile.cfg";
-
 static bool m_bWatchDogKicked = false;
+FILE  *m_pDynConfFile = NULL;
+static struct DynamicConfig dynamic_config;
 
 /* Statistics Logging */
 static long long tot_bufsize = 0;
@@ -824,12 +840,12 @@ result = OMX_SetParameter(m_hHandle,
             }
          }
       }
-
-//////////////////////OMX_VIDEO_PARAM_INTRAREFRESHTYPE///////////////////
 #endif
 #if 1
 ///////////////////FRAMEPACKING DATA///////////////////
       OMX_QCOM_FRAME_PACK_ARRANGEMENT framePackingArrangement;
+      FILE *m_pConfigFile;
+      char m_configFilename [128] = "/data/configFile.cfg";
       memset(&framePackingArrangement, 0, sizeof(framePackingArrangement));
       m_pConfigFile = fopen(m_configFilename, "r");
       if (m_pConfigFile != NULL)
@@ -1228,6 +1244,112 @@ OMX_ERRORTYPE VencTest_Exit(void)
    return result;
 }
 ////////////////////////////////////////////////////////////////////////////////
+
+void VencTest_ReadDynamicConfigMsg()
+{
+  char frame_n[8], config[16], param[8];
+  char *dest = frame_n;
+  bool end = false;
+  int cntr, nparam = 0;
+  memset(&dynamic_config, 0, sizeof(struct DynamicConfig));
+  do
+  {
+    cntr = -1;
+    do
+    {
+      dest[++cntr] = fgetc(m_pDynConfFile);
+    } while(dest[cntr] != ' ' && dest[cntr] != '\t' && dest[cntr] != '\n' && dest[cntr] != '\r' && !feof(m_pDynConfFile));
+    if (dest[cntr] == '\n' || dest[cntr] == '\r')
+      end = true;
+    dest[cntr] = NULL;
+    if (dest == frame_n)
+      dest = config;
+    else if (dest == config)
+      dest = param;
+    else
+      end = true;
+    nparam++;
+  } while (!end && !feof(m_pDynConfFile));
+
+  if (nparam > 1)
+  {
+    dynamic_config.pending = true;
+    dynamic_config.frame_num = atoi(frame_n);
+    if (!strcmp(config, "bitrate"))
+    {
+      dynamic_config.config_param = OMX_IndexConfigVideoBitrate;
+      dynamic_config.config_data.bitrate.nPortIndex = PORT_INDEX_OUT;
+      dynamic_config.config_data.bitrate.nEncodeBitrate = strtoul(param, NULL, 10);
+    }
+    else if (!strcmp(config, "framerate"))
+    {
+      dynamic_config.config_param = OMX_IndexConfigVideoFramerate;
+      dynamic_config.config_data.framerate.nPortIndex = PORT_INDEX_OUT;
+      dynamic_config.config_data.f_framerate = atof(param);
+    }
+    else if (!strcmp(config, "iperiod"))
+    {
+      dynamic_config.config_param = (OMX_INDEXTYPE)QOMX_IndexConfigVideoIntraperiod;
+      dynamic_config.config_data.intraperiod.nPortIndex = PORT_INDEX_OUT;
+      dynamic_config.config_data.intraperiod.nPFrames = strtoul(param, NULL, 10) - 1;
+      dynamic_config.config_data.intraperiod.nIDRPeriod = 1; // This value is ignored in OMX component
+    }
+    else if (!strcmp(config, "ivoprefresh"))
+    {
+      dynamic_config.config_param = OMX_IndexConfigVideoIntraVOPRefresh;
+      dynamic_config.config_data.intravoprefresh.nPortIndex = PORT_INDEX_OUT;
+      dynamic_config.config_data.intravoprefresh.IntraRefreshVOP = OMX_TRUE;
+    }
+    else if (!strcmp(config, "rotation"))
+    {
+      dynamic_config.config_param = OMX_IndexConfigCommonRotate;
+      dynamic_config.config_data.rotation.nPortIndex = PORT_INDEX_OUT;
+      dynamic_config.config_data.rotation.nRotation = strtoul(param, NULL, 10);
+    }
+    else
+    {
+      E("UNKNOWN CONFIG PARAMETER: %s!", config);
+      dynamic_config.pending = false;
+    }
+  }
+  else if (feof(m_pDynConfFile))
+  {
+    fclose(m_pDynConfFile);
+    m_pDynConfFile = NULL;
+  }
+}
+
+void VencTest_ProcessDynamicConfigurationFile()
+{
+  do
+  {
+    if (dynamic_config.pending)
+    {
+      if(m_nFrameIn == dynamic_config.frame_num)
+      {
+        if (dynamic_config.config_param == OMX_IndexConfigVideoFramerate)
+        {
+          m_sProfile.nFramerate = dynamic_config.config_data.f_framerate;
+          FractionToQ16(dynamic_config.config_data.framerate.xEncodeFramerate,
+                        (int)(m_sProfile.nFramerate * 2), 2);
+        }
+        if (OMX_SetConfig(m_hHandle, dynamic_config.config_param,
+            &dynamic_config.config_data) != OMX_ErrorNone)
+          E("ERROR: Setting dynamic config to OMX param[0x%x]", dynamic_config.config_param);
+        dynamic_config.pending = false;
+      }
+      else if (m_nFrameIn > dynamic_config.frame_num)
+      {
+        E("WARNING: Config change requested in passed frame(%d)", dynamic_config.frame_num);
+        dynamic_config.pending = false;
+      }
+    }
+    if (!dynamic_config.pending)
+      VencTest_ReadDynamicConfigMsg();
+  } while (!dynamic_config.pending && m_pDynConfFile);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 OMX_ERRORTYPE VencTest_ReadAndEmpty(OMX_BUFFERHEADERTYPE* pYUVBuffer)
 {
    OMX_ERRORTYPE result = OMX_ErrorNone;
@@ -1274,6 +1396,8 @@ OMX_ERRORTYPE VencTest_ReadAndEmpty(OMX_BUFFERHEADERTYPE* pYUVBuffer)
 
    }
 #endif
+   if (m_pDynConfFile)
+     VencTest_ProcessDynamicConfigurationFile();
    D("about to call VencTest_EncodeFrame...");
    pthread_mutex_lock(&m_mutex);
    ++m_nFrameIn;
@@ -1369,7 +1493,7 @@ void usage(char* filename)
 
    fprintf(stderr, "usage: %s LIVE <QCIF|QVGA> <MP4|H263> <FPS> <BITRATE> <NFRAMES> <OUTFILE>\n", fname);
    fprintf(stderr, "usage: %s FILE <QCIF|QVGA> <MP4|H263 <FPS> <BITRATE> <NFRAMES> <INFILE> <OUTFILE> ", fname);
-   fprintf(stderr, "<Rate Control - optional> <AVC Slice Mode - optional\n", fname);
+   fprintf(stderr, "<Dynamic config file - opt> <Rate Control - opt> <AVC Slice Mode - opt>\n", fname);
    fprintf(stderr, "usage: %s PROFILE <QCIF|QVGA> <MP4|H263 <FPS> <BITRATE> <NFRAMES> <INFILE>\n", fname);
    fprintf(stderr, "usage: %s PREVIEW <QCIF|QVGA> <FPS> <NFRAMES>\n", fname);
    fprintf(stderr, "usage: %s DISPLAY <QCIF|QVGA> <FPS> <NFRAMES> <INFILE>\n", fname);
@@ -1424,7 +1548,7 @@ bool parseWxH(char *str, OMX_U32 *width, OMX_U32 *height)
 ////////////////////////////////////////////////////////////////////////////////
 void parseArgs(int argc, char** argv)
 {
-
+   int dyn_file_arg = argc;
    if (argc == 1)
    {
       usage(argv[0]);
@@ -1465,16 +1589,19 @@ void parseArgs(int argc, char** argv)
    {//263
       m_eMode = MODE_FILE_ENCODE;
 
-      if(argc < 9 || argc > 12)
+      if(argc < 9 || argc > 13)
       {
           usage(argv[0]);
       }
       else
       {
          if (argc > 9)
+            dyn_file_arg = 9;
+
+         if (argc > 10)
          {
            m_sProfile.eControlRate = OMX_Video_ControlRateVariable;
-            int RC = atoi(argv[9]);
+            int RC = atoi(argv[10]);
 
             switch (RC)
             {
@@ -1504,14 +1631,14 @@ void parseArgs(int argc, char** argv)
             }
          }
 
-         if (argc > 10)
+         if (argc > 11)
          {
-            int profile_argi = 10;
+            int profile_argi = 11;
             if(!strcmp(argv[3], "H264") || !strcmp(argv[3], "h264"))
             {
-               profile_argi = 11;
+               profile_argi = 12;
                D("\nSetting AVCSliceMode ... ");
-               int AVCSliceMode = atoi(argv[10]);
+               int AVCSliceMode = atoi(argv[11]);
                switch(AVCSliceMode)
                {
                case 0:
@@ -1647,7 +1774,7 @@ void parseArgs(int argc, char** argv)
    else if (m_eMode == MODE_LIVE_ENCODE ||
             m_eMode == MODE_FILE_ENCODE ||
             m_eMode == MODE_PROFILE)
-   {//263
+   {
       if ((!strcmp(argv[3], "MP4")) || (!strcmp(argv[3], "mp4")))
       {
          m_sProfile.eCodec = OMX_VIDEO_CodingMPEG4;
@@ -1669,6 +1796,16 @@ void parseArgs(int argc, char** argv)
       m_sProfile.nBitrate = atoi(argv[5]);
 //      m_sProfile.eControlRate = OMX_Video_ControlRateVariable;
       m_nFramePlay = atoi(argv[6]);
+      if (dyn_file_arg < argc)
+      {
+        m_pDynConfFile = fopen(argv[dyn_file_arg], "r");
+        if (!m_pDynConfFile)
+          E("ERROR: Cannot open dynamic config file: %s", argv[dyn_file_arg]);
+        else
+        {
+          memset(&dynamic_config, 0, sizeof(struct DynamicConfig));
+        }
+      }
    }
 }
 
@@ -2059,6 +2196,11 @@ int main(int argc, char** argv)
       if (m_eMode == MODE_FILE_ENCODE)
       {
          close(m_nOutFd);
+      }
+      if (m_pDynConfFile)
+      {
+        fclose(m_pDynConfFile);
+        m_pDynConfFile = NULL;
       }
    }
 
