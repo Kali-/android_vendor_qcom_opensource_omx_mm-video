@@ -2441,6 +2441,9 @@ static int Read_Buffer_From_Size_Nal(OMX_BUFFERHEADERTYPE  *pBufHdr)
       DEBUG_PRINT_ERROR("Failed to read frame\n");
     }
 
+    pBufHdr->nTimeStamp = timeStampLfile;
+    timeStampLfile += timestampInterval;
+
     return bytes_read + nalSize;
 }
 

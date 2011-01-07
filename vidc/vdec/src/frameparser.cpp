@@ -531,6 +531,9 @@ int frame_parse::parse_h264_nallength (OMX_BUFFERHEADERTYPE *source,
    psource = source->pBuffer + source->nOffset;
    pdest = dest->pBuffer + (dest->nFilledLen + dest->nOffset);
 
+   dest->nTimeStamp = source->nTimeStamp;
+   dest->nFlags = source->nFlags;
+
    /*Already in Parsing state go ahead and copy*/
    if(state_nal == NAL_PARSING && temp_len > 0)
    {
