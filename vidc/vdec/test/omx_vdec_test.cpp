@@ -1735,7 +1735,7 @@ int Play_Decoder()
     OMX_GetParameter(dec_handle,OMX_IndexParamPortDefinition, &portFmt);
     DEBUG_PRINT("\nDec: New Min Buffer Count %d", portFmt.nBufferCountMin);
     CONFIG_VERSION_SIZE(videoportFmt);
-
+#ifdef MAX_RES_720P
     if(color_fmt_type == 0)
     {
         color_fmt = OMX_COLOR_FormatYUV420SemiPlanar;
@@ -1745,6 +1745,10 @@ int Play_Decoder()
         color_fmt = (OMX_COLOR_FORMATTYPE)
            QOMX_COLOR_FormatYUV420PackedSemiPlanar64x32Tile2m8ka;
     }
+#else
+       color_fmt = (OMX_COLOR_FORMATTYPE)
+           QOMX_COLOR_FormatYUV420PackedSemiPlanar64x32Tile2m8ka;
+#endif
 
     while (ret == OMX_ErrorNone)
     {
@@ -2953,6 +2957,7 @@ int overlay_fb(struct OMX_BUFFERHEADERTYPE *pBufHdr)
 {
     OMX_QCOM_PLATFORM_PRIVATE_PMEM_INFO *pPMEMInfo = NULL;
     struct msmfb_overlay_data ov_front;
+    memset(&ov_front, 0, sizeof(struct msmfb_overlay_data));
 #ifdef _ANDROID_ && !USE_EGL_IMAGE_TEST_APP
     MemoryHeapBase *vheap = NULL;
 #endif
