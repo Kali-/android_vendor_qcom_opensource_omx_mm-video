@@ -244,7 +244,7 @@ int sliceheight = 0, stride = 0;
 int used_ip_buf_cnt = 0;
 unsigned free_op_buf_cnt = 0;
 volatile int event_is_done = 0;
-int ebd_cnt, fbd_cnt;
+int ebd_cnt= 0, fbd_cnt = 0;
 int bInputEosReached = 0;
 int bOutputEosReached = 0;
 char in_filename[512];
@@ -264,6 +264,7 @@ int nalSize = 0;
 int sent_disabled = 0;
 int waitForPortSettingsChanged = 1;
 test_status currentStatus = GOOD_STATE;
+struct timeval t_start = {0, 0}, t_end = {0, 0};
 
 //* OMX Spec Version supported by the wrappers. Version = 1.1 */
 const OMX_U32 CURRENT_OMX_SPEC_VERSION = 0x00000101;
@@ -577,6 +578,7 @@ void* fbd_thread(void* pArg)
 {
   long unsigned act_time = 0, display_time = 0, render_time = 5e3, lipsync = 15e3;
   struct timeval t_avsync = {0, 0}, base_avsync = {0, 0};
+  float total_time = 0;
   int canDisplay = 1, contigous_drop_frame = 0, bytes_written = 0, ret = 0;
   OMX_S64 base_timestamp = 0, lastTimestamp = 0;
   OMX_BUFFERHEADERTYPE *pBuffer = NULL;
@@ -615,6 +617,10 @@ void* fbd_thread(void* pArg)
     }
     else if (pBuffer->nFilledLen > 0)
     {
+        if (!fbd_cnt)
+        {
+            gettimeofday(&t_start, NULL);
+        }
       fbd_cnt++;
 #ifdef TEST_TS_FROM_SEI
       LOGE("%s: fbd_cnt(%d) Buf(%p) Timestamp(%lld)",
@@ -763,6 +769,14 @@ void* fbd_thread(void* pArg)
                    (OMX_INDEXTYPE)OMX_QcomIndexConfigVideoFramePackingArrangement,
                     &framePackingArrangement);
       PrintFramePackArrangement(framePackingArrangement);
+
+      gettimeofday(&t_end, NULL);
+      total_time = ((float) ((t_end.tv_sec - t_start.tv_sec) * 1e6
+                     + t_end.tv_usec - t_start.tv_usec))/ 1e6;
+      //total frames is fbd_cnt - 1 since the start time is
+      //recorded after the first frame is decoded.
+      printf("\nAvg decoding frame rate=%f\n", (fbd_cnt - 1)/total_time);
+
       DEBUG_PRINT("***************************************************\n");
       DEBUG_PRINT("FillBufferDone: End Of Stream Reached\n");
       DEBUG_PRINT("***************************************************\n");
