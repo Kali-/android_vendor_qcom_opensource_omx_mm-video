@@ -58,6 +58,11 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #undef USE_EGL_IMAGE_GPU
 #endif
 
+
+#ifdef _ANDROID_
+#include "DivXDrmDecrypt.h"
+#endif //_ANDROID_
+
 #ifdef USE_EGL_IMAGE_GPU
 #include <EGL/egl.h>
 #include <EGL/eglQCOM.h>
@@ -430,6 +435,9 @@ omx_vdec::omx_vdec(): m_state(OMX_StateInvalid),
                       m_use_output_pmem(OMX_FALSE),
                       m_out_mem_region_smi(OMX_FALSE),
                       m_out_pvt_entry_pmem(OMX_FALSE)
+#ifdef _ANDROID_
+                      ,iDivXDrmDecrypt(NULL)
+#endif
 {
   /* Assumption is that , to begin with , we have all the frames with decoder */
   DEBUG_PRINT_HIGH("In OMX vdec Constructor");
@@ -1053,6 +1061,13 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
      eCompressionFormat = (OMX_VIDEO_CODINGTYPE)QOMX_VIDEO_CodingDivx;
      codec_type_parse = CODEC_TYPE_DIVX;
      m_frame_parser.init_start_codes (codec_type_parse);
+
+#ifdef _ANDROID_
+     OMX_ERRORTYPE err = createDivxDrmContext();
+     if( err != OMX_ErrorNone ) {
+         return err;
+     }
+#endif //_ANDROID_
   }
 #ifdef MAX_RES_1080P
   else if(!strncmp(drv_ctx.kind, "OMX.qcom.video.decoder.divx311",\
@@ -1064,6 +1079,13 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
      eCompressionFormat = (OMX_VIDEO_CODINGTYPE)QOMX_VIDEO_CodingDivx;
      codec_type_parse = CODEC_TYPE_DIVX;
      m_frame_parser.init_start_codes (codec_type_parse);
+
+#ifdef _ANDROID_
+     OMX_ERRORTYPE err = createDivxDrmContext();
+     if( err != OMX_ErrorNone ) {
+         return err;
+     }
+#endif //_ANDROID_
   }
 #endif
   else if(!strncmp(drv_ctx.kind, "OMX.qcom.video.decoder.avc",\
@@ -4632,6 +4654,17 @@ OMX_ERRORTYPE  omx_vdec::empty_this_buffer(OMX_IN OMX_HANDLETYPE         hComp,
     return OMX_ErrorBadPortIndex;
   }
 
+#ifdef _ANDROID_
+  if(iDivXDrmDecrypt)
+  {
+    OMX_ERRORTYPE drmErr = iDivXDrmDecrypt->Decrypt(buffer);
+    if(drmErr != OMX_ErrorNone) {
+        // this error can be ignored
+        DEBUG_PRINT_LOW("\nERROR:iDivXDrmDecrypt->Decrypt %d", drmErr);
+    }
+  }
+#endif //_ANDROID_
+
   if (arbitrary_bytes)
   {
     nBufferIndex = buffer - m_inp_heap_ptr;
@@ -5039,6 +5072,14 @@ RETURN VALUE
 ========================================================================== */
 OMX_ERRORTYPE  omx_vdec::component_deinit(OMX_IN OMX_HANDLETYPE hComp)
 {
+#ifdef _ANDROID_
+    if(iDivXDrmDecrypt)
+    {
+        delete iDivXDrmDecrypt;
+        iDivXDrmDecrypt=NULL;
+    }
+#endif //_ANDROID_
+
     int i = 0;
     if (OMX_StateLoaded != m_state)
     {
@@ -7235,3 +7276,26 @@ void omx_vdec::vdec_dealloc_h264_mv()
 }
 
 #endif
+
+#ifdef _ANDROID_
+OMX_ERRORTYPE omx_vdec::createDivxDrmContext()
+{
+     OMX_ERRORTYPE err = OMX_ErrorNone;
+     iDivXDrmDecrypt = DivXDrmDecrypt::Create();
+     if (iDivXDrmDecrypt) {
+          DEBUG_PRINT_LOW("\nCreated DIVX DRM, now calling Init");
+          OMX_ERRORTYPE err = iDivXDrmDecrypt->Init();
+          if(err!=OMX_ErrorNone) {
+            DEBUG_PRINT_ERROR("\nERROR:iDivXDrmDecrypt->Init %d", err);
+            delete iDivXDrmDecrypt;
+            iDivXDrmDecrypt = NULL;
+          }
+     }
+     else {
+          DEBUG_PRINT_ERROR("\nUnable to Create DIVX DRM");
+          err = OMX_ErrorUndefined;
+     }
+     return err;
+}
+#endif //_ANDROID_
+

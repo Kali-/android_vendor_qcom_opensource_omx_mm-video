@@ -1,5 +1,5 @@
 #--------------------------------------------------------------------------
-#Copyright (c) 2010, Code Aurora Forum. All rights reserved.
+#Copyright (c) 2010-2011, Code Aurora Forum. All rights reserved.
 
 #Redistribution and use in source and binary forms, with or without
 #modification, are permitted provided that the following conditions are met:
@@ -69,11 +69,15 @@ libmm-vdec-inc          += $(OMX_VIDEO_PATH)/vidc/common/inc
 
 libmm-vdec-inc	        += $(TARGET_OUT_HEADERS)/mm-core/omxcore
 
+#DRM include - Interface which loads the DRM library
+libmm-vdec-inc	        += $(OMX_VIDEO_PATH)/DivxDrmDecrypt/inc
+
 LOCAL_MODULE		:= libOmxVdec
 LOCAL_CFLAGS		:= $(libOmxVdec-def)
 LOCAL_C_INCLUDES	:= $(libmm-vdec-inc)
 LOCAL_PRELINK_MODULE	:= false
 LOCAL_SHARED_LIBRARIES	:= liblog libutils libbinder libcutils
+LOCAL_SHARED_LIBRARIES  += libdivxdrmdecrypt
 
 LOCAL_SRC_FILES         := src/frameparser.cpp
 LOCAL_SRC_FILES         += src/h264_utils.cpp
