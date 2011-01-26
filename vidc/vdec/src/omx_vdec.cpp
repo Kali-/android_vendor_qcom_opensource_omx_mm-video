@@ -49,7 +49,7 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <limits.h>
 
 #ifndef _ANDROID_
-#include <stropts.h>
+#include <sys/ioctl.h>
 #include <sys/mman.h>
 #endif //_ANDROID_
 
