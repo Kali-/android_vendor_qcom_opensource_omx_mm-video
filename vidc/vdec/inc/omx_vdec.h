@@ -517,7 +517,7 @@ private:
     OMX_ERRORTYPE enable_extradata(OMX_U32 requested_extradata, bool enable = true);
     void append_interlace_extradata(OMX_OTHER_EXTRADATATYPE *extra);
     void append_frame_info_extradata(OMX_OTHER_EXTRADATATYPE *extra,
-         OMX_U32 num_conceal_mb, OMX_U32 picture_type);
+         OMX_U32 num_conceal_mb, OMX_U32 picture_type, OMX_S64 timestamp);
     void append_terminator_extradata(OMX_OTHER_EXTRADATATYPE *extra);
     OMX_U32 count_MB_in_extradata(OMX_OTHER_EXTRADATATYPE *extra);
 
