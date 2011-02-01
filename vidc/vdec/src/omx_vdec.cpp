@@ -2977,7 +2977,6 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
                     paramIndex);
               break;
           }
-#ifdef MAX_RES_720P
       case OMX_QcomIndexParamVideoDecoderPictureOrder:
           {
               QOMX_VIDEO_DECODER_PICTURE_ORDER *pictureOrder =
@@ -3005,7 +3004,6 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
               }
               break;
           }
-#endif
     case OMX_QcomIndexParamConcealMBMapExtraData:
       eRet = enable_extradata(VDEC_EXTRADATA_MB_ERROR_MAP,
                               ((QOMX_ENABLETYPE *)paramData)->bEnable);

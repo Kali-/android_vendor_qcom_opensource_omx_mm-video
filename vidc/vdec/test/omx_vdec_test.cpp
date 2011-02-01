@@ -1857,17 +1857,15 @@ int Play_Decoder()
         DEBUG_PRINT_ERROR("\n Error in retrieving supported color formats");
         return -1;
     }
-#ifdef MAX_RES_720P
     picture_order.nPortIndex = 1;
     DEBUG_PRINT("\nSet picture order\n");
     if(OMX_SetParameter(dec_handle,
 	   (OMX_INDEXTYPE)OMX_QcomIndexParamVideoDecoderPictureOrder,
        (OMX_PTR)&picture_order) != OMX_ErrorNone)
     {
-        DEBUG_PRINT_ERROR("\n ERROR: Setting picture order!");
+        printf("\n ERROR: Setting picture order!");
         return -1;
     }
-#endif
     DEBUG_PRINT("\nVideo format: W x H (%d x %d)",
       portFmt.format.video.nFrameWidth,
       portFmt.format.video.nFrameHeight);
