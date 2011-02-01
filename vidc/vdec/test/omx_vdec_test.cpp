@@ -53,8 +53,8 @@ extern "C"{
 #include<utils/Log.h>
 }
 #define LOG_TAG "OMX-VDEC-TEST"
-#define DEBUG_PRINT
-#define DEBUG_PRINT_ERROR
+#define DEBUG_PRINT 
+#define DEBUG_PRINT_ERROR LOGE
 
 //#define __DEBUG_DIVX__ // Define this macro to print (through logcat)
                          // the kind of frames packed per buffer and
@@ -112,6 +112,8 @@ static int previous_vc1_au = 0;
 #ifdef MAX_RES_1080P
 #define PMEM_DEVICE "/dev/pmem_smipool"
 #endif
+
+//#define USE_EXTERN_PMEM_BUF
 
 /************************************************************************/
 /*              GLOBAL DECLARATIONS                     */
@@ -270,9 +272,16 @@ OMX_COMPONENTTYPE* dec_handle = 0;
 OMX_BUFFERHEADERTYPE  **pInputBufHdrs = NULL;
 OMX_BUFFERHEADERTYPE  **pOutYUVBufHdrs= NULL;
 
+static OMX_BOOL use_external_pmem_buf = OMX_FALSE;
+
 int rcv_v1=0;
 static struct temp_egl **p_eglHeaders = NULL;
-static unsigned egl_virt_addr[32];
+static unsigned use_buf_virt_addr[32];
+
+OMX_QCOM_PLATFORM_PRIVATE_LIST      *pPlatformList = NULL;
+OMX_QCOM_PLATFORM_PRIVATE_ENTRY     *pPlatformEntry = NULL;
+OMX_QCOM_PLATFORM_PRIVATE_PMEM_INFO *pPMEMInfo = NULL;
+
 /* Performance related variable*/
 //QPERF_INIT(render_fb);
 //QPERF_INIT(client_decode);
@@ -316,6 +325,12 @@ static OMX_ERRORTYPE use_output_buffer(OMX_COMPONENTTYPE      *dec_handle,
                                 OMX_U32              bufSize,
                                 long                 bufcnt);
 
+static OMX_ERRORTYPE use_output_buffer_multiple_fd(OMX_COMPONENTTYPE      *dec_handle,
+                                                   OMX_BUFFERHEADERTYPE ***bufferHdr,
+                                                   OMX_U32              nPortIndex,
+                                                   OMX_U32              bufSize,
+                                                   long                 bufcnt);
+
 static OMX_ERRORTYPE EventHandler(OMX_IN OMX_HANDLETYPE hComponent,
                                   OMX_IN OMX_PTR pAppData,
                                   OMX_IN OMX_EVENTTYPE eEvent,
@@ -331,6 +346,7 @@ static OMX_ERRORTYPE FillBufferDone(OMX_OUT OMX_HANDLETYPE hComponent,
 static void do_freeHandle_and_clean_up(bool isDueToError);
 static bool align_pmem_buffers(int pmem_fd, OMX_U32 buffer_size,
                                   OMX_U32 alignment);
+void getFreePmem();
 static  int clip2(int x)
     {
         x = x -1;
@@ -580,6 +596,8 @@ void* fbd_thread(void* pArg)
   OMX_S64 base_timestamp = 0, lastTimestamp = 0;
   OMX_BUFFERHEADERTYPE *pBuffer = NULL;
   pthread_mutex_lock(&eos_lock);
+
+  DEBUG_PRINT("First Inside %s\n", __FUNCTION__);
   while(currentStatus != ERROR_STATE && !bOutputEosReached)
   {
     pthread_mutex_unlock(&eos_lock);
@@ -1684,6 +1702,25 @@ int Play_Decoder()
     }
     OMX_SetParameter(dec_handle,(OMX_INDEXTYPE)OMX_QcomIndexPortDefn,
                      (OMX_PTR)&inputPortFmt);
+#ifdef USE_EXTERN_PMEM_BUF
+    OMX_QCOM_PARAM_PORTDEFINITIONTYPE outPortFmt;
+    memset(&outPortFmt, 0, sizeof(OMX_QCOM_PARAM_PORTDEFINITIONTYPE));
+    CONFIG_VERSION_SIZE(outPortFmt);
+    outPortFmt.nPortIndex = 1;  // output port
+    outPortFmt.nCacheAttr = OMX_QCOM_CacheAttrNone;
+    outPortFmt.nMemRegion = OMX_QCOM_MemRegionSMI;
+    OMX_SetParameter(dec_handle,(OMX_INDEXTYPE)OMX_QcomIndexPortDefn,
+                     (OMX_PTR)&outPortFmt);
+
+    OMX_QCOM_PLATFORMPRIVATE_EXTN outPltPvtExtn;
+    memset(&outPltPvtExtn, 0, sizeof(OMX_QCOM_PLATFORMPRIVATE_EXTN));
+    CONFIG_VERSION_SIZE(outPltPvtExtn);
+    outPltPvtExtn.nPortIndex = 1;  // output port
+    outPltPvtExtn.type = OMX_QCOM_PLATFORM_PRIVATE_PMEM;
+    OMX_SetParameter(dec_handle,(OMX_INDEXTYPE)OMX_QcomIndexPlatformPvt,
+                     (OMX_PTR)&outPltPvtExtn);
+    use_external_pmem_buf = OMX_TRUE;
+#endif
     QOMX_ENABLETYPE extra_data;
     extra_data.bEnable = OMX_TRUE;
 #if 0
@@ -1867,9 +1904,21 @@ int Play_Decoder()
     }
 
 #ifndef USE_EGL_IMAGE_TEST_APP
-    /* Allocate buffer on decoder's o/p port */
-    error = Allocate_Buffer(dec_handle, &pOutYUVBufHdrs, portFmt.nPortIndex,
-                            portFmt.nBufferCountActual, portFmt.nBufferSize);
+    if (use_external_pmem_buf)
+    {
+        DEBUG_PRINT_ERROR("\n Use External pmem buf: OMX_UseBuffer %p", &pInputBufHdrs);
+        error =  use_output_buffer_multiple_fd(dec_handle,
+                                               &pOutYUVBufHdrs,
+                                               portFmt.nPortIndex,
+                                               portFmt.nBufferSize,
+                                               portFmt.nBufferCountActual);
+    }
+    else
+    {
+        /* Allocate buffer on decoder's o/p port */
+        error = Allocate_Buffer(dec_handle, &pOutYUVBufHdrs, portFmt.nPortIndex,
+                                portFmt.nBufferCountActual, portFmt.nBufferSize);
+    }
     free_op_buf_cnt = portFmt.nBufferCountActual;
     if (error != OMX_ErrorNone) {
         DEBUG_PRINT_ERROR("Error - OMX_AllocateBuffer Output buffer error\n");
@@ -2194,13 +2243,87 @@ static OMX_ERRORTYPE use_output_buffer ( OMX_COMPONENTTYPE *dec_handle,
         DEBUG_PRINT_ERROR("\n mmap failed for buffers");
         return OMX_ErrorInsufficientResources;
       }
-        egl_virt_addr[bufCnt] = (unsigned)pvirt;
+        use_buf_virt_addr[bufCnt] = (unsigned)pvirt;
         error = OMX_UseEGLImage(dec_handle, &((*pBufHdrs)[bufCnt]),
                               nPortIndex, pvirt,(void *)p_eglHeaders[bufCnt]);
        }
     return error;
 }
 
+static OMX_ERRORTYPE use_output_buffer_multiple_fd ( OMX_COMPONENTTYPE *dec_handle,
+                                  OMX_BUFFERHEADERTYPE  ***pBufHdrs,
+                                  OMX_U32 nPortIndex,
+                                  OMX_U32 bufSize,
+                                  long bufCntMin)
+{
+    DEBUG_PRINT("Inside %s \n", __FUNCTION__);
+    OMX_ERRORTYPE error=OMX_ErrorNone;
+    long bufCnt=0;
+    OMX_U8* pvirt = NULL;
+
+    *pBufHdrs= (OMX_BUFFERHEADERTYPE **)
+                   malloc(sizeof(OMX_BUFFERHEADERTYPE)* bufCntMin);
+    if(*pBufHdrs == NULL){
+        DEBUG_PRINT_ERROR("\n m_inp_heap_ptr Allocation failed ");
+        return OMX_ErrorInsufficientResources;
+     }
+    pPlatformList = (OMX_QCOM_PLATFORM_PRIVATE_LIST *)
+        malloc(sizeof(OMX_QCOM_PLATFORM_PRIVATE_LIST)* bufCntMin);
+
+    if(pPlatformList == NULL){
+        DEBUG_PRINT_ERROR("\n pPlatformList Allocation failed ");
+        return OMX_ErrorInsufficientResources;
+     }
+
+    pPlatformEntry = (OMX_QCOM_PLATFORM_PRIVATE_ENTRY *)
+        malloc(sizeof(OMX_QCOM_PLATFORM_PRIVATE_ENTRY)* bufCntMin);
+
+    if(pPlatformEntry == NULL){
+        DEBUG_PRINT_ERROR("\n pPlatformEntry Allocation failed ");
+        return OMX_ErrorInsufficientResources;
+     }
+
+    pPMEMInfo = (OMX_QCOM_PLATFORM_PRIVATE_PMEM_INFO *)
+        malloc(sizeof(OMX_QCOM_PLATFORM_PRIVATE_PMEM_INFO)* bufCntMin);
+
+    if(pPMEMInfo == NULL){
+        DEBUG_PRINT_ERROR("\n pPMEMInfo Allocation failed ");
+        return OMX_ErrorInsufficientResources;
+     }
+
+    //output_use_buffer = true;
+    for(bufCnt=0; bufCnt < bufCntMin; ++bufCnt) {
+        // allocate input buffers
+      DEBUG_PRINT("OMX_UseBuffer_multiple_fd No %d %d \n", bufCnt, bufSize);
+
+      pPlatformEntry[bufCnt].type       = OMX_QCOM_PLATFORM_PRIVATE_PMEM;
+      pPlatformEntry[bufCnt].entry      = &pPMEMInfo[bufCnt];
+      // Initialize the Platform List
+      pPlatformList[bufCnt].nEntries    = 1;
+      pPlatformList[bufCnt].entryList   = &pPlatformEntry[bufCnt];
+      pPMEMInfo[bufCnt].offset          =  0;
+      pPMEMInfo[bufCnt].pmem_fd = open(PMEM_DEVICE,O_RDWR);;
+      if(pPMEMInfo[bufCnt].pmem_fd < 0) {
+          DEBUG_PRINT_ERROR("\n open failed %s",PMEM_DEVICE);
+          return OMX_ErrorInsufficientResources;
+      }
+      align_pmem_buffers(pPMEMInfo[bufCnt].pmem_fd, bufSize,
+                                  8192); 
+      DEBUG_PRINT("\n allocation size %d pmem fd 0x%x",bufSize,pPMEMInfo[bufCnt].pmem_fd);
+      pvirt = (unsigned char *)mmap(NULL,bufSize,PROT_READ|PROT_WRITE,
+                      MAP_SHARED,pPMEMInfo[bufCnt].pmem_fd,0);
+      getFreePmem();
+      DEBUG_PRINT("\n Virtaul Address %p Size %d pmem_fd=0x%x",pvirt,bufSize,pPMEMInfo[bufCnt].pmem_fd);
+      if (pvirt == MAP_FAILED) {
+        DEBUG_PRINT_ERROR("\n mmap failed for buffers");
+        return OMX_ErrorInsufficientResources;
+      }
+      use_buf_virt_addr[bufCnt] = (unsigned)pvirt;
+      error = OMX_UseBuffer(dec_handle, &((*pBufHdrs)[bufCnt]),
+                            nPortIndex, &pPlatformList[bufCnt], bufSize, pvirt);
+    }
+    return error;
+}
 static void do_freeHandle_and_clean_up(bool isDueToError)
 {
     int bufCnt = 0;
@@ -2243,11 +2366,45 @@ static void do_freeHandle_and_clean_up(bool isDueToError)
                p_eglHeaders[bufCnt] = NULL;
             }
         }
+        if (use_external_pmem_buf)
+        {
+            DEBUG_PRINT("Freeing in external pmem case: buffer=0x%x, pmem_fd=0x%d",
+                              pOutYUVBufHdrs[bufCnt]->pBuffer,
+                              pPMEMInfo[bufCnt].pmem_fd);
+            if (pOutYUVBufHdrs[bufCnt]->pBuffer)
+            {
+                munmap (pOutYUVBufHdrs[bufCnt]->pBuffer,
+                        pOutYUVBufHdrs[bufCnt]->nAllocLen);
+            }
+            if (&pPMEMInfo[bufCnt])
+            {
+                close(pPMEMInfo[bufCnt].pmem_fd);
+                pPMEMInfo[bufCnt].pmem_fd = -1;
+            }
+        }
         OMX_FreeBuffer(dec_handle, 1, pOutYUVBufHdrs[bufCnt]);
       }
       if(p_eglHeaders) {
           free(p_eglHeaders);
           p_eglHeaders = NULL;
+      }
+      if (pPMEMInfo)
+      {
+          DEBUG_PRINT("Freeing in external pmem case:PMEM");
+          free(pPMEMInfo);
+          pPMEMInfo = NULL;
+      }
+      if (pPlatformEntry)
+      {
+          DEBUG_PRINT("Freeing in external pmem case:ENTRY");
+          free(pPlatformEntry);
+          pPlatformEntry = NULL;
+      }
+      if (pPlatformList)
+      {
+          DEBUG_PRINT("Freeing in external pmem case:LIST");
+          free(pPlatformList);
+          pPlatformList = NULL;
       }
       wait_for_event();
     }
@@ -2981,22 +3138,36 @@ int overlay_fb(struct OMX_BUFFERHEADERTYPE *pBufHdr)
     OMX_QCOM_PLATFORM_PRIVATE_PMEM_INFO *pPMEMInfo = NULL;
     struct msmfb_overlay_data ov_front;
     memset(&ov_front, 0, sizeof(struct msmfb_overlay_data));
-#ifdef _ANDROID_ && !USE_EGL_IMAGE_TEST_APP
+#if defined(_ANDROID_) && !defined(USE_EGL_IMAGE_TEST_APP) && !defined(USE_EXTERN_PMEM_BUF)
     MemoryHeapBase *vheap = NULL;
 #endif
+
+    LOGE("overlay_fb:");
     ov_front.id = overlayp->id;
+    if (pBufHdr->pPlatformPrivate == NULL)
+    {
+        LOGE("overlay_fb: pPlatformPrivate is null");
+        return -1;
+    }
     pPMEMInfo  = (OMX_QCOM_PLATFORM_PRIVATE_PMEM_INFO *)
                 ((OMX_QCOM_PLATFORM_PRIVATE_LIST *)
                     pBufHdr->pPlatformPrivate)->entryList->entry;
-#ifdef _ANDROID_ && !USE_EGL_IMAGE_TEST_APP
+    if (pPMEMInfo == NULL)
+    {
+
+        LOGE("overlay_fb: pmem_info is null");
+        return -1;
+    }
+#if defined(_ANDROID_) && !defined(USE_EGL_IMAGE_TEST_APP) && !defined(USE_EXTERN_PMEM_BUF)
     vheap = (MemoryHeapBase*)pPMEMInfo->pmem_fd;
 #endif
 
-#ifdef _ANDROID_ && !USE_EGL_IMAGE_TEST_APP
+#if defined(_ANDROID_) && !defined(USE_EGL_IMAGE_TEST_APP) && !defined(USE_EXTERN_PMEM_BUF)
     ov_front.data.memory_id = vheap->getHeapID();
 #else
     ov_front.data.memory_id = pPMEMInfo->pmem_fd;
 #endif
+
     ov_front.data.offset = pPMEMInfo->offset;
 
     DEBUG_PRINT("\n ov_front.data.memory_id = %d", ov_front.data.memory_id);
@@ -3026,7 +3197,7 @@ void render_fb(struct OMX_BUFFERHEADERTYPE *pBufHdr)
     OMX_QCOM_EXTRADATA_FRAMEINFO *pExtraFrameInfo = 0;
     OMX_QCOM_PLATFORM_PRIVATE_PMEM_INFO *pPMEMInfo = NULL;
     unsigned int destx, desty,destW, destH;
-#ifdef _ANDROID_ && !USE_EGL_IMAGE_TEST_APP
+#if defined(_ANDROID_) && !defined(USE_EGL_IMAGE_TEST_APP) && !defined(USE_EXTERN_PMEM_BUF)
     MemoryHeapBase *vheap = NULL;
 #endif
 
@@ -3070,7 +3241,7 @@ void render_fb(struct OMX_BUFFERHEADERTYPE *pBufHdr)
    pPMEMInfo  = (OMX_QCOM_PLATFORM_PRIVATE_PMEM_INFO *)
                 ((OMX_QCOM_PLATFORM_PRIVATE_LIST *)
                     pBufHdr->pPlatformPrivate)->entryList->entry;
-#ifdef _ANDROID_ && !USE_EGL_IMAGE_TEST_APP
+#if defined(_ANDROID_) && !defined(USE_EGL_IMAGE_TEST_APP) && !defined(USE_EXTERN_PMEM_BUF)
     vheap = (MemoryHeapBase *)pPMEMInfo->pmem_fd;
 #endif
 
@@ -3084,7 +3255,7 @@ void render_fb(struct OMX_BUFFERHEADERTYPE *pBufHdr)
     e->src.height = portFmt.format.video.nSliceHeight;
     e->src.format = MDP_Y_CBCR_H2V2;
         e->src.offset = pPMEMInfo->offset;
-#ifdef _ANDROID_ && !USE_EGL_IMAGE_TEST_APP
+#if defined(_ANDROID_) && !defined(USE_EGL_IMAGE_TEST_APP) && !defined(USE_EXTERN_PMEM_BUF)
     e->src.memory_id = vheap->getHeapID();
 #else
     e->src.memory_id = pPMEMInfo->pmem_fd;
@@ -3191,6 +3362,24 @@ int disable_output_port()
         free(p_eglHeaders);
         p_eglHeaders = NULL;
     }
+    if (pPMEMInfo)
+    {
+        DEBUG_PRINT("Freeing in external pmem case:PMEM");
+        free(pPMEMInfo);
+        pPMEMInfo = NULL;
+    }
+    if (pPlatformEntry)
+    {
+        DEBUG_PRINT("Freeing in external pmem case:ENTRY");
+        free(pPlatformEntry);
+        pPlatformEntry = NULL;
+    }
+    if (pPlatformList)
+    {
+        DEBUG_PRINT("Freeing in external pmem case:LIST");
+        free(pPlatformList);
+        pPlatformList = NULL;
+    }
     if (currentStatus == ERROR_STATE)
     {
       do_freeHandle_and_clean_up(true);
@@ -3210,8 +3399,20 @@ int enable_output_port()
 #ifndef USE_EGL_IMAGE_TEST_APP
     /* Allocate buffer on decoder's o/p port */
     portFmt.nPortIndex = 1;
-    error = Allocate_Buffer(dec_handle, &pOutYUVBufHdrs, portFmt.nPortIndex,
-                            portFmt.nBufferCountActual, portFmt.nBufferSize);
+    if (use_external_pmem_buf)
+    {
+        DEBUG_PRINT("Enable op port: calling use_buffer_mult_fd\n");
+        error =  use_output_buffer_multiple_fd(dec_handle,
+                                               &pOutYUVBufHdrs,
+                                               portFmt.nPortIndex,
+                                               portFmt.nBufferSize,
+                                               portFmt.nBufferCountActual);
+    }
+    else
+    {
+        error = Allocate_Buffer(dec_handle, &pOutYUVBufHdrs, portFmt.nPortIndex,
+                                portFmt.nBufferCountActual, portFmt.nBufferSize);
+    }
     if (error != OMX_ErrorNone) {
         DEBUG_PRINT_ERROR("Error - OMX_AllocateBuffer Output buffer error\n");
         return -1;
@@ -3307,7 +3508,6 @@ void free_output_buffers()
     int index = 0;
     OMX_BUFFERHEADERTYPE *pBuffer = (OMX_BUFFERHEADERTYPE *)pop(fbd_queue);
     while (pBuffer) {
-        DEBUG_PRINT("\n In Free Buffer call");
         DEBUG_PRINT("\n pOutYUVBufHdrs %p p_eglHeaders %p output_use_buffer %d",
                pOutYUVBufHdrs,p_eglHeaders,output_use_buffer);
         if(pOutYUVBufHdrs && p_eglHeaders && output_use_buffer)
@@ -3316,13 +3516,31 @@ void free_output_buffers()
            DEBUG_PRINT("\n Index of free buffer %d",index);
            DEBUG_PRINT("\n Address freed %p size freed %d",pBuffer->pBuffer,
                   pBuffer->nAllocLen);
-           munmap((void *)egl_virt_addr[index],pBuffer->nAllocLen);
+           munmap((void *)use_buf_virt_addr[index],pBuffer->nAllocLen);
            if(p_eglHeaders[index])
            {
                close(p_eglHeaders[index]->pmem_fd);
                free(p_eglHeaders[index]);
                p_eglHeaders[index] = NULL;
            }
+        }
+
+        if (pOutYUVBufHdrs && use_external_pmem_buf)
+        {
+            index = pBuffer - pOutYUVBufHdrs[0];
+            DEBUG_PRINT("\n Address freed %p size freed %d,virt=0x%x,pmem_fd=0x%x",
+                              pBuffer->pBuffer,
+                              pBuffer->nAllocLen,
+                              use_buf_virt_addr[index],
+                              pPMEMInfo[index].pmem_fd);
+            munmap((void *)use_buf_virt_addr[index],pBuffer->nAllocLen);
+            getFreePmem();
+            use_buf_virt_addr[index] = -1;
+            if (&pPMEMInfo[index])
+            {
+                close(pPMEMInfo[index].pmem_fd);
+                pPMEMInfo[index].pmem_fd = -1;
+            }
         }
         DEBUG_PRINT("\n Free output buffer");
         OMX_FreeBuffer(dec_handle, 1, pBuffer);
@@ -3336,6 +3554,7 @@ static bool align_pmem_buffers(int pmem_fd, OMX_U32 buffer_size,
   struct pmem_allocation allocation;
   allocation.size = buffer_size;
   allocation.align = clip2(alignment);
+
   if (allocation.align < 4096)
   {
     allocation.align = 4096;
@@ -3383,4 +3602,25 @@ void close_display()
   overlay_unset();
   close(fb_fd);
   fb_fd = -1;
+}
+
+void getFreePmem()
+{
+   int ret = -1;
+   /*Open pmem device and query free pmem*/
+   int pmem_fd = open (PMEM_DEVICE,O_RDWR);
+
+   if(pmem_fd < 0) {
+     LOGE("Unable to open pmem device");
+     return;
+   }
+   struct pmem_freespace fs;
+   ret = ioctl(pmem_fd, PMEM_GET_FREE_SPACE, &fs);
+   if(ret) {
+     LOGE("IOCTL to query pmem free space failed");
+     goto freespace_query_failed;
+   }
+   LOGE("Available free space %lx largest chunk %lx\n", fs.total, fs.largest);
+freespace_query_failed:
+   close(pmem_fd);
 }

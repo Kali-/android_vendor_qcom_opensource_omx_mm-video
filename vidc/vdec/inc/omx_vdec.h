@@ -593,6 +593,10 @@ private:
     bool input_use_buffer;
     bool output_use_buffer;
     bool ouput_egl_buffers;
+    OMX_BOOL m_use_output_pmem;
+    OMX_BOOL m_out_mem_region_smi;
+    OMX_BOOL m_out_pvt_entry_pmem;
+
     int pending_input_buffers;
     int pending_output_buffers;
     // bitmask array size for output side

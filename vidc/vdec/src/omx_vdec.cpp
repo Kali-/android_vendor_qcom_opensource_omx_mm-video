@@ -426,7 +426,10 @@ omx_vdec::omx_vdec(): m_state(OMX_StateInvalid),
 #ifdef _ANDROID_
                       m_heap_ptr(NULL),
 #endif
-                      in_reconfig(false)
+                      in_reconfig(false),
+                      m_use_output_pmem(OMX_FALSE),
+                      m_out_mem_region_smi(OMX_FALSE),
+                      m_out_pvt_entry_pmem(OMX_FALSE)
 {
   /* Assumption is that , to begin with , we have all the frames with decoder */
   DEBUG_PRINT_HIGH("In OMX vdec Constructor");
@@ -2817,6 +2820,21 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
                 eRet = OMX_ErrorUnsupportedSetting;
             }
         }
+        else if (portFmt->nPortIndex == OMX_CORE_OUTPUT_PORT_INDEX)
+        {
+          DEBUG_PRINT_HIGH("set_parameter: OMX_IndexQcomParamPortDefinitionType OP Port\n");
+          if( (portFmt->nMemRegion > OMX_QCOM_MemRegionInvalid &&
+               portFmt->nMemRegion < OMX_QCOM_MemRegionMax) &&
+              portFmt->nCacheAttr == OMX_QCOM_CacheAttrNone)
+          {
+            m_out_mem_region_smi = OMX_TRUE;
+            if ((m_out_mem_region_smi && m_out_pvt_entry_pmem))
+            {
+              DEBUG_PRINT_HIGH("set_parameter: OMX_IndexQcomParamPortDefinitionType OP Port: out pmem set\n");
+              m_use_output_pmem = OMX_TRUE;
+            }
+          }
+        }
     }
     break;
 
@@ -3023,6 +3041,27 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
             eRet = OMX_ErrorUnsupportedSetting;
         }
 #endif
+      }
+      break;
+    case OMX_QcomIndexPlatformPvt:
+      {
+        DEBUG_PRINT_HIGH("set_parameter: OMX_QcomIndexPlatformPvt OP Port\n");
+        OMX_QCOM_PLATFORMPRIVATE_EXTN* entryType = (OMX_QCOM_PLATFORMPRIVATE_EXTN *) paramData;
+        if (entryType->type != OMX_QCOM_PLATFORM_PRIVATE_PMEM)
+        {
+          DEBUG_PRINT_HIGH("set_parameter: Platform Private entry type (%d) not supported.", entryType->type);
+          eRet = OMX_ErrorUnsupportedSetting;
+        }
+        else
+        {
+          m_out_pvt_entry_pmem = OMX_TRUE;
+          if ((m_out_mem_region_smi && m_out_pvt_entry_pmem))
+          {
+            DEBUG_PRINT_HIGH("set_parameter: OMX_QcomIndexPlatformPvt OP Port: out pmem set\n");
+            m_use_output_pmem = OMX_TRUE;
+          }
+        }
+
       }
       break;
     default:
@@ -3401,6 +3440,7 @@ OMX_ERRORTYPE  omx_vdec::use_output_buffer(
   struct vdec_setbuffer_cmd setbuffers;
 
   if (!m_out_mem_ptr) {
+    DEBUG_PRINT_HIGH("Use_op_buf:Allocating output headers");
     eRet = allocate_output_headers();
 #ifdef MAX_RES_1080P
     if(drv_ctx.decoder_format == VDEC_CODECTYPE_H264)
@@ -3430,7 +3470,7 @@ OMX_ERRORTYPE  omx_vdec::use_output_buffer(
   }
 
   if (eRet == OMX_ErrorNone) {
-    if (!ouput_egl_buffers) {
+    if (!ouput_egl_buffers && !m_use_output_pmem) {
         drv_ctx.ptr_outputbuffer[i].pmem_fd = \
           open (PMEM_DEVICE,O_RDWR);
 
@@ -3467,6 +3507,8 @@ OMX_ERRORTYPE  omx_vdec::use_output_buffer(
         drv_ctx.ptr_outputbuffer[i].offset = 0;
      }
      else {
+
+       DEBUG_PRINT_LOW("Use_op_buf: out_pmem=%d",m_use_output_pmem);
         if (!appData || !bytes || !buffer) {
           DEBUG_PRINT_ERROR("\n Bad parameters for use buffer in EGL image case");
           return OMX_ErrorBadParameter;
@@ -3483,12 +3525,14 @@ OMX_ERRORTYPE  omx_vdec::use_output_buffer(
         }
         pmem_info = (OMX_QCOM_PLATFORM_PRIVATE_PMEM_INFO *)
                     pmem_list->entryList->entry;
+        DEBUG_PRINT_LOW("vdec: use buf: pmem_fd=0x%x",
+                          pmem_info->pmem_fd);
         drv_ctx.ptr_outputbuffer[i].pmem_fd = pmem_info->pmem_fd;
         drv_ctx.ptr_outputbuffer[i].offset = pmem_info->offset;
         drv_ctx.ptr_outputbuffer[i].bufferaddr = buffer;
         drv_ctx.ptr_outputbuffer[i].mmaped_size =
         drv_ctx.ptr_outputbuffer[i].buffer_len = drv_ctx.op_buf.buffer_size;
-    }
+     }
      m_pmem_info[i].offset = drv_ctx.ptr_outputbuffer[i].offset;
      m_pmem_info[i].pmem_fd = drv_ctx.ptr_outputbuffer[i].pmem_fd;
 
@@ -3498,8 +3542,8 @@ OMX_ERRORTYPE  omx_vdec::use_output_buffer(
      ioctl_msg.in  = &setbuffers;
      ioctl_msg.out = NULL;
 
-     DEBUG_PRINT_LOW("\n Set the Output Buffer Idx: %d Addr: %x", i,
-                     drv_ctx.ptr_outputbuffer[i]);
+     DEBUG_PRINT_HIGH("\n Set the Output Buffer Idx: %d Addr: %x, pmem_fd=%0x%x", i,
+                       drv_ctx.ptr_outputbuffer[i],drv_ctx.ptr_outputbuffer[i].pmem_fd );
      if (ioctl (drv_ctx.video_driver_fd,VDEC_IOCTL_SET_BUFFER,
           &ioctl_msg) < 0)
      {
@@ -3745,7 +3789,7 @@ OMX_ERRORTYPE omx_vdec::free_output_buffer(OMX_BUFFERHEADERTYPE *bufferHdr)
           &ioctl_msg) < 0)
       DEBUG_PRINT_ERROR("\nRelease output buffer failed in VCD");
 
-    if (drv_ctx.ptr_outputbuffer[0].pmem_fd > 0 && !ouput_egl_buffers)
+    if (drv_ctx.ptr_outputbuffer[0].pmem_fd > 0 && !ouput_egl_buffers && !m_use_output_pmem)
     {
        DEBUG_PRINT_LOW("\n unmap the output buffer fd = %d",
                     drv_ctx.ptr_outputbuffer[0].pmem_fd);
@@ -5756,7 +5800,7 @@ int omx_vdec::async_message_process (void *context, void* message)
                      OMX_COMPONENT_GENERATE_EBD);
     break;
   case VDEC_MSG_RESP_OUTPUT_FLUSHED:
-  case VDEC_MSG_RESP_OUTPUT_BUFFER_DONE:
+    case VDEC_MSG_RESP_OUTPUT_BUFFER_DONE:
     omxhdr = (OMX_BUFFERHEADERTYPE*)vdec_msg->msgdata.output_frame.client_data;
     DEBUG_PRINT_LOW("[RespBufDone] Buf(%p) Ts(%lld) Pic_type(%u)",
       omxhdr, vdec_msg->msgdata.output_frame.time_stamp,
@@ -6396,6 +6440,7 @@ void omx_vdec::free_output_buffer_header()
   DEBUG_PRINT_HIGH("\n ALL output buffers are freed/released");
   output_use_buffer = false;
   ouput_egl_buffers = false;
+
   if (m_out_mem_ptr)
   {
     free (m_out_mem_ptr);
