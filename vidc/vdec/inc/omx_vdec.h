@@ -92,8 +92,6 @@ extern "C" {
   OMX_API void * get_omx_component_factory_fn(void);
 }
 
-//#define OMX_VDEC_PERF
-
 #ifdef _ANDROID_
     using namespace android;
     // local pmem heap object
@@ -673,6 +671,10 @@ private:
     OMX_U32 client_extradata;
 #ifdef _ANDROID_
     bool m_debug_timestamp;
+    bool perf_flag;
+    OMX_U32 proc_frms, latency;
+    perf_metrics fps_metrics;
+    perf_metrics dec_time;
 #endif
 #ifdef MAX_RES_1080P
     MP4_Utils mp4_headerparser;
@@ -685,15 +687,8 @@ private:
         int pmem_fd;
         int offset;
     };
-
     h264_mv_buffer h264_mv_buff;
-
-#ifdef OMX_VDEC_PERF
-    perf_metrics fps_metrics;
-    perf_metrics dec_time;
-#endif
 	extra_data_handler extra_data_handle;
-
 #ifdef _ANDROID_
     DivXDrmDecrypt* iDivXDrmDecrypt;
 #endif //_ANDROID_
