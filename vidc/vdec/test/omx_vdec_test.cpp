@@ -249,6 +249,7 @@ int bOutputEosReached = 0;
 char in_filename[512];
 char seq_file_name[512];
 unsigned char seq_enabled = 0;
+bool anti_flickering = true;
 unsigned char flush_input_progress = 0, flush_output_progress = 0;
 unsigned cmd_data = ~(unsigned)0, etb_count = 0;
 
@@ -594,7 +595,7 @@ void* fbd_thread(void* pArg)
   float total_time = 0;
   int canDisplay = 1, contigous_drop_frame = 0, bytes_written = 0, ret = 0;
   OMX_S64 base_timestamp = 0, lastTimestamp = 0;
-  OMX_BUFFERHEADERTYPE *pBuffer = NULL;
+  OMX_BUFFERHEADERTYPE *pBuffer = NULL, *pPrevBuff = NULL;
   pthread_mutex_lock(&eos_lock);
 
   DEBUG_PRINT("First Inside %s\n", __FUNCTION__);
@@ -621,11 +622,15 @@ void* fbd_thread(void* pArg)
       continue;
     }
     pthread_mutex_unlock(&enable_lock);
+    if (anti_flickering)
+      pPrevBuff = pBuffer;
     pthread_mutex_lock(&fbd_lock);
     pBuffer = (OMX_BUFFERHEADERTYPE *)pop(fbd_queue);
     pthread_mutex_unlock(&fbd_lock);
     if (pBuffer == NULL)
     {
+      if (anti_flickering)
+        pBuffer = pPrevBuff;
       DEBUG_PRINT("Error - No pBuffer to dequeue\n");
       pthread_mutex_lock(&eos_lock);
       continue;
@@ -822,15 +827,20 @@ void* fbd_thread(void* pArg)
     }
     else
     {
-        pthread_mutex_lock(&fbd_lock);
-        pthread_mutex_lock(&eos_lock);
-        if (!bOutputEosReached)
+        if (!anti_flickering)
+          pPrevBuff = pBuffer;
+        if (pPrevBuff)
         {
-          OMX_FillThisBuffer(dec_handle, pBuffer);
-          free_op_buf_cnt--;
+          pthread_mutex_lock(&fbd_lock);
+          pthread_mutex_lock(&eos_lock);
+          if (!bOutputEosReached)
+          {
+            OMX_FillThisBuffer(dec_handle, pPrevBuff);
+            free_op_buf_cnt--;
+          }
+          pthread_mutex_unlock(&eos_lock);
+          pthread_mutex_unlock(&fbd_lock);
         }
-        pthread_mutex_unlock(&eos_lock);
-        pthread_mutex_unlock(&fbd_lock);
     }
     pthread_mutex_unlock(&enable_lock);
     if(cmd_data <= fbd_cnt)
@@ -1458,6 +1468,7 @@ int run_tests()
       break;
   }
 
+  anti_flickering = true;
   if(strlen(seq_file_name))
   {
         seqFile = fopen (seq_file_name, "rb");
@@ -1470,6 +1481,7 @@ int run_tests()
         {
             DEBUG_PRINT("Seq file %s is opened \n", seq_file_name);
             seq_enabled = 1;
+            anti_flickering = false;
         }
   }
 
