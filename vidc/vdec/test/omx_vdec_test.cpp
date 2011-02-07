@@ -695,10 +695,8 @@ void* fbd_thread(void* pArg)
                             bytes_written);
           }
       }
-    }
-
-    if (pBuffer->nFlags & OMX_BUFFERFLAG_EXTRADATA)
-    {
+      if (pBuffer->nFlags & OMX_BUFFERFLAG_EXTRADATA)
+      {
         OMX_OTHER_EXTRADATATYPE *pExtra;
         DEBUG_PRINT(">> BUFFER WITH EXTRA DATA RCVD <<<");
         pExtra = (OMX_OTHER_EXTRADATATYPE *)
@@ -749,10 +747,18 @@ void* fbd_thread(void* pArg)
             }
             break;
             default:
-              DEBUG_PRINT("Unknown Extrata!");
+              DEBUG_PRINT_ERROR("Unknown Extrata!");
           }
-          pExtra = (OMX_OTHER_EXTRADATATYPE *) (((OMX_U8 *) pExtra) + pExtra->nSize);
+          if (pExtra->nSize < (pBuffer->nAllocLen - (OMX_U32)pExtra))
+            pExtra = (OMX_OTHER_EXTRADATATYPE *) (((OMX_U8 *) pExtra) + pExtra->nSize);
+          else
+          {
+            DEBUG_PRINT_ERROR("ERROR: Extradata pointer overflow buffer(%p) extra(%p)",
+              pBuffer, pExtra);
+            pExtra = NULL;
+          }
         }
+      }
     }
 
     /********************************************************************/
@@ -786,6 +792,7 @@ void* fbd_thread(void* pArg)
     if (flush_output_progress || sent_disabled)
     {
         pBuffer->nFilledLen = 0;
+        pBuffer->nFlags &= ~OMX_BUFFERFLAG_EXTRADATA;
         pthread_mutex_lock(&fbd_lock);
         if(push(fbd_queue, (void *)pBuffer) < 0)
         {
@@ -820,7 +827,7 @@ void* fbd_thread(void* pArg)
   {
       seq_enabled = 0;
       sem_post(&seq_sem);
-      printf("\n Posted seq_sem in EOS");
+      printf("\n Posted seq_sem in EOS \n");
   }
   pthread_cond_broadcast(&eos_cond);
   pthread_mutex_unlock(&eos_lock);
