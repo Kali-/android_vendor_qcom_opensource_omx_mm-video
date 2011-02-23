@@ -980,26 +980,6 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
   unsigned int   alignment = 0,buffer_size = 0;
   int fds[2];
   int r;
-   bool is_fluid = false;
-  if (!m_device_file_ptr) {
-    int bytes_read = 0,count = 0;
-    unsigned min_size;
-    m_device_file_ptr = fopen("/sys/devices/system/soc/soc0/hw_platform","rb");
-    if (m_device_file_ptr) {
-      (void)fgets((char *)m_hwdevice_name,sizeof(m_hwdevice_name),m_device_file_ptr);
-      DEBUG_PRINT_HIGH ("\n Name of the device is %s",m_hwdevice_name);
-      min_size = strnlen((const char *)m_hwdevice_name,sizeof(m_hwdevice_name));
-      if (strlen("Fluid") < min_size) {
-          min_size = strnlen("Fluid",sizeof("Fluid"));
-      }
-      if  (!strncmp("Fluid",(const char *)m_hwdevice_name,min_size)) {
-        is_fluid = true;
-      }
-      fclose (m_device_file_ptr);
-    } else {
-      DEBUG_PRINT_HIGH("\n Could not open hw_platform file");
-    }
-  }
 
   DEBUG_PRINT_HIGH("\n omx_vdec::component_init(): Start of New Playback");
   drv_ctx.video_driver_fd = open ("/dev/msm_vidc_dec",\
@@ -1144,27 +1124,7 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
   {
 #ifdef MAX_RES_720P
     drv_ctx.output_format = VDEC_YUV_FORMAT_NV12;
-    if  (is_fluid) {
 
-         FILE * pFile;
-         char disable_overlay = '0';
-         pFile = fopen
-         ("/data/data/com.arcsoft.videowall/files/disableoverlay.txt", "rb" );
-         if (pFile == NULL) {
-           DEBUG_PRINT_HIGH(" fopen FAiLED  for disableoverlay.txt\n");
-         } else {
-            int count  = fread(&disable_overlay, 1, 1, pFile);
-            fclose(pFile);
-         }
-
-         if(disable_overlay == '1') {
-             DEBUG_PRINT_HIGH(" vdec : TILE format \n");
-             drv_ctx.output_format = VDEC_YUV_FORMAT_TILE_4x2;
-         } else {
-             DEBUG_PRINT_HIGH("  vdec : NV 12 format \n");
-             drv_ctx.output_format = VDEC_YUV_FORMAT_NV12;
-         }
-      }
 #endif
 #ifdef MAX_RES_1080P
     drv_ctx.output_format = VDEC_YUV_FORMAT_TILE_4x2;
