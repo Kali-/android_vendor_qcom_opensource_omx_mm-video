@@ -441,8 +441,20 @@ omx_vdec::omx_vdec(): m_state(OMX_StateInvalid),
 {
   /* Assumption is that , to begin with , we have all the frames with decoder */
   DEBUG_PRINT_HIGH("In OMX vdec Constructor");
-#ifdef OMX_VDEC_PERF
-  dec_time.start();
+#ifdef _ANDROID_
+  char property_value[PROPERTY_VALUE_MAX] = {0};
+  property_get("vidc.dec.debug.perf", property_value, "0");
+  perf_flag = atoi(property_value);
+  if (perf_flag)
+  {
+    DEBUG_PRINT_HIGH("vidc.dec.debug.perf is %d", perf_flag);
+    dec_time.start();
+    proc_frms = latency = 0;
+  }
+  property_value[0] = NULL;
+  property_get("vidc.dec.debug.ts", property_value, "0");
+  m_debug_timestamp = atoi(property_value);
+  DEBUG_PRINT_HIGH("vidc.dec.debug.ts value is %d",m_debug_timestamp);
 #endif
   memset(&m_cmp,0,sizeof(m_cmp));
   memset(&m_cb,0,sizeof(m_cb));
@@ -453,12 +465,6 @@ omx_vdec::omx_vdec(): m_state(OMX_StateInvalid),
   m_vendor_config.pData = NULL;
   pthread_mutex_init(&m_lock, NULL);
   sem_init(&m_cmd_lock,0,0);
-#ifdef _ANDROID_
-  char property_value[PROPERTY_VALUE_MAX] = {0};
-  property_get("vidc.dec.debug.ts", property_value, "0");
-  m_debug_timestamp = atoi(property_value);
-  DEBUG_PRINT_HIGH("vidc.dec.debug.ts value is %d",m_debug_timestamp);
-#endif
 }
 
 
@@ -489,10 +495,11 @@ omx_vdec::~omx_vdec()
   pthread_join(async_thread_id,NULL);
   pthread_mutex_destroy(&m_lock);
   sem_destroy(&m_cmd_lock);
-#ifdef OMX_VDEC_PERF
-  DEBUG_PRINT_HIGH("--> TOTAL PROCESSING TIME");
-  dec_time.end();
-#endif
+  if (perf_flag)
+  {
+    DEBUG_PRINT_HIGH("--> TOTAL PROCESSING TIME");
+    dec_time.end();
+  }
   DEBUG_PRINT_HIGH("Exit OMX vdec Destructor");
 }
 
@@ -4664,6 +4671,15 @@ OMX_ERRORTYPE  omx_vdec::empty_this_buffer(OMX_IN OMX_HANDLETYPE         hComp,
     }
   }
 #endif //_ANDROID_
+  if (perf_flag)
+  {
+    if (!latency)
+    {
+      dec_time.stop();
+      latency = dec_time.processing_time_us();
+      dec_time.start();
+    }
+  }
 
   if (arbitrary_bytes)
   {
@@ -5594,9 +5610,6 @@ OMX_ERRORTYPE omx_vdec::fill_buffer_done(OMX_HANDLETYPE hComp,
                                OMX_BUFFERHEADERTYPE * buffer)
 {
   OMX_QCOM_PLATFORM_PRIVATE_PMEM_INFO *pPMEMInfo = NULL;
-#ifdef OMX_VDEC_PERF
-  static OMX_U32 proc_frms = 0;
-#endif
   if (!buffer || (buffer - m_out_mem_ptr) >= drv_ctx.op_buf.actualcount)
   {
     DEBUG_PRINT_ERROR("\n [FBD] ERROR in ptr(%p)", buffer);
@@ -5652,21 +5665,29 @@ OMX_ERRORTYPE omx_vdec::fill_buffer_done(OMX_HANDLETYPE hComp,
         set_frame_rate(buffer->nTimeStamp, true);
       else if (arbitrary_bytes)
         adjust_timestamp(buffer->nTimeStamp);
-#ifdef OMX_VDEC_PERF
-      if (!proc_frms)
-        fps_metrics.start();
-      proc_frms++;
-      if (buffer->nFlags & OMX_BUFFERFLAG_EOS)
+
+      if (perf_flag)
       {
-        OMX_U64 proc_time = 0;
-        fps_metrics.stop();
-        proc_time = fps_metrics.processing_time_us();
-        DEBUG_PRINT_HIGH("FBD: proc_frms(%u) proc_time(%.2f)S fps(%.2f)",
-                          proc_frms, (float)proc_time / 1e6,
-                          (float)(1e6 * proc_frms) / proc_time);
-        proc_frms = 0;
+        if (!proc_frms)
+        {
+          dec_time.stop();
+          latency = dec_time.processing_time_us() - latency;
+          DEBUG_PRINT_HIGH(">>> FBD Metrics: Latency(%.2f)mS", latency / 1e3);
+          dec_time.start();
+          fps_metrics.start();
+        }
+        proc_frms++;
+        if (buffer->nFlags & OMX_BUFFERFLAG_EOS)
+        {
+          OMX_U64 proc_time = 0;
+          fps_metrics.stop();
+          proc_time = fps_metrics.processing_time_us();
+          DEBUG_PRINT_HIGH(">>> FBD Metrics: proc_frms(%lu) proc_time(%.2f)S fps(%.2f)",
+                            proc_frms, (float)proc_time / 1e6,
+                            (float)(1e6 * proc_frms) / proc_time);
+          proc_frms = 0;
+        }
       }
-#endif
 
 #ifdef OUTPUT_EXTRADATA_LOG
   if (outputExtradataFile)
