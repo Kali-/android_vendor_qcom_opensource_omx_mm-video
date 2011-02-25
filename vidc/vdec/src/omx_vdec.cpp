@@ -6914,12 +6914,12 @@ void omx_vdec::handle_extradata(OMX_BUFFERHEADERTYPE *p_buf_hdr)
   p_extra = (OMX_OTHER_EXTRADATATYPE *)
            ((unsigned)(p_buf_hdr->pBuffer + p_buf_hdr->nOffset +
             p_buf_hdr->nFilledLen + 3)&(~3));
+  if ((OMX_U8*)p_extra > (p_buf_hdr->pBuffer + p_buf_hdr->nAllocLen))
+    p_extra = NULL;
   if (drv_ctx.extradata && (p_buf_hdr->nFlags & OMX_BUFFERFLAG_EXTRADATA))
   {
     // Process driver extradata
-    while(p_extra &&
-          (OMX_U8*)p_extra < (p_buf_hdr->pBuffer + p_buf_hdr->nAllocLen) &&
-          p_extra->eType != VDEC_EXTRADATA_NONE)
+    while(p_extra && p_extra->eType != VDEC_EXTRADATA_NONE)
     {
       DEBUG_PRINT_LOW("handle_extradata : pBuf(%p) BufTS(%lld) Type(%x) DataSz(%u)",
            p_buf_hdr, p_buf_hdr->nTimeStamp, p_extra->eType, p_extra->nDataSize);
@@ -6944,6 +6944,9 @@ void omx_vdec::handle_extradata(OMX_BUFFERHEADERTYPE *p_buf_hdr)
         p_extra->eType = OMX_ExtraDataMax; // Invalid type to avoid expose this extradata to OMX client
       }
       p_extra = (OMX_OTHER_EXTRADATATYPE *) (((OMX_U8 *) p_extra) + p_extra->nSize);
+      if ((OMX_U8*)p_extra > (p_buf_hdr->pBuffer + p_buf_hdr->nAllocLen) ||
+          p_extra->nDataSize == 0)
+        p_extra = NULL;
     }
     if (!(client_extradata & VDEC_EXTRADATA_MB_ERROR_MAP))
     {
@@ -6974,7 +6977,7 @@ void omx_vdec::handle_extradata(OMX_BUFFERHEADERTYPE *p_buf_hdr)
       h264_parser->parse_nal((OMX_U8*)p_sei->data, p_sei->nSize, NALU_TYPE_SEI);
   }
 #endif
-  if ((client_extradata & OMX_INTERLACE_EXTRADATA) && p_extra != NULL &&
+  if ((client_extradata & OMX_INTERLACE_EXTRADATA) && p_extra &&
       ((OMX_U8*)p_extra + OMX_INTERLACE_EXTRADATA_SIZE) <
        (p_buf_hdr->pBuffer + p_buf_hdr->nAllocLen))
   {
@@ -6982,8 +6985,7 @@ void omx_vdec::handle_extradata(OMX_BUFFERHEADERTYPE *p_buf_hdr)
     append_interlace_extradata(p_extra);
     p_extra = (OMX_OTHER_EXTRADATATYPE *) (((OMX_U8 *) p_extra) + p_extra->nSize);
   }
-  if ((client_extradata & OMX_FRAMEINFO_EXTRADATA) &&
-       p_extra != NULL &&
+  if (client_extradata & OMX_FRAMEINFO_EXTRADATA && p_extra &&
       ((OMX_U8*)p_extra + OMX_FRAMEINFO_EXTRADATA_SIZE) <
        (p_buf_hdr->pBuffer + p_buf_hdr->nAllocLen))
   {
@@ -6993,10 +6995,16 @@ void omx_vdec::handle_extradata(OMX_BUFFERHEADERTYPE *p_buf_hdr)
         p_buf_hdr->nTimeStamp);
     p_extra = (OMX_OTHER_EXTRADATATYPE *) (((OMX_U8 *) p_extra) + p_extra->nSize);
   }
-  if (p_buf_hdr->nFlags & OMX_BUFFERFLAG_EXTRADATA){
-    DEBUG_PRINT_LOW("\n%s: Appending terminator extradata \n",__func__);
-    append_terminator_extradata(p_extra);
-  }
+  if (p_buf_hdr->nFlags & OMX_BUFFERFLAG_EXTRADATA)
+    if (p_extra &&
+      ((OMX_U8*)p_extra + OMX_FRAMEINFO_EXTRADATA_SIZE) <
+       (p_buf_hdr->pBuffer + p_buf_hdr->nAllocLen))
+      append_terminator_extradata(p_extra);
+    else
+    {
+      DEBUG_PRINT_ERROR("ERROR: Terminator extradata cannot be added");
+      p_buf_hdr->nFlags &= ~OMX_BUFFERFLAG_EXTRADATA;
+    }
 }
 
 OMX_ERRORTYPE omx_vdec::enable_extradata(OMX_U32 requested_extradata, bool enable)
