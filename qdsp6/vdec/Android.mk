@@ -29,7 +29,6 @@ libOmxVdec-inc          := $(LOCAL_PATH)/src
 libOmxVdec-inc          += $(TARGET_OUT_HEADERS)/mm-core/omxcore
 
 LOCAL_MODULE            := libOmxVdec
-LOCAL_MODULE_TAGS       := optional
 LOCAL_CFLAGS            := $(libOmxVdec-def)
 LOCAL_C_INCLUDES        := $(libOmxVdec-inc)
 LOCAL_PRELINK_MODULE    := false
@@ -58,7 +57,6 @@ mm-vdec-test-inc        += $(LOCAL_PATH)/test
 mm-vdec-test-inc        += $(TARGET_OUT_HEADERS)/mm-core/omxcore
 
 LOCAL_MODULE            := mm-vdec-omx-test
-LOCAL_MODULE_TAGS       := optional
 LOCAL_CFLAGS            := $(libOmxVdec-def)
 LOCAL_C_INCLUDES        := $(mm-vdec-test-inc)
 LOCAL_PRELINK_MODULE    := false
@@ -76,7 +74,6 @@ include $(BUILD_EXECUTABLE)
 include $(CLEAR_VARS)
 
 LOCAL_MODULE            	:= liblasic
-LOCAL_MODULE_TAGS               := optional
 LOCAL_CFLAGS                    := $(libOmxVdec-def)
 LOCAL_C_INCLUDES        	:= $(LOCAL_PATH)/test
 LOCAL_PRELINK_MODULE    	:= false
@@ -92,7 +89,6 @@ mm-vdec-test-inc		+= $(LOCAL_PATH)/test
 mm-vdec-test-inc		+= $(LOCAL_PATH)/../../../common/inc
 
 LOCAL_MODULE            	:= ast-mm-vdec-omx-test
-LOCAL_MODULE_TAGS               := optional
 LOCAL_CFLAGS	  		:= $(libOmxVdec-def) -DTARGET_ARCH_8K
 LOCAL_C_INCLUDES  		:= $(mm-vdec-test-inc)
 LOCAL_PRELINK_MODULE    	:= false
@@ -111,7 +107,6 @@ include $(CLEAR_VARS)
 mm-vdec-property-mgr-inc        := $(LOCAL_PATH)
 
 LOCAL_MODULE            := mm-vdec-omx-property-mgr
-LOCAL_MODULE_TAGS       := optional
 LOCAL_CFLAGS            := $(libOmxVdec-def)
 LOCAL_C_INCLUDES        := $(mm-vdec-property-mgr-inc)
 LOCAL_PRELINK_MODULE    := false

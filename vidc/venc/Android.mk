@@ -40,7 +40,6 @@ libmm-venc-inc                  += $(OMX_VIDEO_PATH)/vidc/common/inc
 libmm-venc-inc			+= $(TARGET_OUT_HEADERS)/mm-core/omxcore
 
 LOCAL_MODULE			:= libOmxVenc
-LOCAL_MODULE_TAGS               := optional
 LOCAL_CFLAGS	  		:= $(libmm-venc-def)
 LOCAL_C_INCLUDES  		:= $(libmm-venc-inc)
 LOCAL_PRELINK_MODULE		:= false
@@ -64,7 +63,6 @@ mm-venc-test720p-inc            += $(LOCAL_PATH)/inc
 mm-venc-test720p-inc            += $(OMX_VIDEO_PATH)/vidc/common/inc
 
 LOCAL_MODULE                    := mm-venc-omx-test720p
-LOCAL_MODULE_TAGS               := optional
 LOCAL_CFLAGS                    := $(libmm-venc-def)
 LOCAL_C_INCLUDES                := $(mm-venc-test720p-inc)
 LOCAL_PRELINK_MODULE            := false
@@ -86,7 +84,6 @@ include $(CLEAR_VARS)
 venc-test-inc                   += $(LOCAL_PATH)/inc
 
 LOCAL_MODULE                    := mm-video-encdrv-test
-LOCAL_MODULE_TAGS               := optional
 LOCAL_C_INCLUDES                := $(venc-test-inc)
 LOCAL_PRELINK_MODULE            := false
 
