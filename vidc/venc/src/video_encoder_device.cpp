@@ -627,8 +627,10 @@ bool venc_dev::venc_set_param(void *paramData,OMX_INDEXTYPE index )
           DEBUG_PRINT_ERROR("\nERROR: Unsuccessful in updating Profile and level");
           return false;
         }
+#ifdef MAX_RES_1080P
         else
           pParam->nBFrames = (pParam->eProfile == OMX_VIDEO_MPEG4ProfileAdvancedSimple)? 1 : 0;
+#endif
 
         if(!venc_set_intra_period (pParam->nPFrames,pParam->nBFrames))
         {
@@ -691,8 +693,10 @@ bool venc_dev::venc_set_param(void *paramData,OMX_INDEXTYPE index )
                             pParam->eProfile, pParam->eLevel);
           return false;
         }
+#ifdef MAX_RES_1080P
         else
           pParam->nBFrames = (pParam->eProfile != OMX_VIDEO_AVCProfileBaseline)? 1 : 0;
+#endif
 
         if(!venc_set_intra_period (pParam->nPFrames, pParam->nBFrames))
         {
@@ -1678,17 +1682,23 @@ bool venc_dev::venc_set_intra_period(OMX_U32 nPFrames, OMX_U32 nBFrames)
      (codec_profile.profile == VEN_PROFILE_H264_MAIN) ||
      (codec_profile.profile == VEN_PROFILE_H264_HIGH))
   {
+#ifdef MAX_RES_1080P
     if(nBFrames == 1)
-    {
       intraperiod_cfg.num_bframes = nBFrames;
-    }
     else if (nBFrames > 1)
     {
-      DEBUG_PRINT_ERROR("WARNING: Invalid number of B frames set (%d) defaulting to 1",nBFrames);
-      intraperiod_cfg.num_bframes = 1;
+      DEBUG_PRINT_ERROR("Invalid number of B frames set %d (only 1 Bframe is supported)",nBFrames);
+      return OMX_ErrorUnsupportedSetting;
     }
     else
       intraperiod_cfg.num_bframes = 0;
+#else
+    if(intraperiod_cfg.num_bframes > 0)
+    {
+      DEBUG_PRINT_ERROR("B frames not supported");
+      return OMX_ErrorUnsupportedSetting;
+    }
+#endif
   }
   else
     intraperiod_cfg.num_bframes = 0;

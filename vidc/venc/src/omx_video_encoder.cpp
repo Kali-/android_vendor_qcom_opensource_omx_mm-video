@@ -579,11 +579,19 @@ OMX_ERRORTYPE  omx_venc::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
       DEBUG_PRINT_LOW("set_parameter: OMX_IndexParamVideoMpeg4");
       if(m_sParamMPEG4.eProfile == OMX_VIDEO_MPEG4ProfileAdvancedSimple)
       {
+#ifdef MAX_RES_1080P
         if(pParam->nBFrames > 1)
         {
-          DEBUG_PRINT_ERROR("WARNING: BFrames was set to %d,  defaulting to 1", pParam->nBFrames);
+          DEBUG_PRINT_ERROR("BFrame set to %d (only 1 Bframe is supported)", pParam->nBFrames);
+          return OMX_ErrorUnsupportedSetting;
         }
-        pParam->nBFrames = 1;
+#else
+        if(pParam->nBFrames > 0)
+        {
+          DEBUG_PRINT_ERROR("B frames not supported\n");
+          return OMX_ErrorUnsupportedSetting;
+        }
+#endif
       }
       else
         pParam->nBFrames = 0;
@@ -614,12 +622,21 @@ OMX_ERRORTYPE  omx_venc::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
       if((m_sParamAVC.eProfile == OMX_VIDEO_AVCProfileHigh)||
          (m_sParamAVC.eProfile == OMX_VIDEO_AVCProfileMain))
       {
+#ifdef MAX_RES_1080P
         if(pParam->nBFrames > 1)
         {
-          DEBUG_PRINT_ERROR("WARNING: BFrames was set (%d)  defaulting to 1", pParam->nBFrames);
+          DEBUG_PRINT_ERROR("BFrame set to %d (only 1 Bframe is supported)", pParam->nBFrames);
+          return OMX_ErrorUnsupportedSetting;
         }
-        pParam->nBFrames = 1;
         pParam->nRefFrames = 2;
+#else
+       if(pParam->nBFrames > 0)
+       {
+         DEBUG_PRINT_ERROR("B frames not supported\n");
+         return OMX_ErrorUnsupportedSetting;
+       }
+       pParam->nRefFrames = 1;
+#endif
       }
       else
       {
@@ -996,6 +1013,13 @@ OMX_ERRORTYPE  omx_venc::set_config(OMX_IN OMX_HANDLETYPE      hComp,
 
       if(pParam->nPortIndex == PORT_INDEX_OUT)
       {
+#ifdef MAX_RES_720P
+        if(pParam->nBFrames > 0)
+        {
+          DEBUG_PRINT_ERROR("B frames not supported\n");
+          return OMX_ErrorUnsupportedSetting;
+        }
+#endif
         if(handle->venc_set_config(configData, (OMX_INDEXTYPE) QOMX_IndexConfigVideoIntraperiod) != true)
         {
           DEBUG_PRINT_ERROR("ERROR: Setting QOMX_IndexConfigVideoIntraperiod failed");
