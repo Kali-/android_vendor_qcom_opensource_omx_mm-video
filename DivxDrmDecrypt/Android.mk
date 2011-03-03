@@ -14,6 +14,7 @@ LOCAL_C_INCLUDES:= \
 LOCAL_PRELINK_MODULE:= false
 
 LOCAL_MODULE:= libdivxdrmdecrypt
+LOCAL_MODULE_TAGS := optional
 
 LOCAL_SHARED_LIBRARIES	:= liblog libdl
 

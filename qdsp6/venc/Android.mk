@@ -29,6 +29,7 @@ libmm-venc-inc += $(LOCAL_PATH)/common/inc
 libmm-venc-inc += $(TARGET_OUT_HEADERS)/mm-core/omxcore
 
 LOCAL_MODULE := libOmxVidEnc
+LOCAL_MODULE_TAGS := optional
 LOCAL_CFLAGS := $(libmm-venc-def)
 LOCAL_C_INCLUDES := $(libmm-venc-inc)
 LOCAL_PRELINK_MODULE := false
@@ -54,6 +55,7 @@ mm-venc-test-inc += $(LOCAL_PATH)/omx/inc
 mm-venc-test-inc += $(TARGET_OUT_HEADERS)/mm-core/omxcore
 
 LOCAL_MODULE := mm-venc-omx-test
+LOCAL_MODULE_TAGS := optional
 LOCAL_CFLAGS := $(libmm-venc-def)
 LOCAL_C_INCLUDES := $(mm-venc-test-inc)
 LOCAL_PRELINK_MODULE := false
