@@ -2780,13 +2780,16 @@ static int Read_Buffer_From_VC1_File(OMX_BUFFERHEADERTYPE  *pBufHdr)
     static int timeStampLfile = 0;
     OMX_U8 *pBuffer = pBufHdr->pBuffer + pBufHdr->nOffset;
     DEBUG_PRINT("Inside %s \n", __FUNCTION__);
-
     unsigned int readOffset = 0;
     int bytes_read = 0;
-    unsigned int code = 0;
-
+    unsigned int code = 0, total_bytes = 0;
     do
     {
+      if (total_bytes == pBufHdr->nAllocLen)
+      {
+        DEBUG_PRINT_ERROR("Buffer overflow!");
+        break;
+      }
       //Start codes are always byte aligned.
       bytes_read = fread(&pBuffer[readOffset],1, 1,inputBufferFile);
       if(!bytes_read)
@@ -2794,6 +2797,7 @@ static int Read_Buffer_From_VC1_File(OMX_BUFFERHEADERTYPE  *pBufHdr)
           DEBUG_PRINT("\n Bytes read Zero \n");
           break;
       }
+      total_bytes++;
       code <<= 8;
       code |= (0x000000FF & pBufHdr->pBuffer[readOffset]);
       //VOP start code comparision
@@ -3161,7 +3165,7 @@ int overlay_fb(struct OMX_BUFFERHEADERTYPE *pBufHdr)
     MemoryHeapBase *vheap = NULL;
 #endif
 
-    LOGE("overlay_fb:");
+    DEBUG_PRINT("overlay_fb:");
     ov_front.id = overlayp->id;
     if (pBufHdr->pPlatformPrivate == NULL)
     {
