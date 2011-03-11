@@ -111,7 +111,8 @@ int frame_parse::init_nal_length (unsigned int nal_len)
 
 int frame_parse::parse_sc_frame ( OMX_BUFFERHEADERTYPE *source,
                                      OMX_BUFFERHEADERTYPE *dest ,
-                                     OMX_U32 *partialframe)
+                                     OMX_U32 *partialframe,
+                                  bool use_eof_flag)
 {
     OMX_U8 *pdest = NULL,*psource = NULL, match_found = FALSE, is_byte_match = 0;
     OMX_U32 dest_len =0, source_len = 0, temp_len = 0;
@@ -144,6 +145,7 @@ int frame_parse::parse_sc_frame ( OMX_BUFFERHEADERTYPE *source,
         return -1;
     }
 
+    //DEBUG_PRINT_ERROR("\nParse_state=%d, source_len=%d, dest_len=%d\n", (OMX_U32) parse_state,source_len,dest_len);
     /*Check if State of the previous find is a Start code*/
     if (parse_state == A4 || parse_state == A5)
     {
@@ -169,6 +171,36 @@ int frame_parse::parse_sc_frame ( OMX_BUFFERHEADERTYPE *source,
             pdest += 4;
         }
         parse_state = A0;
+    }
+
+    if ((source->nFlags & OMX_BUFFERFLAG_ENDOFFRAME) && (source_len < dest_len) && use_eof_flag)
+    {
+        //DEBUG_PRINT_ERROR("\nParse_sc_frame, ENDOFFRAME flag is received, copying the frame the rest of the frame\n");
+        if (parse_state == A1)
+        {
+            memcpy (pdest,start_code,1);
+            dest->nFilledLen +=1;
+            pdest++;
+            dest_len--;
+        }
+        else if (parse_state == A2)
+        {
+            memcpy (pdest,start_code,2);
+            dest->nFilledLen +=2;
+            dest_len -= 2;
+            pdest += 2;
+        }
+        else if (parse_state == A3)
+        {
+            memcpy (pdest,start_code,3);
+            pdest += 3;
+            dest->nFilledLen +=3;
+            dest_len -= 3;
+        }
+        parse_state = A0;
+        *partialframe = 1;
+        //DEBUG_PRINT_ERROR("\nCopied the frame, returning\n");
+        return 1;
     }
 
     /*Entry State Machine*/
@@ -471,7 +503,8 @@ int frame_parse::parse_sc_frame ( OMX_BUFFERHEADERTYPE *source,
 
 int frame_parse::parse_h264_nallength (OMX_BUFFERHEADERTYPE *source,
                                        OMX_BUFFERHEADERTYPE *dest ,
-                                       OMX_U32 *partialframe)
+                                       OMX_U32 *partialframe,
+                                       bool use_eof_flag)
 {
     OMX_U8 *pdest = NULL,*psource = NULL;
     OMX_U32 dest_len =0, source_len = 0, temp_len = 0,parsed_length = 0;
@@ -487,6 +520,12 @@ int frame_parse::parse_h264_nallength (OMX_BUFFERHEADERTYPE *source,
 
    if (dest_len < 4 || source_len == 0 || nal_length == 0)
    {
+       if (source_len == 0 && (source->nFlags & 0x01))
+       {
+           DEBUG_PRINT_LOW("\n FrameParser: EOS rxd!! Notify it as a complete frame");
+           *partialframe = 0;
+           return 1;
+       }
        DEBUG_PRINT_LOW("\n FrameParser: NAL Parsing Error! dest_len %d "
            "source_len %d nal_length %d", dest_len, source_len, nal_length);
        return -1;
@@ -495,6 +534,30 @@ int frame_parse::parse_h264_nallength (OMX_BUFFERHEADERTYPE *source,
    temp_len = (source_len < dest_len)?source_len:dest_len;
    psource = source->pBuffer + source->nOffset;
    pdest = dest->pBuffer + (dest->nFilledLen + dest->nOffset);
+
+   if ((source->nFlags & OMX_BUFFERFLAG_ENDOFFRAME) && (source_len < dest_len) && use_eof_flag)
+   {
+       //if accumulating NAL length,
+       //skip the rest of NAL length bytes, copy SC .
+       if ((state_nal == NAL_LENGTH_ACC))
+       {
+           DEBUG_PRINT_LOW("Replacing Nal length with startcode, nal_lenght=%d, accum_length=%d",
+                           nal_length, accum_length);
+           //copy bytes already parsed for nal size
+
+           source->nFilledLen -= (nal_length - accum_length);
+           source->nOffset += (nal_length - accum_length);
+           memcpy (pdest,start_code,4);
+           dest->nFilledLen += 4;
+       }
+
+       //Copy the rest of the frame
+       DEBUG_PRINT_LOW("\nParse_h264_nallength, ENDOFFRAME flag is received, copying the frame the rest of the frame\n");
+       bytes_tobeparsed = 0;
+       accum_length = 0;
+       state_nal = NAL_LENGTH_ACC;
+       return 1;
+   }
 
    /* Find the Bytes to Accumalte*/
    if (state_nal == NAL_LENGTH_ACC)
