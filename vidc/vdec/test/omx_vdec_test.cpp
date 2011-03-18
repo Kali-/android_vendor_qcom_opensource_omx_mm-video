@@ -747,15 +747,6 @@ void* fbd_thread(void* pArg)
               DEBUG_PRINT("OMX_ExtraDataFrameInfo: Buf(%p) TSmp(%lld) PicType(%u) IntT(%u) ConMB(%u)",
                 pBuffer->pBuffer, pBuffer->nTimeStamp, frame_info->ePicType,
                 frame_info->interlaceType, frame_info->nConcealedMacroblocks);
-              DEBUG_PRINT("PANSCAN numWindows(%d)", frame_info->panScan.numWindows);
-              for (int i = 0; i < frame_info->panScan.numWindows; i++)
-              {
-                DEBUG_PRINT("WINDOW Lft(%d) Tp(%d) Rgt(%d) Bttm(%d)",
-                  frame_info->panScan.window[i].x,
-                  frame_info->panScan.window[i].y,
-                  frame_info->panScan.window[i].dx,
-                  frame_info->panScan.window[i].dy);
-              }
               break;
             }
             break;

@@ -6328,10 +6328,6 @@ OMX_ERRORTYPE omx_vdec::push_h264_au (OMX_HANDLETYPE hComp)
     if (VALID_TS(h264_last_au_ts) && !VALID_TS(pdest_frame->nTimeStamp)) {
       pdest_frame->nTimeStamp = h264_last_au_ts;
       pdest_frame->nFlags = h264_last_au_flags;
-#ifdef PANSCAN_HDLR
-       if (client_extradata & OMX_FRAMEINFO_EXTRADATA)
-           h264_parser->update_panscan_data(h264_last_au_ts);
-#endif
     }
     if(m_frame_parser.mutils->nalu_type == NALU_TYPE_NON_IDR ||
        m_frame_parser.mutils->nalu_type == NALU_TYPE_IDR) {
@@ -7248,8 +7244,7 @@ void omx_vdec::handle_extradata(OMX_BUFFERHEADERTYPE *p_buf_hdr)
   {
     p_buf_hdr->nFlags |= OMX_BUFFERFLAG_EXTRADATA;
     append_frame_info_extradata(p_extra, num_conceal_MB,
-        ((struct vdec_output_frameinfo *)p_buf_hdr->pOutputPortPrivate)->pic_type,
-        p_buf_hdr->nTimeStamp);
+        ((struct vdec_output_frameinfo *)p_buf_hdr->pOutputPortPrivate)->pic_type);
     p_extra = (OMX_OTHER_EXTRADATATYPE *) (((OMX_U8 *) p_extra) + p_extra->nSize);
   }
   if (p_buf_hdr->nFlags & OMX_BUFFERFLAG_EXTRADATA){
@@ -7367,7 +7362,7 @@ void omx_vdec::append_interlace_extradata(OMX_OTHER_EXTRADATATYPE *extra)
 }
 
 void omx_vdec::append_frame_info_extradata(OMX_OTHER_EXTRADATATYPE *extra,
-    OMX_U32 num_conceal_mb, OMX_U32 picture_type, OMX_S64 timestamp)
+    OMX_U32 num_conceal_mb, OMX_U32 picture_type)
 {
   OMX_QCOM_EXTRADATA_FRAMEINFO *frame_info = NULL;
   extra->nSize = OMX_FRAMEINFO_EXTRADATA_SIZE;
@@ -7398,7 +7393,7 @@ void omx_vdec::append_frame_info_extradata(OMX_OTHER_EXTRADATATYPE *extra,
     frame_info->interlaceType = OMX_QCOM_InterlaceFrameProgressive;
   memset(&frame_info->panScan,0,sizeof(frame_info->panScan));
   if (drv_ctx.decoder_format == VDEC_CODECTYPE_H264)
-    h264_parser->fill_pan_scan_data(&frame_info->panScan, timestamp);
+    h264_parser->fill_pan_scan_data(&frame_info->panScan);
   frame_info->nConcealedMacroblocks = num_conceal_mb;
 }
 
