@@ -496,16 +496,10 @@ private:
                                                    OMX_BUFFERHEADERTYPE *buffer
                                                    );
 
-    OMX_ERRORTYPE generate_source_ebd(OMX_HANDLETYPE hComp);
     OMX_ERRORTYPE push_input_buffer (OMX_HANDLETYPE hComp);
     OMX_ERRORTYPE push_input_sc_codec (OMX_HANDLETYPE hComp);
     OMX_ERRORTYPE push_input_h264 (OMX_HANDLETYPE hComp);
     OMX_ERRORTYPE push_input_vc1 (OMX_HANDLETYPE hComp);
-    OMX_ERRORTYPE push_input_eof_mode (OMX_HANDLETYPE hComp);
-
-    OMX_ERRORTYPE extract_input_h264 (OMX_U32 *partialframe, 
-                                      bool use_eof_flag);
-    OMX_ERRORTYPE push_h264_au (OMX_HANDLETYPE hComp);
 
     OMX_ERRORTYPE fill_this_buffer_proxy(OMX_HANDLETYPE       hComp,
                                        OMX_BUFFERHEADERTYPE *buffer);
@@ -698,8 +692,6 @@ private:
 #ifdef _ANDROID_
     DivXDrmDecrypt* iDivXDrmDecrypt;
 #endif //_ANDROID_
-    bool first_ebd_received;
-    bool isEOFMode;
 };
 
 #endif // __OMX_VDEC_H__

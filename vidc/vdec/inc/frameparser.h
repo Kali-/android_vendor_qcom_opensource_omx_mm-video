@@ -66,14 +66,12 @@ public:
 	H264_Utils *mutils;
 	int init_start_codes (codec_type codec_type_parse);
 	int parse_sc_frame (OMX_BUFFERHEADERTYPE *source,
-                        OMX_BUFFERHEADERTYPE *dest ,
-                        OMX_U32 *partialframe,
-                        bool use_eof_flag);
+                         OMX_BUFFERHEADERTYPE *dest ,
+						             OMX_U32 *partialframe);
 	int init_nal_length (unsigned int nal_length);
 	int parse_h264_nallength (OMX_BUFFERHEADERTYPE *source,
-                              OMX_BUFFERHEADERTYPE *dest ,
-                              OMX_U32 *partialframe,
-                              bool use_eof_flag);
+		                        OMX_BUFFERHEADERTYPE *dest ,
+							              OMX_U32 *partialframe);
 	void flush ();
 	 frame_parse ();
 	~frame_parse ();
