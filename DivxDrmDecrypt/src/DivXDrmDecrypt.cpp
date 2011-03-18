@@ -72,13 +72,13 @@ DivXDrmDecryptFactory DrmDecryptFactoryFunction() {
     return drmDecryptFactoryFunction;
 }
 
-DivXDrmDecrypt* DivXDrmDecrypt::Create() {
+DivXDrmDecrypt* DivXDrmDecrypt::Create( OMX_PTR drmHandle ) {
     DivXDrmDecryptFactory drmCreateFunc = DrmDecryptFactoryFunction();
     if( drmCreateFunc == NULL ) {
         return NULL;
     }
 
-    DivXDrmDecrypt* decrypt = drmCreateFunc();
+    DivXDrmDecrypt* decrypt = drmCreateFunc( drmHandle );
     if( decrypt == NULL ) {
         LOGE(" failed to instantiate DrmDecoder \n");
     }

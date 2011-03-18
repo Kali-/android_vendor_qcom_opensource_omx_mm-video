@@ -35,7 +35,7 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 class DivXDrmDecrypt
 {
 public:
-    static DivXDrmDecrypt* Create();
+    static DivXDrmDecrypt* Create( OMX_PTR drmHandle );
     virtual OMX_ERRORTYPE Init() = 0;
     virtual OMX_ERRORTYPE Decrypt(OMX_BUFFERHEADERTYPE* buffer) = 0;
     inline virtual ~DivXDrmDecrypt() {}
@@ -44,6 +44,6 @@ public:
 //.so file should provide a function with the name createDivXDrmDecrypt with
 //prototype of DivXDrmDecryptFactory.
 static const char* MEDIA_CREATE_DIVX_DRM_DECRYPT = "createDivXDrmDecrypt";
-typedef DivXDrmDecrypt* (*DivXDrmDecryptFactory)();
+typedef DivXDrmDecrypt* (*DivXDrmDecryptFactory)( OMX_PTR drmHandle );
 
 #endif //__DIVXDRMDECRYPT_H__

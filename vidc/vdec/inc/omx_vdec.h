@@ -558,7 +558,7 @@ private:
         }
     }
 #ifdef _ANDROID_
-    OMX_ERRORTYPE createDivxDrmContext();
+    OMX_ERRORTYPE createDivxDrmContext( OMX_PTR drmHandle );
 #endif //_ANDROID_
 
 
