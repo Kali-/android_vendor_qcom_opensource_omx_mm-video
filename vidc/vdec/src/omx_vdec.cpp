@@ -3062,6 +3062,18 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
 
       }
       break;
+#ifdef MAX_RES_1080P
+    case OMX_QcomIndexParamVideoSyncFrameDecodingMode:
+      {
+          int rc = ioctl(drv_ctx.video_driver_fd,
+                      VDEC_IOCTL_SET_IDR_ONLY_DECODING);
+          if(rc < 0) {
+              DEBUG_PRINT_ERROR("Failed to set IDR only decoding on driver.");
+              eRet = OMX_ErrorHardware;
+          }
+      }
+      break;
+#endif
     default:
     {
       DEBUG_PRINT_ERROR("Setparameter: unknown param %d\n", paramIndex);
@@ -3355,13 +3367,21 @@ OMX_ERRORTYPE  omx_vdec::get_extension_index(OMX_IN OMX_HANDLETYPE      hComp,
                                                 OMX_IN OMX_STRING      paramName,
                                                 OMX_OUT OMX_INDEXTYPE* indexType)
 {
-    DEBUG_PRINT_ERROR("get_extension_index: Error, Not implemented\n");
     if(m_state == OMX_StateInvalid)
     {
         DEBUG_PRINT_ERROR("Get Extension Index in Invalid State\n");
         return OMX_ErrorInvalidState;
     }
-    return OMX_ErrorNotImplemented;
+#ifdef MAX_RES_1080P
+	else if (!strncmp(paramName, "OMX.QCOM.index.param.video.SyncFrameDecodingMode",sizeof("OMX.QCOM.index.param.video.SyncFrameDecodingMode") - 1)) {
+        *indexType = (OMX_INDEXTYPE)OMX_QcomIndexParamVideoSyncFrameDecodingMode;
+    }
+#endif
+	else {
+        DEBUG_PRINT_ERROR("Extension: %s not implemented\n", paramName);
+        return OMX_ErrorNotImplemented;
+    }
+    return OMX_ErrorNone;
 }
 
 /* ======================================================================
