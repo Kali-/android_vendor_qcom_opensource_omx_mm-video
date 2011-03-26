@@ -922,9 +922,20 @@ void omx_vdec::process_event_cb(void *ctxt, unsigned char id)
               pThis->m_cb.EventHandler(&pThis->m_cmp, pThis->m_app_data,
                 OMX_EventPortSettingsChanged, OMX_CORE_OUTPUT_PORT_INDEX, 0, NULL );
             if (pThis->drv_ctx.interlace != VDEC_InterlaceFrameProgressive)
+            {
+              OMX_INTERLACETYPE format = (OMX_INTERLACETYPE)-1;
+              OMX_EVENTTYPE event = (OMX_EVENTTYPE)OMX_EventIndexsettingChanged;
+
+              if (pThis->drv_ctx.interlace == VDEC_InterlaceInterleaveFrameTopFieldFirst)
+                  format = OMX_InterlaceInterleaveFrameTopFieldFirst;
+              else if (pThis->drv_ctx.interlace == VDEC_InterlaceInterleaveFrameBottomFieldFirst)
+                  format = OMX_InterlaceInterleaveFrameBottomFieldFirst;
+              else //unsupported interlace format; raise a error
+                  event = OMX_EventError;
+
               pThis->m_cb.EventHandler(&pThis->m_cmp, pThis->m_app_data,
-                (OMX_EVENTTYPE)OMX_EventIndexsettingChanged,
-                pThis->drv_ctx.interlace, 0, NULL );
+                  event, format, 0, NULL );
+            }
           }
         break;
 
