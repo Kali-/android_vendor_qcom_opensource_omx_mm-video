@@ -4847,6 +4847,11 @@ OMX_ERRORTYPE  omx_vdec::empty_this_buffer_proxy(OMX_IN OMX_HANDLETYPE         h
   frameinfo.pmem_fd = temp_buffer->pmem_fd;
   frameinfo.pmem_offset = temp_buffer->offset;
   frameinfo.timestamp = buffer->nTimeStamp;
+  if(!arbitrary_bytes)
+  {
+      frameinfo.flags |= buffer->nFlags;
+  }
+
 #ifdef _ANDROID_
   if (m_debug_timestamp)
   {
