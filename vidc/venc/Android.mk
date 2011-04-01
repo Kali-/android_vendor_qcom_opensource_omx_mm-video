@@ -35,21 +35,25 @@ endif
 
 include $(CLEAR_VARS)
 
-libmm-venc-inc			:= $(LOCAL_PATH)/inc
-libmm-venc-inc                  += $(OMX_VIDEO_PATH)/vidc/common/inc
-libmm-venc-inc			+= $(TARGET_OUT_HEADERS)/mm-core/omxcore
+libmm-venc-inc      := $(LOCAL_PATH)/inc
+libmm-venc-inc      += $(OMX_VIDEO_PATH)/vidc/common/inc
+libmm-venc-inc      += $(TARGET_OUT_HEADERS)/mm-core/omxcore
+libmm-venc-inc      += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
 
-LOCAL_MODULE			:= libOmxVenc
+
+LOCAL_MODULE                    := libOmxVenc
 LOCAL_MODULE_TAGS               := optional
-LOCAL_CFLAGS	  		:= $(libmm-venc-def)
-LOCAL_C_INCLUDES  		:= $(libmm-venc-inc)
-LOCAL_PRELINK_MODULE		:= false
-LOCAL_SHARED_LIBRARIES		:= liblog libutils libbinder
+LOCAL_CFLAGS                    := $(libmm-venc-def)
+LOCAL_C_INCLUDES                := $(libmm-venc-inc)
+LOCAL_ADDITIONAL_DEPENDENCIES   := $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
 
-LOCAL_SRC_FILES		:= src/omx_video_base.cpp
-LOCAL_SRC_FILES		+= src/omx_video_encoder.cpp
-LOCAL_SRC_FILES		+= src/video_encoder_device.cpp
-LOCAL_SRC_FILES         += ../common/src/extra_data_handler.cpp
+LOCAL_PRELINK_MODULE      := false
+LOCAL_SHARED_LIBRARIES    := liblog libutils libbinder
+
+LOCAL_SRC_FILES   := src/omx_video_base.cpp
+LOCAL_SRC_FILES   += src/omx_video_encoder.cpp
+LOCAL_SRC_FILES   += src/video_encoder_device.cpp
+LOCAL_SRC_FILES   += ../common/src/extra_data_handler.cpp
 
 include $(BUILD_SHARED_LIBRARY)
 
@@ -62,11 +66,13 @@ include $(CLEAR_VARS)
 mm-venc-test720p-inc            := $(TARGET_OUT_HEADERS)/mm-core/omxcore
 mm-venc-test720p-inc            += $(LOCAL_PATH)/inc
 mm-venc-test720p-inc            += $(OMX_VIDEO_PATH)/vidc/common/inc
+mm-venc-test720p-inc            += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
 
 LOCAL_MODULE                    := mm-venc-omx-test720p
 LOCAL_MODULE_TAGS               := optional
 LOCAL_CFLAGS                    := $(libmm-venc-def)
 LOCAL_C_INCLUDES                := $(mm-venc-test720p-inc)
+LOCAL_ADDITIONAL_DEPENDENCIES   := $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
 LOCAL_PRELINK_MODULE            := false
 LOCAL_SHARED_LIBRARIES          := libmm-omxcore libOmxVenc libbinder
 
@@ -88,6 +94,8 @@ venc-test-inc                   += $(LOCAL_PATH)/inc
 LOCAL_MODULE                    := mm-video-encdrv-test
 LOCAL_MODULE_TAGS               := optional
 LOCAL_C_INCLUDES                := $(venc-test-inc)
+LOCAL_C_INCLUDES                += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
+LOCAL_ADDITIONAL_DEPENDENCIES   := $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
 LOCAL_PRELINK_MODULE            := false
 
 LOCAL_SRC_FILES                 := test/video_encoder_test.c
