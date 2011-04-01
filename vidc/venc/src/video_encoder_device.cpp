@@ -1337,11 +1337,29 @@ bool venc_dev::venc_empty_buf(void *buffer, void *pmem_data_buf)
     return false;
   }
 #ifdef INPUT_BUFFER_LOG
+#ifdef MAX_RES_1080P
+
+  int y_size = 0;
+  int c_offset = 0;
+
+  y_size = m_sVenc_cfg.input_width * m_sVenc_cfg.input_height;
+  //chroma offset is y_size aligned to the 2k boundary
+  c_offset= (y_size + 2047) & (~(2047));
+
+  if(inputBufferFile1)
+  {
+    fwrite((const char *)frameinfo.ptrbuffer, y_size, 1,inputBufferFile1);
+    fwrite((const char *)(frameinfo.ptrbuffer + c_offset), (y_size>>1), 1,inputBufferFile1);
+  }
+#else
   if(inputBufferFile1)
   {
     fwrite((const char *)frameinfo.ptrbuffer, frameinfo.len, 1,inputBufferFile1);
   }
 #endif
+
+#endif
+
   return true;
 }
 bool venc_dev::venc_fill_buf(void *buffer, void *pmem_data_buf)
