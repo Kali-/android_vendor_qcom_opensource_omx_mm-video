@@ -460,6 +460,12 @@ omx_vdec::omx_vdec(): m_state(OMX_StateInvalid),
   property_get("vidc.dec.debug.ts", property_value, "0");
   m_debug_timestamp = atoi(property_value);
   DEBUG_PRINT_HIGH("vidc.dec.debug.ts value is %d",m_debug_timestamp);
+
+  property_value[0] = NULL;
+  property_get("vidc.dec.debug.concealedmb", property_value, "0");
+  m_debug_concealedmb = atoi(property_value);
+  DEBUG_PRINT_HIGH("vidc.dec.debug.concealedmb value is %d",m_debug_concealedmb);
+
 #endif
   memset(&m_cmp,0,sizeof(m_cmp));
   memset(&m_cb,0,sizeof(m_cb));
@@ -7154,6 +7160,9 @@ void omx_vdec::handle_extradata(OMX_BUFFERHEADERTYPE *p_buf_hdr)
           p_extra->eType = (OMX_EXTRADATATYPE)OMX_ExtraDataConcealMB;
         else
           p_extra->eType = OMX_ExtraDataMax; // Invalid type to avoid expose this extradata to OMX client
+        if (m_debug_concealedmb) {
+            DEBUG_PRINT_HIGH("Concealed MB percentage is %u", num_conceal_MB);
+        }
       }
       else if (p_extra->eType == VDEC_EXTRADATA_SEI)
       {

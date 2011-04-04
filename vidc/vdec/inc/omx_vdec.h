@@ -717,6 +717,7 @@ private:
     perf_metrics dec_time;
     bool m_enable_android_native_buffers;
     bool m_debug_extradata;
+    bool m_debug_concealedmb;
 #endif
 #ifdef MAX_RES_1080P
     MP4_Utils mp4_headerparser;
