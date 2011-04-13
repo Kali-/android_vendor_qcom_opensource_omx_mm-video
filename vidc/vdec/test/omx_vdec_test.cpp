@@ -829,6 +829,10 @@ void* fbd_thread(void* pArg)
         pBuffer->nFilledLen = 0;
         pBuffer->nFlags &= ~OMX_BUFFERFLAG_EXTRADATA;
         pthread_mutex_lock(&fbd_lock);
+        if ( pPrevBuff != NULL ) {
+            push(fbd_queue, (void *)pPrevBuff);
+            pPrevBuff = NULL;
+        }
         if(push(fbd_queue, (void *)pBuffer) < 0)
         {
           DEBUG_PRINT_ERROR("Error in enqueueing fbd_data\n");
@@ -847,8 +851,9 @@ void* fbd_thread(void* pArg)
           pthread_mutex_lock(&eos_lock);
           if (!bOutputEosReached)
           {
-            OMX_FillThisBuffer(dec_handle, pPrevBuff);
-            free_op_buf_cnt--;
+              if ( OMX_FillThisBuffer(dec_handle, pPrevBuff) == OMX_ErrorNone ) {
+                  free_op_buf_cnt--;
+              }
           }
           pthread_mutex_unlock(&eos_lock);
           pthread_mutex_unlock(&fbd_lock);
