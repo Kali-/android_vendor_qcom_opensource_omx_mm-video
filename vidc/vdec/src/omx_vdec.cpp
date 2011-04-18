@@ -5618,6 +5618,7 @@ OMX_ERRORTYPE omx_vdec::fill_buffer_done(OMX_HANDLETYPE hComp,
   if (buffer->nFlags & OMX_BUFFERFLAG_EOS)
   {
     DEBUG_PRINT_HIGH("\n Output EOS has been reached");
+    post_event(NULL,NULL,OMX_COMPONENT_GENERATE_EOS_DONE);
     if (psource_frame)
     {
       m_cb.EmptyBufferDone(&m_cmp, m_app_data, psource_frame);
