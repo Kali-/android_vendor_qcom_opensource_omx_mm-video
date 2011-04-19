@@ -150,12 +150,15 @@ extern "C" {
 #define OMX_FRAMEINFO_EXTRADATA 0x00010000
 #define OMX_INTERLACE_EXTRADATA 0x00020000
 #define OMX_TIMEINFO_EXTRADATA  0x00040000
+#define OMX_PORTDEF_EXTRADATA   0x00080000
 #define DRIVER_EXTRADATA_MASK   0x0000FFFF
 
 #define OMX_INTERLACE_EXTRADATA_SIZE ((sizeof(OMX_OTHER_EXTRADATATYPE) +\
                                        sizeof(OMX_STREAMINTERLACEFORMAT) + 3)&(~3))
 #define OMX_FRAMEINFO_EXTRADATA_SIZE ((sizeof(OMX_OTHER_EXTRADATATYPE) +\
                                        sizeof(OMX_QCOM_EXTRADATA_FRAMEINFO) + 3)&(~3))
+#define OMX_PORTDEF_EXTRADATA_SIZE ((sizeof(OMX_OTHER_EXTRADATATYPE) +\
+                                       sizeof(OMX_PARAM_PORTDEFINITIONTYPE) + 3)&(~3))
 
 //#define PROCESS_SEI_AND_VUI_IN_EXTRADATA
 
@@ -386,7 +389,8 @@ private:
         OMX_COMPONENT_GENERATE_HARDWARE_ERROR = 0x11,
         OMX_COMPONENT_GENERATE_ETB_ARBITRARY = 0x12,
         OMX_COMPONENT_GENERATE_PORT_RECONFIG = 0x13,
-        OMX_COMPONENT_GENERATE_EOS_DONE = 0x14
+        OMX_COMPONENT_GENERATE_EOS_DONE = 0x14,
+        OMX_COMPONENT_GENERATE_INFO_PORT_RECONFIG = 0x15,
     };
 
     enum vc1_profile_type
@@ -519,6 +523,8 @@ private:
     void append_frame_info_extradata(OMX_OTHER_EXTRADATATYPE *extra,
          OMX_U32 num_conceal_mb, OMX_U32 picture_type, OMX_S64 timestamp);
     void append_terminator_extradata(OMX_OTHER_EXTRADATATYPE *extra);
+    OMX_ERRORTYPE update_portdef(OMX_PARAM_PORTDEFINITIONTYPE *portDefn);
+    void append_portdef_extradata(OMX_OTHER_EXTRADATATYPE *extra);
     OMX_U32 count_MB_in_extradata(OMX_OTHER_EXTRADATATYPE *extra);
 
     bool align_pmem_buffers(int pmem_fd, OMX_U32 buffer_size,
@@ -692,6 +698,7 @@ private:
 #ifdef _ANDROID_
     DivXDrmDecrypt* iDivXDrmDecrypt;
 #endif //_ANDROID_
+    OMX_PARAM_PORTDEFINITIONTYPE m_port_def;
 };
 
 #endif // __OMX_VDEC_H__

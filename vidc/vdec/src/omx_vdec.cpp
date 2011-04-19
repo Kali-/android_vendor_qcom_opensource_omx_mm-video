@@ -952,6 +952,12 @@ void omx_vdec::process_event_cb(void *ctxt, unsigned char id)
           DEBUG_PRINT_ERROR("\n OMX_COMPONENT_GENERATE_HARDWARE_ERROR");
           pThis->omx_report_error ();
           break;
+        case OMX_COMPONENT_GENERATE_INFO_PORT_RECONFIG:
+        {
+          DEBUG_PRINT_HIGH("\n Rxd OMX_COMPONENT_GENERATE_INFO_PORT_RECONFIG");
+          pThis->m_cb.EventHandler(&pThis->m_cmp, pThis->m_app_data,
+                (OMX_EVENTTYPE)OMX_EventIndexsettingChanged, OMX_CORE_OUTPUT_PORT_INDEX, 0, NULL );
+        }
         default:
           break;
         }
@@ -2336,72 +2342,12 @@ OMX_ERRORTYPE  omx_vdec::get_parameter(OMX_IN OMX_HANDLETYPE     hComp,
   {
     case OMX_IndexParamPortDefinition:
     {
-      OMX_PARAM_PORTDEFINITIONTYPE *portDefn;
-      portDefn = (OMX_PARAM_PORTDEFINITIONTYPE *) paramData;
+      OMX_PARAM_PORTDEFINITIONTYPE *portDefn = 
+                            (OMX_PARAM_PORTDEFINITIONTYPE *) paramData;
       DEBUG_PRINT_LOW("get_parameter: OMX_IndexParamPortDefinition\n");
-      portDefn->nVersion.nVersion = OMX_SPEC_VERSION;
-      portDefn->nSize = sizeof(portDefn);
-      portDefn->eDomain    = OMX_PortDomainVideo;
-      if (drv_ctx.frame_rate.fps_denominator > 0)
-        portDefn->format.video.xFramerate = drv_ctx.frame_rate.fps_numerator /
-                                            drv_ctx.frame_rate.fps_denominator;
-      else {
-        DEBUG_PRINT_ERROR("Error: Divide by zero \n");
-        return OMX_ErrorBadParameter;
-      }
-      if (0 == portDefn->nPortIndex)
-      {
-        portDefn->eDir =  OMX_DirInput;
-        portDefn->nBufferCountActual = drv_ctx.ip_buf.actualcount;
-        portDefn->nBufferCountMin    = drv_ctx.ip_buf.mincount;
-        portDefn->nBufferSize        = drv_ctx.ip_buf.buffer_size;
-        portDefn->format.video.eColorFormat = OMX_COLOR_FormatUnused;
-        portDefn->format.video.eCompressionFormat = eCompressionFormat;
-        portDefn->bEnabled   = m_inp_bEnabled;
-        portDefn->bPopulated = m_inp_bPopulated;
-      }
-      else if (1 == portDefn->nPortIndex)
-      {
-        portDefn->eDir =  OMX_DirOutput;
-        if (update_picture_resolution() != OMX_ErrorNone)
-          return OMX_ErrorHardware;
-        if (in_reconfig)
-        {
-          portDefn->nBufferCountActual = op_buf_rcnfg.actualcount;
-          portDefn->nBufferCountMin    = op_buf_rcnfg.mincount;
-          portDefn->nBufferSize        = op_buf_rcnfg.buffer_size;
-        }
-        else
-        {
-          portDefn->nBufferCountActual = drv_ctx.op_buf.actualcount;
-          portDefn->nBufferCountMin    = drv_ctx.op_buf.mincount;
-          portDefn->nBufferSize        = drv_ctx.op_buf.buffer_size;
-        }
-        portDefn->format.video.eCompressionFormat = OMX_VIDEO_CodingUnused;
-        portDefn->bEnabled   = m_out_bEnabled;
-        portDefn->bPopulated = m_out_bPopulated;
-        if (drv_ctx.output_format == VDEC_YUV_FORMAT_NV12)
-          portDefn->format.video.eColorFormat = OMX_COLOR_FormatYUV420SemiPlanar;
-        else if (drv_ctx.output_format == VDEC_YUV_FORMAT_TILE_4x2)
-          portDefn->format.video.eColorFormat = (OMX_COLOR_FORMATTYPE)
-            QOMX_COLOR_FormatYUV420PackedSemiPlanar64x32Tile2m8ka;
-        else
-        {
-          DEBUG_PRINT_ERROR("ERROR: Color format unknown: %x\n", drv_ctx.output_format);
-        }
-      }
-      else
-      {
-        portDefn->eDir = OMX_DirMax;
-        DEBUG_PRINT_LOW(" get_parameter: Bad Port idx %d",
-                 (int)portDefn->nPortIndex);
-        eRet = OMX_ErrorBadPortIndex;
-      }
-      // Set width, height, stride and scanlines after update them from driver for OP port
-      portDefn->format.video.nFrameHeight =  drv_ctx.video_resolution.frame_height;
-      portDefn->format.video.nFrameWidth  =  drv_ctx.video_resolution.frame_width;
-      portDefn->format.video.nStride = drv_ctx.video_resolution.stride;
-      portDefn->format.video.nSliceHeight = drv_ctx.video_resolution.scan_lines;
+      eRet = update_portdef(portDefn);
+      if (eRet == OMX_ErrorNone)
+          m_port_def = *portDefn;
       break;
     }
     case OMX_IndexParamVideoInit:
@@ -2654,10 +2600,14 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
           DEBUG_PRINT_LOW("set_parameter: OMX_IndexParamPortDefinition OP port\n");
           m_display_id = portDefn->format.video.pNativeWindow;
           if ( portDefn->nBufferCountActual >= drv_ctx.op_buf.mincount &&
-               portDefn->nBufferSize ==  drv_ctx.op_buf.buffer_size )
-          {
+               portDefn->nBufferSize >=  drv_ctx.op_buf.buffer_size )
+            {
               drv_ctx.op_buf.actualcount = portDefn->nBufferCountActual;
+              drv_ctx.op_buf.mincount = portDefn->nBufferCountActual;
+              drv_ctx.op_buf.buffer_size = portDefn->nBufferSize;
               eRet = set_buffer_req(&drv_ctx.op_buf);
+              if (eRet == OMX_ErrorNone)
+                  m_port_def = *portDefn;
           }
           else
           {
@@ -3067,6 +3017,26 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
           }
       }
       break;
+    case OMX_QcomIndexParamIndexExtraDataType:
+      {
+        QOMX_INDEXEXTRADATATYPE *extradataIndexType = (QOMX_INDEXEXTRADATATYPE *) paramData;
+        if ((extradataIndexType->nIndex == OMX_IndexParamPortDefinition) &&
+               (extradataIndexType->bEnabled == OMX_TRUE) &&
+               (extradataIndexType->nPortIndex == 1))
+        {
+          DEBUG_PRINT_HIGH("set_parameter:  OMX_QcomIndexParamIndexExtraDataType SmoothStreaming\n");
+          eRet = enable_extradata(OMX_PORTDEF_EXTRADATA,
+                                ((QOMX_ENABLETYPE *)paramData)->bEnable);
+          // Set smooth streaming parameter
+          int rc = ioctl(drv_ctx.video_driver_fd,
+                        VDEC_IOCTL_SET_CONT_ON_RECONFIG);
+          if(rc < 0) {
+              DEBUG_PRINT_ERROR("Failed to enable Smooth Streaming on driver.");
+              eRet = OMX_ErrorHardware;
+          }
+        }
+      }
+      break;
 #endif
     default:
     {
@@ -3370,6 +3340,11 @@ OMX_ERRORTYPE  omx_vdec::get_extension_index(OMX_IN OMX_HANDLETYPE      hComp,
 	else if (!strncmp(paramName, "OMX.QCOM.index.param.video.SyncFrameDecodingMode",sizeof("OMX.QCOM.index.param.video.SyncFrameDecodingMode") - 1)) {
         *indexType = (OMX_INDEXTYPE)OMX_QcomIndexParamVideoSyncFrameDecodingMode;
     }
+ else if (!strncmp(paramName, "OMX.QCOM.index.param.IndexExtraData",sizeof("OMX.QCOM.index.param.IndexExtraData") - 1))
+   {
+      *indexType = (OMX_INDEXTYPE)OMX_QcomIndexParamIndexExtraDataType;
+   }
+
 #endif
 	else {
         DEBUG_PRINT_ERROR("Extension: %s not implemented\n", paramName);
@@ -5907,6 +5882,17 @@ int omx_vdec::async_message_process (void *context, void* message)
     omx->post_event ((unsigned int)omxhdr,vdec_msg->status_code,
                      OMX_COMPONENT_GENERATE_PORT_RECONFIG);
     break;
+  case VDEC_MSG_EVT_INFO_CONFIG_CHANGED:
+  {
+    DEBUG_PRINT_HIGH("\n Port settings changed info");
+    // get_buffer_req and populate port defn structure
+    OMX_ERRORTYPE eRet = OMX_ErrorNone;
+    omx->m_port_def.nPortIndex = 1;
+    eRet = omx->update_portdef(&(omx->m_port_def));
+    omx->post_event ((unsigned int)omxhdr,vdec_msg->status_code,
+                     OMX_COMPONENT_GENERATE_INFO_PORT_RECONFIG);
+    break;
+  }
   default:
     break;
   }
@@ -6581,6 +6567,12 @@ OMX_ERRORTYPE omx_vdec::get_buffer_req(vdec_allocatorproperty *buffer_prop)
       DEBUG_PRINT_HIGH("Interlace extra data enabled!");
       extra_data_size += OMX_INTERLACE_EXTRADATA_SIZE;
     }
+    if (client_extradata & OMX_PORTDEF_EXTRADATA)
+    {
+       extra_data_size += OMX_PORTDEF_EXTRADATA_SIZE;
+       DEBUG_PRINT_HIGH("Smooth streaming enabled extra_data_size=%d\n",
+         extra_data_size);
+    }
     if (extra_data_size)
     {
       extra_data_size += sizeof(OMX_OTHER_EXTRADATATYPE); //Space for terminator
@@ -6671,6 +6663,88 @@ OMX_ERRORTYPE omx_vdec::update_picture_resolution()
     eRet = OMX_ErrorHardware;
   }
   return eRet;
+}
+
+OMX_ERRORTYPE omx_vdec::update_portdef(OMX_PARAM_PORTDEFINITIONTYPE *portDefn)
+{
+  OMX_ERRORTYPE eRet = OMX_ErrorNone;
+  if (!portDefn)
+  {
+    return OMX_ErrorBadParameter;
+  }
+  DEBUG_PRINT_LOW("omx_vdec::update_portdef\n");
+  portDefn->nVersion.nVersion = OMX_SPEC_VERSION;
+  portDefn->nSize = sizeof(portDefn);
+  portDefn->eDomain    = OMX_PortDomainVideo;
+  if (drv_ctx.frame_rate.fps_denominator > 0)
+    portDefn->format.video.xFramerate = drv_ctx.frame_rate.fps_numerator /
+                                        drv_ctx.frame_rate.fps_denominator;
+  else {
+    DEBUG_PRINT_ERROR("Error: Divide by zero \n");
+    return OMX_ErrorBadParameter;
+  }
+  if (0 == portDefn->nPortIndex)
+  {
+    portDefn->eDir =  OMX_DirInput;
+    portDefn->nBufferCountActual = drv_ctx.ip_buf.actualcount;
+    portDefn->nBufferCountMin    = drv_ctx.ip_buf.mincount;
+    portDefn->nBufferSize        = drv_ctx.ip_buf.buffer_size;
+    portDefn->format.video.eColorFormat = OMX_COLOR_FormatUnused;
+    portDefn->format.video.eCompressionFormat = eCompressionFormat;
+    portDefn->bEnabled   = m_inp_bEnabled;
+    portDefn->bPopulated = m_inp_bPopulated;
+  }
+  else if (1 == portDefn->nPortIndex)
+  {
+    portDefn->eDir =  OMX_DirOutput;
+    if (update_picture_resolution() != OMX_ErrorNone)
+    {
+      LOGE(" update_picture_resolution failed \n");
+      return OMX_ErrorHardware;
+    }
+    if (in_reconfig)
+    {
+      portDefn->nBufferCountActual = op_buf_rcnfg.actualcount;
+      portDefn->nBufferCountMin    = op_buf_rcnfg.mincount;
+      portDefn->nBufferSize        = op_buf_rcnfg.buffer_size;
+    }
+    else
+    {
+      portDefn->nBufferCountActual = drv_ctx.op_buf.actualcount;
+      portDefn->nBufferCountMin    = drv_ctx.op_buf.mincount;
+      portDefn->nBufferSize        = drv_ctx.op_buf.buffer_size;
+    }
+    portDefn->format.video.eCompressionFormat = OMX_VIDEO_CodingUnused;
+    portDefn->bEnabled   = m_out_bEnabled;
+    portDefn->bPopulated = m_out_bPopulated;
+    if (drv_ctx.output_format == VDEC_YUV_FORMAT_NV12)
+      portDefn->format.video.eColorFormat = OMX_COLOR_FormatYUV420SemiPlanar;
+    else if (drv_ctx.output_format == VDEC_YUV_FORMAT_TILE_4x2)
+      portDefn->format.video.eColorFormat = (OMX_COLOR_FORMATTYPE)
+        QOMX_COLOR_FormatYUV420PackedSemiPlanar64x32Tile2m8ka;
+    else
+    {
+      DEBUG_PRINT_ERROR("ERROR: Color format unknown: %x\n", drv_ctx.output_format);
+    }
+  }
+  else
+  {
+    portDefn->eDir = OMX_DirMax;
+    DEBUG_PRINT_LOW(" get_parameter: Bad Port idx %d",
+             (int)portDefn->nPortIndex);
+    eRet = OMX_ErrorBadPortIndex;
+  }
+  portDefn->format.video.nFrameHeight =  drv_ctx.video_resolution.frame_height;
+  portDefn->format.video.nFrameWidth  =  drv_ctx.video_resolution.frame_width;
+  portDefn->format.video.nStride = drv_ctx.video_resolution.stride;
+  portDefn->format.video.nSliceHeight = drv_ctx.video_resolution.scan_lines;
+  DEBUG_PRINT_LOW("update_portdef Width = %d Height = %d Stride = %u"
+    "SliceHeight = %u \n", portDefn->format.video.nFrameHeight,
+    portDefn->format.video.nFrameWidth,
+    portDefn->format.video.nStride,
+    portDefn->format.video.nSliceHeight);
+  return eRet;
+
 }
 
 OMX_ERRORTYPE omx_vdec::allocate_output_headers()
@@ -7026,6 +7100,15 @@ void omx_vdec::handle_extradata(OMX_BUFFERHEADERTYPE *p_buf_hdr)
         p_buf_hdr->nTimeStamp);
     p_extra = (OMX_OTHER_EXTRADATATYPE *) (((OMX_U8 *) p_extra) + p_extra->nSize);
   }
+  if ((client_extradata & OMX_PORTDEF_EXTRADATA) &&
+       p_extra != NULL &&
+      ((OMX_U8*)p_extra + OMX_PORTDEF_EXTRADATA_SIZE) <
+       (p_buf_hdr->pBuffer + p_buf_hdr->nAllocLen))
+  {
+    p_buf_hdr->nFlags |= OMX_BUFFERFLAG_EXTRADATA;
+    append_portdef_extradata(p_extra);
+    p_extra = (OMX_OTHER_EXTRADATATYPE *) (((OMX_U8 *) p_extra) + p_extra->nSize);
+  }
   if (p_buf_hdr->nFlags & OMX_BUFFERFLAG_EXTRADATA)
     if (p_extra &&
       ((OMX_U8*)p_extra + OMX_FRAMEINFO_EXTRADATA_SIZE) <
@@ -7052,7 +7135,11 @@ OMX_ERRORTYPE omx_vdec::enable_extradata(OMX_U32 requested_extradata, bool enabl
     extradata_size += OMX_FRAMEINFO_EXTRADATA_SIZE;
   if (requested_extradata & OMX_INTERLACE_EXTRADATA)
     extradata_size += OMX_INTERLACE_EXTRADATA_SIZE;
-  DEBUG_PRINT_HIGH("enable_extradata: actual[%x] requested[%x] enable[%d]",
+  if (requested_extradata & OMX_PORTDEF_EXTRADATA)
+  {
+    extradata_size += OMX_PORTDEF_EXTRADATA_SIZE;
+  }
+  DEBUG_PRINT_ERROR("enable_extradata: actual[%x] requested[%x] enable[%d]",
     client_extradata, requested_extradata, enable);
 
   if (enable)
@@ -7095,6 +7182,9 @@ OMX_ERRORTYPE omx_vdec::enable_extradata(OMX_U32 requested_extradata, bool enabl
   {
     client_extradata = requested_extradata;
     drv_ctx.op_buf.buffer_size += extradata_size;
+    // align the buffer size
+    drv_ctx.op_buf.buffer_size = (drv_ctx.op_buf.buffer_size + drv_ctx.op_buf.alignment - 1)&(~(drv_ctx.op_buf.alignment - 1));
+    DEBUG_PRINT_LOW("Aligned buffer size with exreadata = %d\n", drv_ctx.op_buf.buffer_size);
     if (!(client_extradata & ~DRIVER_EXTRADATA_MASK)) // If no omx extradata is required remove space for terminator
       drv_ctx.op_buf.buffer_size -= sizeof(OMX_OTHER_EXTRADATATYPE);
     ret = set_buffer_req(&drv_ctx.op_buf);
@@ -7180,6 +7270,23 @@ void omx_vdec::append_frame_info_extradata(OMX_OTHER_EXTRADATATYPE *extra,
   if (drv_ctx.decoder_format == VDEC_CODECTYPE_H264)
     h264_parser->fill_pan_scan_data(&frame_info->panScan, timestamp);
   frame_info->nConcealedMacroblocks = num_conceal_mb;
+}
+
+void omx_vdec::append_portdef_extradata(OMX_OTHER_EXTRADATATYPE *extra)
+{
+  OMX_PARAM_PORTDEFINITIONTYPE *portDefn = NULL;
+  extra->nSize = OMX_PORTDEF_EXTRADATA_SIZE;
+  extra->nVersion.nVersion = OMX_SPEC_VERSION;
+  extra->nPortIndex = OMX_CORE_OUTPUT_PORT_INDEX;
+  extra->eType = (OMX_EXTRADATATYPE)OMX_ExtraDataPortDef;
+  extra->nDataSize = sizeof(OMX_PARAM_PORTDEFINITIONTYPE);
+  portDefn = (OMX_PARAM_PORTDEFINITIONTYPE *)extra->data;
+  *portDefn = m_port_def;
+  DEBUG_PRINT_LOW("append_portdef_extradata height = %u width = %u stride = %u"
+     "sliceheight = %u \n",portDefn->format.video.nFrameHeight,
+     portDefn->format.video.nFrameWidth,
+     portDefn->format.video.nStride,
+     portDefn->format.video.nSliceHeight);
 }
 
 void omx_vdec::append_terminator_extradata(OMX_OTHER_EXTRADATATYPE *extra)
