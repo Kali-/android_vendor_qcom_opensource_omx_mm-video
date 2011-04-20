@@ -29,6 +29,11 @@ endif
 ifeq "$(findstring msm8660,$(QCOM_TARGET_PRODUCT))" "msm8660"
 libOmxVdec-def += -DMAX_RES_1080P
 endif
+ifeq "$(findstring msm8960,$(QCOM_TARGET_PRODUCT))" "msm8960"
+libOmxVdec-def += -DMAX_RES_1080P
+libOmxVdec-def += -DMAX_RES_1080P_EBI
+endif
+
 # ---------------------------------------------------------------------------------
 # 			Make the Shared library (libOmxVdec)
 # ---------------------------------------------------------------------------------
@@ -58,6 +63,9 @@ LOCAL_SHARED_LIBRARIES  += libdivxdrmdecrypt
 LOCAL_SRC_FILES         := src/frameparser.cpp
 LOCAL_SRC_FILES         += src/h264_utils.cpp
 ifeq "$(findstring msm8660,$(TARGET_PRODUCT))" "msm8660"
+LOCAL_SRC_FILES         += src/mp4_utils.cpp
+endif
+ifeq "$(findstring msm8960,$(TARGET_PRODUCT))" "msm8960"
 LOCAL_SRC_FILES         += src/mp4_utils.cpp
 endif
 LOCAL_SRC_FILES         += src/omx_vdec.cpp

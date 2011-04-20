@@ -41,7 +41,12 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define H264_HP_START (H264_BP_START + 13)
 #define H264_MP_START (H264_BP_START + 26)
 
+#ifdef MAX_RES_1080P_EBI
+#define PMEM_DEVICE "/dev/pmem_adsp"
+#elif MAX_RES_1080P
 #define PMEM_DEVICE "/dev/pmem_smipool"
+#endif
+
 /* MPEG4 profile and level table*/
 static const unsigned int mpeg4_profile_level_table[][5]=
 {

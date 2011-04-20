@@ -106,10 +106,12 @@ static int previous_vc1_au = 0;
 #define MDP_DEINTERLACE 0x80000000
 
 #define ALLOCATE_BUFFER 0
+
 #ifdef MAX_RES_720P
 #define PMEM_DEVICE "/dev/pmem_adsp"
-#endif
-#ifdef MAX_RES_1080P
+#elif MAX_RES_1080P_EBI
+#define PMEM_DEVICE "/dev/pmem_adsp"
+#elif MAX_RES_1080P
 #define PMEM_DEVICE "/dev/pmem_smipool"
 #endif
 

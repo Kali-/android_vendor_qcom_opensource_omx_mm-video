@@ -27,7 +27,10 @@ endif
 ifeq "$(findstring msm8660,$(QCOM_TARGET_PRODUCT))" "msm8660"
 libmm-venc-def += -DMAX_RES_1080P
 endif
-
+ifeq "$(findstring msm8960,$(QCOM_TARGET_PRODUCT))" "msm8960"
+libmm-venc-def += -DMAX_RES_1080P
+libmm-venc-def += -DMAX_RES_1080P_EBI
+endif
 
 # ---------------------------------------------------------------------------------
 # 			Make the Shared library (libOmxVenc)

@@ -101,12 +101,15 @@ char ouputextradatafilename [] = "/data/extradata";
 #define VC1_STRUCT_A_POS            12
 #define VC1_STRUCT_B_POS            24
 #define VC1_SEQ_LAYER_SIZE          36
+
 #ifdef MAX_RES_720P
 #define PMEM_DEVICE "/dev/pmem_adsp"
-#endif
-#ifdef MAX_RES_1080P
+#elif MAX_RES_1080P_EBI
+#define PMEM_DEVICE "/dev/pmem_adsp"
+#elif MAX_RES_1080P
 #define PMEM_DEVICE "/dev/pmem_smipool"
 #endif
+
 #ifdef _ANDROID_
     extern "C"{
         #include<utils/Log.h>

@@ -23,3 +23,8 @@ ifeq "$(findstring msm8660,$(QCOM_TARGET_PRODUCT))" "msm8660"
     include $(OMX_VIDEO_PATH)/DivxDrmDecrypt/Android.mk
 endif
 
+ifeq "$(findstring msm8960,$(QCOM_TARGET_PRODUCT))" "msm8960"
+    include $(OMX_VIDEO_PATH)/vidc/vdec/Android.mk
+    include $(OMX_VIDEO_PATH)/vidc/venc/Android.mk
+    include $(OMX_VIDEO_PATH)/DivxDrmDecrypt/Android.mk
+endif

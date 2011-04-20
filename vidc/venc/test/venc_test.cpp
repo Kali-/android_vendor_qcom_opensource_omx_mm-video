@@ -319,6 +319,8 @@ int ebd_cnt=0, fbd_cnt=0;
 
 #ifdef MAX_RES_720P
 static const char* PMEM_DEVICE = "/dev/pmem_adsp";
+#elif MAX_RES_1080P_EBI
+static const char* PMEM_DEVICE  = "/dev/pmem_adsp";
 #elif MAX_RES_1080P
 static const char* PMEM_DEVICE = "/dev/pmem_smipool";
 #else
