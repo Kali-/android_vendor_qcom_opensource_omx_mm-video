@@ -466,6 +466,7 @@ omx_vdec::omx_vdec(): m_state(OMX_StateInvalid),
   memset (&drv_ctx,0,sizeof(drv_ctx));
   memset (&h264_scratch,0,sizeof (OMX_BUFFERHEADERTYPE));
   memset (m_hwdevice_name,0,sizeof(m_hwdevice_name));
+  memset(&op_buf_rcnfg, 0 ,sizeof(vdec_allocatorproperty));
   drv_ctx.video_driver_fd = -1;
   m_vendor_config.pData = NULL;
   pthread_mutex_init(&m_lock, NULL);
@@ -616,7 +617,13 @@ void omx_vdec::process_event_cb(void *ctxt, unsigned char id)
                 {
                   pThis->in_reconfig = false;
                   pThis->drv_ctx.op_buf = pThis->op_buf_rcnfg;
-                  pThis->set_buffer_req(&pThis->drv_ctx.op_buf);
+                  OMX_ERRORTYPE eRet = pThis->set_buffer_req(&pThis->drv_ctx.op_buf);
+                  if(eRet !=  OMX_ErrorNone)
+                  {
+                      DEBUG_PRINT_ERROR("set_buffer_req failed eRet = %d",eRet);
+                      pThis->omx_report_error();
+                      break;
+                  }
                 }
                 pThis->m_cb.EventHandler(&pThis->m_cmp, pThis->m_app_data,
                                       OMX_EventCmdComplete, p1, p2, NULL );
