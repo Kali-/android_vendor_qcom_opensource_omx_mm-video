@@ -47,6 +47,7 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #ifdef _ANDROID_
 #include <binder/MemoryHeapBase.h>
+#include <ui/android_native_buffer.h>
 extern "C"{
 #include<utils/Log.h>
 }
@@ -101,6 +102,37 @@ extern "C" {
         VideoHeap(int fd, size_t size, void* base);
         virtual ~VideoHeap() {}
     };
+
+    /**************************************************
+     * NOTE: Following structure is a copy of structure @
+     * frameworks/base/include/media/stagefright/HardwareAPI.h
+     * These structures should always match. Any mismatch
+     * will cause failure of the code related to these
+     * extensions.
+     *************************************************/
+struct EnableAndroidNativeBuffersParams {
+    OMX_U32 nSize;
+    OMX_VERSIONTYPE nVersion;
+    OMX_U32 nPortIndex;
+    OMX_BOOL enable;
+};
+
+/**************************************************
+ * NOTE: Following structure is a copy of structure @
+ * frameworks/base/include/media/stagefright/HardwareAPI.h
+ * These structures should always match. Any mismatch
+ * will cause failure of the code related to these
+ * extensions.
+ *************************************************/
+typedef struct UseAndroidNativeBufferParams {
+    OMX_U32 nSize;
+    OMX_VERSIONTYPE nVersion;
+    OMX_U32 nPortIndex;
+    OMX_PTR pAppPrivate;
+    OMX_BUFFERHEADERTYPE **bufferHeader;
+    const sp<android_native_buffer_t>& nativeBuffer;
+};
+
 #endif // _ANDROID_
 //////////////////////////////////////////////////////////////////////////////
 //                       Module specific globals
@@ -565,6 +597,7 @@ private:
     }
 #ifdef _ANDROID_
     OMX_ERRORTYPE createDivxDrmContext( OMX_PTR drmHandle );
+    OMX_ERRORTYPE use_android_native_buffer(OMX_IN OMX_HANDLETYPE hComp, OMX_PTR data);
 #endif //_ANDROID_
 
 
@@ -681,6 +714,7 @@ private:
     OMX_U32 proc_frms, latency;
     perf_metrics fps_metrics;
     perf_metrics dec_time;
+    bool m_enable_android_native_buffers;
 #endif
 #ifdef MAX_RES_1080P
     MP4_Utils mp4_headerparser;

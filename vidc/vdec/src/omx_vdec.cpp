@@ -55,6 +55,7 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #ifdef _ANDROID_
 #include <cutils/properties.h>
+#include <gralloc_priv.h>
 #undef USE_EGL_IMAGE_GPU
 #endif
 
@@ -433,6 +434,7 @@ omx_vdec::omx_vdec(): m_state(OMX_StateInvalid),
                       h264_last_au_flags(0),
 #ifdef _ANDROID_
                       m_heap_ptr(NULL),
+                      m_enable_android_native_buffers(OMX_FALSE),
 #endif
                       in_reconfig(false),
                       m_use_output_pmem(OMX_FALSE),
@@ -2541,6 +2543,30 @@ OMX_ERRORTYPE  omx_vdec::get_parameter(OMX_IN OMX_HANDLETYPE     hComp,
   return eRet;
 }
 
+#ifdef _ANDROID_
+OMX_ERRORTYPE omx_vdec::use_android_native_buffer(OMX_IN OMX_HANDLETYPE hComp, OMX_PTR data)
+{
+    DEBUG_PRINT_LOW("Inside use_android_native_buffer");
+    OMX_ERRORTYPE eRet = OMX_ErrorNone;
+    UseAndroidNativeBufferParams *params = (UseAndroidNativeBufferParams *)data;
+    sp<android_native_buffer_t> nBuf = params->nativeBuffer;
+    private_handle_t *handle = (private_handle_t *)nBuf->handle;
+    if(!params || !m_enable_android_native_buffers)
+        return OMX_ErrorBadParameter;
+    if(OMX_CORE_OUTPUT_PORT_INDEX == params->nPortIndex) {  //android native buffers can be used only on Output port
+        OMX_U8 *buffer = (OMX_U8*)mmap(0, handle->size,
+                PROT_READ|PROT_WRITE, MAP_SHARED, handle->fd, 0);
+        if(buffer == MAP_FAILED) {
+            DEBUG_PRINT_ERROR("Failed to mmap pmem with fd = %d, size = %d", handle->fd, handle->size);
+            return OMX_ErrorInsufficientResources;
+        }
+        eRet = use_buffer(hComp,params->bufferHeader,params->nPortIndex,data,handle->size,buffer);
+    } else {
+        eRet = OMX_ErrorBadParameter;
+    }
+    return eRet;
+}
+#endif
 /* ======================================================================
 FUNCTION
   omx_vdec::Setparameter
@@ -3038,6 +3064,40 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
       }
       break;
 #endif
+#ifdef _ANDROID_
+      /* Need to allow following two set_parameters even in Idle
+       * state. This is ANDROID architecture which is not in sync
+       * with openmax standard. */
+    case OMX_GoogleAndroidIndexEnableAndroidNativeBuffers:
+      {
+          if((m_state == OMX_StateLoaded) ||
+              BITMASK_PRESENT(&m_flags,OMX_COMPONENT_IDLE_PENDING) ||
+              BITMASK_PRESENT(&m_flags,OMX_COMPONENT_OUTPUT_ENABLE_PENDING) ||
+              (m_out_bEnabled == OMX_FALSE )) {
+              EnableAndroidNativeBuffersParams* enableNativeBuffers = (EnableAndroidNativeBuffersParams *) paramData;
+              if(enableNativeBuffers) {
+                  m_enable_android_native_buffers = enableNativeBuffers->enable;
+              }
+          } else {
+              DEBUG_PRINT_ERROR("Set Parameter called in Invalid State\n");
+              eRet = OMX_ErrorIncorrectStateOperation;
+          }
+      }
+      break;
+    case OMX_GoogleAndroidIndexUseAndroidNativeBuffer:
+      {
+          if((m_state == OMX_StateLoaded) ||
+              BITMASK_PRESENT(&m_flags,OMX_COMPONENT_IDLE_PENDING) ||
+              BITMASK_PRESENT(&m_flags,OMX_COMPONENT_OUTPUT_ENABLE_PENDING) ||
+              (m_out_bEnabled == OMX_FALSE)) {
+              eRet = use_android_native_buffer(hComp, paramData);
+          } else {
+              DEBUG_PRINT_ERROR("Set Parameter called in Invalid State\n");
+              eRet = OMX_ErrorIncorrectStateOperation;
+          }
+      }
+      break;
+#endif
     default:
     {
       DEBUG_PRINT_ERROR("Setparameter: unknown param %d\n", paramIndex);
@@ -3346,6 +3406,12 @@ OMX_ERRORTYPE  omx_vdec::get_extension_index(OMX_IN OMX_HANDLETYPE      hComp,
    }
 
 #endif
+    else if(!strncmp(paramName,"OMX.google.android.index.enableAndroidNativeBuffers", sizeof("OMX.google.android.index.enableAndroidNativeBuffers") - 1)) {
+        *indexType = (OMX_INDEXTYPE)OMX_GoogleAndroidIndexEnableAndroidNativeBuffers;
+    }
+    else if(!strncmp(paramName,"OMX.google.android.index.useAndroidNativeBuffer", sizeof("OMX.google.android.index.useAndroidNativeBuffer") - 1)) {
+        *indexType = (OMX_INDEXTYPE)OMX_GoogleAndroidIndexUseAndroidNativeBuffer;
+    }
 	else {
         DEBUG_PRINT_ERROR("Extension: %s not implemented\n", paramName);
         return OMX_ErrorNotImplemented;
@@ -3425,6 +3491,7 @@ OMX_ERRORTYPE  omx_vdec::use_output_buffer(
   unsigned                         i= 0; // Temporary counter
   struct vdec_ioctl_msg ioctl_msg = {NULL,NULL};
   struct vdec_setbuffer_cmd setbuffers;
+  OMX_PTR privateAppData = NULL;
 
   if (!m_out_mem_ptr) {
     DEBUG_PRINT_HIGH("Use_op_buf:Allocating output headers");
@@ -3457,6 +3524,23 @@ OMX_ERRORTYPE  omx_vdec::use_output_buffer(
   }
 
   if (eRet == OMX_ErrorNone) {
+#ifdef _ANDROID_
+    if(m_enable_android_native_buffers) {
+        UseAndroidNativeBufferParams *params = (UseAndroidNativeBufferParams *)appData;
+        sp<android_native_buffer_t> nBuf = params->nativeBuffer;
+        private_handle_t *handle = (private_handle_t *)nBuf->handle;
+        privateAppData = params->pAppPrivate;
+        if(!handle) {
+            DEBUG_PRINT_ERROR("Native Buffer handle is NULL");
+            return OMX_ErrorBadParameter;
+        }
+        drv_ctx.ptr_outputbuffer[i].pmem_fd = handle->fd;
+        drv_ctx.ptr_outputbuffer[i].offset = 0;
+        drv_ctx.ptr_outputbuffer[i].bufferaddr = buffer;
+        drv_ctx.ptr_outputbuffer[i].mmaped_size =
+            drv_ctx.ptr_outputbuffer[i].buffer_len = drv_ctx.op_buf.buffer_size;
+    } else
+#endif
     if (!ouput_egl_buffers && !m_use_output_pmem) {
         drv_ctx.ptr_outputbuffer[i].pmem_fd = \
           open (PMEM_DEVICE,O_RDWR);
@@ -3492,6 +3576,7 @@ OMX_ERRORTYPE  omx_vdec::use_output_buffer(
           return OMX_ErrorInsufficientResources;
         }
         drv_ctx.ptr_outputbuffer[i].offset = 0;
+        privateAppData = appData;
      }
      else {
 
@@ -3519,6 +3604,7 @@ OMX_ERRORTYPE  omx_vdec::use_output_buffer(
         drv_ctx.ptr_outputbuffer[i].bufferaddr = buffer;
         drv_ctx.ptr_outputbuffer[i].mmaped_size =
         drv_ctx.ptr_outputbuffer[i].buffer_len = drv_ctx.op_buf.buffer_size;
+        privateAppData = appData;
      }
      m_pmem_info[i].offset = drv_ctx.ptr_outputbuffer[i].offset;
      m_pmem_info[i].pmem_fd = drv_ctx.ptr_outputbuffer[i].pmem_fd;
@@ -3541,7 +3627,7 @@ OMX_ERRORTYPE  omx_vdec::use_output_buffer(
      *bufferHdr = (m_out_mem_ptr + i );
      (*bufferHdr)->nAllocLen = drv_ctx.op_buf.buffer_size;
      (*bufferHdr)->pBuffer = buffer;
-     (*bufferHdr)->pAppPrivate = appData;
+     (*bufferHdr)->pAppPrivate = privateAppData;
      BITMASK_SET(&m_out_bm_count,i);
   }
   return eRet;
@@ -3639,8 +3725,8 @@ OMX_ERRORTYPE  omx_vdec::use_buffer(
 
   if (bufferHdr == NULL || bytes == 0 || buffer == NULL)
   {
-    DEBUG_PRINT_ERROR("bad param 0x%p %ld 0x%p",bufferHdr, bytes, buffer);
-    return OMX_ErrorBadParameter;
+      DEBUG_PRINT_ERROR("bad param 0x%p %ld 0x%p",bufferHdr, bytes, buffer);
+      return OMX_ErrorBadParameter;
   }
   if(m_state == OMX_StateInvalid)
   {
@@ -3776,22 +3862,34 @@ OMX_ERRORTYPE omx_vdec::free_output_buffer(OMX_BUFFERHEADERTYPE *bufferHdr)
           &ioctl_msg) < 0)
       DEBUG_PRINT_ERROR("\nRelease output buffer failed in VCD");
 
-    if (drv_ctx.ptr_outputbuffer[0].pmem_fd > 0 && !ouput_egl_buffers && !m_use_output_pmem)
-    {
-       DEBUG_PRINT_LOW("\n unmap the output buffer fd = %d",
+#ifdef _ANDROID_
+    if(m_enable_android_native_buffers) {
+        if(drv_ctx.ptr_outputbuffer[index].pmem_fd > 0) {
+            munmap(drv_ctx.ptr_outputbuffer[index].bufferaddr,
+                    drv_ctx.ptr_outputbuffer[index].mmaped_size);
+        }
+        drv_ctx.ptr_outputbuffer[index].pmem_fd = -1;
+    } else {
+#endif
+        if (drv_ctx.ptr_outputbuffer[0].pmem_fd > 0 && !ouput_egl_buffers && !m_use_output_pmem)
+        {
+            DEBUG_PRINT_LOW("\n unmap the output buffer fd = %d",
                     drv_ctx.ptr_outputbuffer[0].pmem_fd);
-       DEBUG_PRINT_LOW("\n unmap the ouput buffer size=%d  address = %d",
+            DEBUG_PRINT_LOW("\n unmap the ouput buffer size=%d  address = %d",
                     drv_ctx.ptr_outputbuffer[0].mmaped_size,
                     drv_ctx.ptr_outputbuffer[0].bufferaddr);
-       munmap (drv_ctx.ptr_outputbuffer[0].bufferaddr,
-               drv_ctx.ptr_outputbuffer[0].mmaped_size);
+            munmap (drv_ctx.ptr_outputbuffer[0].bufferaddr,
+                    drv_ctx.ptr_outputbuffer[0].mmaped_size);
 #ifdef _ANDROID_
-     m_heap_ptr = NULL;
+            m_heap_ptr = NULL;
 #endif // _ANDROID_
 
-       close (drv_ctx.ptr_outputbuffer[0].pmem_fd);
-       drv_ctx.ptr_outputbuffer[0].pmem_fd = -1;
+            close (drv_ctx.ptr_outputbuffer[0].pmem_fd);
+            drv_ctx.ptr_outputbuffer[0].pmem_fd = -1;
+        }
+#ifdef _ANDROID_
     }
+#endif
   }
 #ifdef MAX_RES_1080P
   if(drv_ctx.decoder_format == VDEC_CODECTYPE_H264)

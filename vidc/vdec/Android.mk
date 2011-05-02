@@ -46,9 +46,9 @@ libmm-vdec-inc          += $(OMX_VIDEO_PATH)/vidc/common/inc
 
 libmm-vdec-inc          += $(TARGET_OUT_HEADERS)/mm-core/omxcore
 libmm-vdec-inc          += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
-
 #DRM include - Interface which loads the DRM library
 libmm-vdec-inc	        += $(OMX_VIDEO_PATH)/DivxDrmDecrypt/inc
+libmm-vdec-inc          += $(TOP)/hardware/msm7k/libgralloc-qsd8k
 
 LOCAL_MODULE                    := libOmxVdec
 LOCAL_MODULE_TAGS               := optional
