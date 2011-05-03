@@ -6016,6 +6016,7 @@ int omx_vdec::async_message_process (void *context, void* message)
         output_respbuf->time_stamp = vdec_msg->msgdata.output_frame.time_stamp;
         output_respbuf->flags = vdec_msg->msgdata.output_frame.flags;
         output_respbuf->pic_type = vdec_msg->msgdata.output_frame.pic_type;
+        output_respbuf->interlaced_format = vdec_msg->msgdata.output_frame.interlaced_format;
 
         if (omx->output_use_buffer)
           memcpy ( omxhdr->pBuffer,
@@ -7259,7 +7260,8 @@ void omx_vdec::handle_extradata(OMX_BUFFERHEADERTYPE *p_buf_hdr)
        (p_buf_hdr->pBuffer + p_buf_hdr->nAllocLen))
   {
     p_buf_hdr->nFlags |= OMX_BUFFERFLAG_EXTRADATA;
-    append_interlace_extradata(p_extra);
+    append_interlace_extradata(p_extra,
+         ((struct vdec_output_frameinfo *)p_buf_hdr->pOutputPortPrivate)->interlaced_format);
     p_extra = (OMX_OTHER_EXTRADATATYPE *) (((OMX_U8 *) p_extra) + p_extra->nSize);
   }
   if (client_extradata & OMX_FRAMEINFO_EXTRADATA && p_extra &&
@@ -7451,7 +7453,8 @@ void omx_vdec::print_debug_extradata(OMX_OTHER_EXTRADATATYPE *extra)
   }
 }
 
-void omx_vdec::append_interlace_extradata(OMX_OTHER_EXTRADATATYPE *extra)
+void omx_vdec::append_interlace_extradata(OMX_OTHER_EXTRADATATYPE *extra,
+                                          OMX_U32 interlaced_format_type)
 {
   OMX_STREAMINTERLACEFORMAT *interlace_format;
   extra->nSize = OMX_INTERLACE_EXTRADATA_SIZE;
@@ -7463,17 +7466,16 @@ void omx_vdec::append_interlace_extradata(OMX_OTHER_EXTRADATATYPE *extra)
   interlace_format->nSize = sizeof(OMX_STREAMINTERLACEFORMAT);
   interlace_format->nVersion.nVersion = OMX_SPEC_VERSION;
   interlace_format->nPortIndex = OMX_CORE_OUTPUT_PORT_INDEX;
-  interlace_format->bInterlaceFormat = OMX_TRUE;
-  if (drv_ctx.interlace == VDEC_InterlaceInterleaveFrameTopFieldFirst)
-    interlace_format->nInterlaceFormats = OMX_InterlaceInterleaveFrameTopFieldFirst;
-  else if (drv_ctx.interlace == VDEC_InterlaceInterleaveFrameBottomFieldFirst)
-    interlace_format->nInterlaceFormats = OMX_InterlaceInterleaveFrameBottomFieldFirst;
-  else
+  if (interlaced_format_type == VDEC_InterlaceFrameProgressive)
   {
     interlace_format->bInterlaceFormat = OMX_FALSE;
     interlace_format->nInterlaceFormats = OMX_InterlaceFrameProgressive;
   }
-
+  else
+  {
+    interlace_format->bInterlaceFormat = OMX_TRUE;
+    interlace_format->nInterlaceFormats = interlaced_format_type;
+  }
   print_debug_extradata(extra);
 }
 
