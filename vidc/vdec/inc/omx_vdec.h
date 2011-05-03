@@ -581,6 +581,19 @@ private:
         x = x + 1;
         return x;
     }
+
+    /*
+     * Inits the buffer to black
+     */
+    inline void init_buffer(void * buff,
+                            size_t buff_len,
+                            size_t stride,
+                            size_t slice)
+    {
+        memset(buff, 0x10101010, stride * slice); // Y = 16
+        memset(buff + stride * slice, 0x80808080, buff_len - (stride * slice)); // U = V = 128
+    }
+
 #ifdef MAX_RES_1080P
     OMX_ERRORTYPE vdec_alloc_h264_mv();
     void vdec_dealloc_h264_mv();

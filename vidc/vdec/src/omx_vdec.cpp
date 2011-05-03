@@ -3636,6 +3636,10 @@ OMX_ERRORTYPE  omx_vdec::use_output_buffer(
      setbuffers.buffer_type = VDEC_BUFFER_TYPE_OUTPUT;
      memcpy (&setbuffers.buffer,&drv_ctx.ptr_outputbuffer[i],
              sizeof (vdec_bufferpayload));
+
+     init_buffer(drv_ctx.ptr_outputbuffer[i].bufferaddr, drv_ctx.op_buf.buffer_size,
+              drv_ctx.video_resolution.stride, drv_ctx.video_resolution.scan_lines);
+
      ioctl_msg.in  = &setbuffers;
      ioctl_msg.out = NULL;
 
@@ -4413,12 +4417,9 @@ OMX_ERRORTYPE  omx_vdec::allocate_output_buffer(
      setbuffers.buffer_type = VDEC_BUFFER_TYPE_OUTPUT;
      memcpy (&setbuffers.buffer,&drv_ctx.ptr_outputbuffer[i],
              sizeof (vdec_bufferpayload));
-     memset(drv_ctx.ptr_outputbuffer[i].bufferaddr, 0x10101010,
-            drv_ctx.video_resolution.stride * drv_ctx.video_resolution.scan_lines); // Y = 16
-     memset(drv_ctx.ptr_outputbuffer[i].bufferaddr +
-            drv_ctx.video_resolution.stride * drv_ctx.video_resolution.scan_lines,
-            0x80808080, drv_ctx.op_buf.buffer_size -
-            drv_ctx.video_resolution.stride * drv_ctx.video_resolution.scan_lines); // U = V = 128
+
+     init_buffer(drv_ctx.ptr_outputbuffer[i].bufferaddr, drv_ctx.op_buf.buffer_size,
+              drv_ctx.video_resolution.stride, drv_ctx.video_resolution.scan_lines);
 
      ioctl_msg.in  = &setbuffers;
      ioctl_msg.out = NULL;
