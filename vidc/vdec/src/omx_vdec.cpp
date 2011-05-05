@@ -471,6 +471,17 @@ omx_vdec::omx_vdec(): m_state(OMX_StateInvalid),
   m_vendor_config.pData = NULL;
   pthread_mutex_init(&m_lock, NULL);
   sem_init(&m_cmd_lock,0,0);
+#ifdef _ANDROID_
+  char timestamp_value[PROPERTY_VALUE_MAX] = {0};
+  property_get("vidc.dec.debug.ts", timestamp_value, "0");
+  m_debug_timestamp = atoi(timestamp_value);
+  DEBUG_PRINT_HIGH("vidc.dec.debug.ts value is %d",m_debug_timestamp);
+
+  char extradata_value[PROPERTY_VALUE_MAX] = {0};
+  property_get("vidc.dec.debug.extradata", extradata_value, "0");
+  m_debug_extradata = atoi(extradata_value);
+  DEBUG_PRINT_HIGH("vidc.dec.debug.extradata value is %d",m_debug_extradata);
+#endif
 }
 
 
@@ -7133,6 +7144,7 @@ void omx_vdec::handle_extradata(OMX_BUFFERHEADERTYPE *p_buf_hdr)
     {
       DEBUG_PRINT_LOW("handle_extradata : pBuf(%p) BufTS(%lld) Type(%x) DataSz(%u)",
            p_buf_hdr, p_buf_hdr->nTimeStamp, p_extra->eType, p_extra->nDataSize);
+
       if (p_extra->eType == VDEC_EXTRADATA_MB_ERROR_MAP)
       {
         if (client_extradata & OMX_FRAMEINFO_EXTRADATA)
@@ -7153,6 +7165,8 @@ void omx_vdec::handle_extradata(OMX_BUFFERHEADERTYPE *p_buf_hdr)
         p_vui = p_extra;
         p_extra->eType = OMX_ExtraDataMax; // Invalid type to avoid expose this extradata to OMX client
       }
+      print_debug_extradata(p_extra);
+
       p_extra = (OMX_OTHER_EXTRADATATYPE *) (((OMX_U8 *) p_extra) + p_extra->nSize);
       if ((OMX_U8*)p_extra > (p_buf_hdr->pBuffer + p_buf_hdr->nAllocLen) ||
           p_extra->nDataSize == 0)
@@ -7317,6 +7331,73 @@ OMX_U32 omx_vdec::count_MB_in_extradata(OMX_OTHER_EXTRADATATYPE *extra)
   return ((num_MB_in_frame > 0)?(num_MB * 100 / num_MB_in_frame) : 0);
 }
 
+void omx_vdec::print_debug_extradata(OMX_OTHER_EXTRADATATYPE *extra)
+{
+  if (!m_debug_extradata)
+     return;
+
+  DEBUG_PRINT_HIGH(
+    "============== Extra Data ==============\n"
+    "           Size: %u \n"
+    "        Version: %u \n"
+    "      PortIndex: %u \n"
+    "           Type: %x \n"
+    "       DataSize: %u \n",
+    extra->nSize, extra->nVersion.nVersion,
+    extra->nPortIndex, extra->eType, extra->nDataSize);
+
+  if (extra->eType == OMX_ExtraDataInterlaceFormat)
+  {
+    OMX_STREAMINTERLACEFORMAT *intfmt = (OMX_STREAMINTERLACEFORMAT *)extra->data;
+    DEBUG_PRINT_HIGH(
+      "------ Interlace Format ------\n"
+      "                Size: %u \n"
+      "             Version: %u \n"
+      "           PortIndex: %u \n"
+      " Is Interlace Format: %u \n"
+      "   Interlace Formats: %u \n"
+      "=========== End of Interlace ===========\n",
+      intfmt->nSize, intfmt->nVersion.nVersion, intfmt->nPortIndex,
+      intfmt->bInterlaceFormat, intfmt->nInterlaceFormats);
+  }
+  else if (extra->eType == OMX_ExtraDataFrameInfo)
+  {
+    OMX_QCOM_EXTRADATA_FRAMEINFO *fminfo = (OMX_QCOM_EXTRADATA_FRAMEINFO *)extra->data;
+
+    DEBUG_PRINT_HIGH(
+      "-------- Frame Format --------\n"
+      "             Picture Type: %u \n"
+      "           Interlace Type: %u \n"
+      " Pan Scan Total Frame Num: %u \n"
+      "   Concealed Macro Blocks: %u \n",
+      fminfo->ePicType, fminfo->interlaceType,
+      fminfo->panScan.numWindows, fminfo->nConcealedMacroblocks);
+
+    for (int i = 0; i < fminfo->panScan.numWindows; i++)
+    {
+      DEBUG_PRINT_HIGH(
+        "------------------------------\n"
+        "     Pan Scan Frame Num: %d \n"
+        "            Rectangle x: %d \n"
+        "            Rectangle y: %d \n"
+        "           Rectangle dx: %d \n"
+        "           Rectangle dy: %d \n",
+        i, fminfo->panScan.window[i].x, fminfo->panScan.window[i].y,
+        fminfo->panScan.window[i].dx, fminfo->panScan.window[i].dy);
+    }
+
+    DEBUG_PRINT_HIGH("========= End of Frame Format ==========");
+  }
+  else if (extra->eType == OMX_ExtraDataNone)
+  {
+    DEBUG_PRINT_HIGH("========== End of Terminator ===========");
+  }
+  else
+  {
+    DEBUG_PRINT_HIGH("======= End of Driver Extradata ========");
+  }
+}
+
 void omx_vdec::append_interlace_extradata(OMX_OTHER_EXTRADATATYPE *extra)
 {
   OMX_STREAMINTERLACEFORMAT *interlace_format;
@@ -7339,6 +7420,8 @@ void omx_vdec::append_interlace_extradata(OMX_OTHER_EXTRADATATYPE *extra)
     interlace_format->bInterlaceFormat = OMX_FALSE;
     interlace_format->nInterlaceFormats = OMX_InterlaceFrameProgressive;
   }
+
+  print_debug_extradata(extra);
 }
 
 void omx_vdec::append_frame_info_extradata(OMX_OTHER_EXTRADATATYPE *extra,
@@ -7375,6 +7458,8 @@ void omx_vdec::append_frame_info_extradata(OMX_OTHER_EXTRADATATYPE *extra,
   if (drv_ctx.decoder_format == VDEC_CODECTYPE_H264)
     h264_parser->fill_pan_scan_data(&frame_info->panScan, timestamp);
   frame_info->nConcealedMacroblocks = num_conceal_mb;
+
+  print_debug_extradata(extra);
 }
 
 void omx_vdec::append_portdef_extradata(OMX_OTHER_EXTRADATATYPE *extra)
@@ -7401,6 +7486,8 @@ void omx_vdec::append_terminator_extradata(OMX_OTHER_EXTRADATATYPE *extra)
   extra->eType = OMX_ExtraDataNone;
   extra->nDataSize = 0;
   extra->data[0] = 0;
+
+  print_debug_extradata(extra);
 }
 
 #ifdef MAX_RES_1080P

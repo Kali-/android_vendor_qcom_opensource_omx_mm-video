@@ -551,6 +551,7 @@ private:
     void set_frame_rate(OMX_S64 act_timestamp, bool min_delta = false);
     void handle_extradata(OMX_BUFFERHEADERTYPE *p_buf_hdr);
     OMX_ERRORTYPE enable_extradata(OMX_U32 requested_extradata, bool enable = true);
+    void print_debug_extradata(OMX_OTHER_EXTRADATATYPE *extra);
     void append_interlace_extradata(OMX_OTHER_EXTRADATATYPE *extra);
     void append_frame_info_extradata(OMX_OTHER_EXTRADATATYPE *extra,
          OMX_U32 num_conceal_mb, OMX_U32 picture_type, OMX_S64 timestamp);
@@ -715,6 +716,7 @@ private:
     perf_metrics fps_metrics;
     perf_metrics dec_time;
     bool m_enable_android_native_buffers;
+    bool m_debug_extradata;
 #endif
 #ifdef MAX_RES_1080P
     MP4_Utils mp4_headerparser;
