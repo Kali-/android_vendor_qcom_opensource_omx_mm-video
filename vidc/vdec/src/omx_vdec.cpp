@@ -2653,7 +2653,6 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
                portDefn->nBufferSize >=  drv_ctx.op_buf.buffer_size )
             {
               drv_ctx.op_buf.actualcount = portDefn->nBufferCountActual;
-              drv_ctx.op_buf.mincount = portDefn->nBufferCountActual;
               drv_ctx.op_buf.buffer_size = portDefn->nBufferSize;
               eRet = set_buffer_req(&drv_ctx.op_buf);
               if (eRet == OMX_ErrorNone)
