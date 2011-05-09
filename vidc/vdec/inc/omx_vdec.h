@@ -571,6 +571,8 @@ private:
                      unsigned int p2,
                      unsigned int id
                     );
+    void handle_timestamp_reordering(OMX_BUFFERHEADERTYPE *buffer,
+                                     struct vdec_msginfo *vdec_msg);
     inline int clip2(int x)
     {
         x = x -1;
@@ -735,7 +737,9 @@ private:
 #ifdef MAX_RES_1080P
     MP4_Utils mp4_headerparser;
 #endif
-
+    OMX_BOOL reorder_timestamp;
+    OMX_BUFFERHEADERTYPE *prev_buffer;
+    OMX_U32 prev_buffer_status;
     struct h264_mv_buffer{
         unsigned char* buffer;
         int size;
