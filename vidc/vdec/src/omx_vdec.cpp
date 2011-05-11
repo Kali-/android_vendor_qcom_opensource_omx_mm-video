@@ -2622,26 +2622,22 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
          DEBUG_PRINT_ERROR("Get Param in Invalid paramData \n");
          return OMX_ErrorBadParameter;
     }
+    if((m_state != OMX_StateLoaded) &&
+          BITMASK_ABSENT(&m_flags,OMX_COMPONENT_OUTPUT_ENABLE_PENDING) &&
+          (m_out_bEnabled == OMX_TRUE) &&
+          BITMASK_ABSENT(&m_flags, OMX_COMPONENT_INPUT_ENABLE_PENDING) &&
+          (m_inp_bEnabled == OMX_TRUE)) {
+        DEBUG_PRINT_ERROR("Set Param in Invalid State \n");
+        return OMX_ErrorIncorrectStateOperation;
+    }
   switch(paramIndex)
   {
     case OMX_IndexParamPortDefinition:
     {
       OMX_PARAM_PORTDEFINITIONTYPE *portDefn;
       portDefn = (OMX_PARAM_PORTDEFINITIONTYPE *) paramData;
-      /* When the component is in Loaded state and IDLE Pending*/
-      if(((m_state == OMX_StateLoaded)&&
-          !BITMASK_PRESENT(&m_flags,OMX_COMPONENT_IDLE_PENDING))
-         /* Or while the I/P or the O/P port or disabled */
-         ||((OMX_DirInput == portDefn->eDir && m_inp_bEnabled == OMX_FALSE)||
-         (OMX_DirOutput == portDefn->eDir && m_out_bEnabled == OMX_FALSE)))
-      {
-       DEBUG_PRINT_LOW("Set Parameter called in valid state");
-      }
-      else
-      {
-         DEBUG_PRINT_ERROR("Set Parameter called in Invalid State\n");
-         return OMX_ErrorIncorrectStateOperation;
-      }
+      //TODO: Check if any allocate buffer/use buffer/useNativeBuffer has
+      //been called.
       DEBUG_PRINT_LOW("set_parameter: OMX_IndexParamPortDefinition H= %d, W = %d\n",
              (int)portDefn->format.video.nFrameHeight,
              (int)portDefn->format.video.nFrameWidth);
@@ -3093,31 +3089,15 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
        * with openmax standard. */
     case OMX_GoogleAndroidIndexEnableAndroidNativeBuffers:
       {
-          if((m_state == OMX_StateLoaded) ||
-              BITMASK_PRESENT(&m_flags,OMX_COMPONENT_IDLE_PENDING) ||
-              BITMASK_PRESENT(&m_flags,OMX_COMPONENT_OUTPUT_ENABLE_PENDING) ||
-              (m_out_bEnabled == OMX_FALSE )) {
-              EnableAndroidNativeBuffersParams* enableNativeBuffers = (EnableAndroidNativeBuffersParams *) paramData;
-              if(enableNativeBuffers) {
-                  m_enable_android_native_buffers = enableNativeBuffers->enable;
-              }
-          } else {
-              DEBUG_PRINT_ERROR("Set Parameter called in Invalid State\n");
-              eRet = OMX_ErrorIncorrectStateOperation;
+          EnableAndroidNativeBuffersParams* enableNativeBuffers = (EnableAndroidNativeBuffersParams *) paramData;
+          if(enableNativeBuffers) {
+              m_enable_android_native_buffers = enableNativeBuffers->enable;
           }
       }
       break;
     case OMX_GoogleAndroidIndexUseAndroidNativeBuffer:
       {
-          if((m_state == OMX_StateLoaded) ||
-              BITMASK_PRESENT(&m_flags,OMX_COMPONENT_IDLE_PENDING) ||
-              BITMASK_PRESENT(&m_flags,OMX_COMPONENT_OUTPUT_ENABLE_PENDING) ||
-              (m_out_bEnabled == OMX_FALSE)) {
-              eRet = use_android_native_buffer(hComp, paramData);
-          } else {
-              DEBUG_PRINT_ERROR("Set Parameter called in Invalid State\n");
-              eRet = OMX_ErrorIncorrectStateOperation;
-          }
+          eRet = use_android_native_buffer(hComp, paramData);
       }
       break;
 #endif
