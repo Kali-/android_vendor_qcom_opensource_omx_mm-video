@@ -879,10 +879,10 @@ result = OMX_SetParameter(m_hHandle,
          framePackingArrangement.cancel_flag = false;
          framePackingArrangement.type = 3;
          framePackingArrangement.quincunx_sampling_flag = false;
-         framePackingArrangement.content_interpretation_type = 23;
+         framePackingArrangement.content_interpretation_type = 0;
          framePackingArrangement.spatial_flipping_flag = true;
          framePackingArrangement.frame0_flipped_flag = false;
-         framePackingArrangement.field_views_flag = true;
+         framePackingArrangement.field_views_flag = false;
          framePackingArrangement.current_frame_is_frame0_flag = false;
          framePackingArrangement.frame0_self_contained_flag = true;
          framePackingArrangement.frame1_self_contained_flag = false;
@@ -890,9 +890,9 @@ result = OMX_SetParameter(m_hHandle,
          framePackingArrangement.frame0_grid_position_y = 15;
          framePackingArrangement.frame1_grid_position_x = 11;
          framePackingArrangement.frame1_grid_position_y = 7;
-         framePackingArrangement.reserved_byte = 222;
+         framePackingArrangement.reserved_byte = 0;
          framePackingArrangement.repetition_period = 16381;
-         framePackingArrangement.extension_flag = true;
+         framePackingArrangement.extension_flag = false;
 
          printf("Frame Packing Defaults :\n");
          PrintFramePackArrangement(framePackingArrangement);
