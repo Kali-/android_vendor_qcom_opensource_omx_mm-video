@@ -3115,8 +3115,7 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
                (extradataIndexType->nPortIndex == 1))
         {
           DEBUG_PRINT_HIGH("set_parameter:  OMX_QcomIndexParamIndexExtraDataType SmoothStreaming\n");
-          eRet = enable_extradata(OMX_PORTDEF_EXTRADATA,
-                                ((QOMX_ENABLETYPE *)paramData)->bEnable);
+          eRet = enable_extradata(OMX_PORTDEF_EXTRADATA, extradataIndexType->bEnabled);
           // Set smooth streaming parameter
           int rc = ioctl(drv_ctx.video_driver_fd,
                         VDEC_IOCTL_SET_CONT_ON_RECONFIG);
