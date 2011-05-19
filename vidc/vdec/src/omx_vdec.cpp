@@ -3663,9 +3663,6 @@ OMX_ERRORTYPE  omx_vdec::use_output_buffer(
      memcpy (&setbuffers.buffer,&drv_ctx.ptr_outputbuffer[i],
              sizeof (vdec_bufferpayload));
 
-     init_buffer(drv_ctx.ptr_outputbuffer[i].bufferaddr, drv_ctx.op_buf.buffer_size,
-              drv_ctx.video_resolution.stride, drv_ctx.video_resolution.scan_lines);
-
      ioctl_msg.in  = &setbuffers;
      ioctl_msg.out = NULL;
 
@@ -4443,9 +4440,6 @@ OMX_ERRORTYPE  omx_vdec::allocate_output_buffer(
      setbuffers.buffer_type = VDEC_BUFFER_TYPE_OUTPUT;
      memcpy (&setbuffers.buffer,&drv_ctx.ptr_outputbuffer[i],
              sizeof (vdec_bufferpayload));
-
-     init_buffer(drv_ctx.ptr_outputbuffer[i].bufferaddr, drv_ctx.op_buf.buffer_size,
-              drv_ctx.video_resolution.stride, drv_ctx.video_resolution.scan_lines);
 
      ioctl_msg.in  = &setbuffers;
      ioctl_msg.out = NULL;
