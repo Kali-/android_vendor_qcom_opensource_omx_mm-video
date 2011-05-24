@@ -576,27 +576,35 @@ OMX_ERRORTYPE  omx_venc::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
   case OMX_IndexParamVideoMpeg4:
     {
       OMX_VIDEO_PARAM_MPEG4TYPE* pParam = (OMX_VIDEO_PARAM_MPEG4TYPE*)paramData;
+      OMX_VIDEO_PARAM_MPEG4TYPE mp4_param;
+      memcpy(&mp4_param, pParam, sizeof(struct OMX_VIDEO_PARAM_MPEG4TYPE));
       DEBUG_PRINT_LOW("set_parameter: OMX_IndexParamVideoMpeg4");
       if(m_sParamMPEG4.eProfile == OMX_VIDEO_MPEG4ProfileAdvancedSimple)
       {
 #ifdef MAX_RES_1080P
         if(pParam->nBFrames > 1)
         {
-          DEBUG_PRINT_ERROR("BFrame set to %d (only 1 Bframe is supported)", pParam->nBFrames);
-          return OMX_ErrorUnsupportedSetting;
+          DEBUG_PRINT_ERROR("Warning: Only 1 Bframe is supported, changing BFrame from %d to 1", pParam->nBFrames);
+          mp4_param.nBFrames = 1;
         }
 #else
-        if(pParam->nBFrames > 0)
+        if(pParam->nBFrames)
         {
-          DEBUG_PRINT_ERROR("B frames not supported\n");
-          return OMX_ErrorUnsupportedSetting;
+          DEBUG_PRINT_ERROR("Warning: B frames not supported\n");
+          mp4_param.nBFrames = 0;
         }
 #endif
       }
       else
-        pParam->nBFrames = 0;
+      {
+        if(pParam->nBFrames)
+        {
+          DEBUG_PRINT_ERROR("Warning: B frames not supported\n");
+          mp4_param.nBFrames = 0;
+        }
+      }
 
-      if(handle->venc_set_param(paramData,OMX_IndexParamVideoMpeg4) != true)
+      if(handle->venc_set_param(&mp4_param,OMX_IndexParamVideoMpeg4) != true)
       {
         return OMX_ErrorUnsupportedSetting;
       }
@@ -617,34 +625,51 @@ OMX_ERRORTYPE  omx_venc::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
   case OMX_IndexParamVideoAvc:
     {
       OMX_VIDEO_PARAM_AVCTYPE* pParam = (OMX_VIDEO_PARAM_AVCTYPE*)paramData;
+      OMX_VIDEO_PARAM_AVCTYPE avc_param;
+      memcpy(&avc_param, pParam, sizeof( struct OMX_VIDEO_PARAM_AVCTYPE));
       DEBUG_PRINT_LOW("set_parameter: OMX_IndexParamVideoAvc");
 
-      if((m_sParamAVC.eProfile == OMX_VIDEO_AVCProfileHigh)||
-         (m_sParamAVC.eProfile == OMX_VIDEO_AVCProfileMain))
+      if((pParam->eProfile == OMX_VIDEO_AVCProfileHigh)||
+         (pParam->eProfile == OMX_VIDEO_AVCProfileMain))
       {
 #ifdef MAX_RES_1080P
         if(pParam->nBFrames > 1)
         {
-          DEBUG_PRINT_ERROR("BFrame set to %d (only 1 Bframe is supported)", pParam->nBFrames);
-          return OMX_ErrorUnsupportedSetting;
+          DEBUG_PRINT_ERROR("Warning: Only 1 Bframe is supported, changing BFrame from %d to 1", pParam->nBFrames);
+          avc_param.nBFrames = 1;
         }
-        pParam->nRefFrames = 2;
+        if(pParam->nRefFrames != 2)
+        {
+          DEBUG_PRINT_ERROR("Warning: 2 RefFrames are needed, changing RefFrames from %d to 2", pParam->nRefFrames);
+          avc_param.nRefFrames = 2;
+        }
 #else
-       if(pParam->nBFrames > 0)
+       if(pParam->nBFrames)
        {
-         DEBUG_PRINT_ERROR("B frames not supported\n");
-         return OMX_ErrorUnsupportedSetting;
+         DEBUG_PRINT_ERROR("Warning: B frames not supported\n");
+         avc_param.nBFrames = 0;
        }
-       pParam->nRefFrames = 1;
+       if(pParam->nRefFrames != 1)
+       {
+         DEBUG_PRINT_ERROR("Warning: Only 1 RefFrame is supported, changing RefFrame from %d to 1)", pParam->nRefFrames);
+         avc_param.nRefFrames = 1;
+       }
 #endif
       }
       else
       {
-        pParam->nRefFrames = 1;
-        pParam->nBFrames = 0;
+       if(pParam->nRefFrames != 1)
+       {
+         DEBUG_PRINT_ERROR("Warning: Only 1 RefFrame is supported, changing RefFrame from %d to 1)", pParam->nRefFrames);
+         avc_param.nRefFrames = 1;
+       }
+       if(pParam->nBFrames)
+       {
+         DEBUG_PRINT_ERROR("Warning: B frames not supported\n");
+         avc_param.nBFrames = 0;
+       }
       }
-
-      if(handle->venc_set_param(paramData,OMX_IndexParamVideoAvc) != true)
+      if(handle->venc_set_param(&avc_param,OMX_IndexParamVideoAvc) != true)
       {
         return OMX_ErrorUnsupportedSetting;
       }
