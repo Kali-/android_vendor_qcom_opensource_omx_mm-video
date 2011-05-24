@@ -345,7 +345,8 @@ OMX_S32 extra_data_handler::create_rbsp(OMX_U8 *buf, OMX_U32 nalu_type)
    *buf++ = H264_START_CODE;
    *buf++ = nalu_type;
    *buf++ = (sei_payload_type & 0x000000FF);
-   *buf++ = byte_ptr;
+   *buf++ = byte_ptr - 1; //payload will contain 1 byte of rbsp_trailing_bits
+                          //that shouldn't be taken into account
 
     for(i = 0;i < byte_ptr ;i += 2) {
       *buf++ = rbsp_buf[i];
@@ -377,8 +378,14 @@ OMX_U32 extra_data_handler::create_sei(OMX_U8 *buffer)
      if(bit_ptr != 8) {
        e_u(1,1);
        if(bit_ptr != 8)
-         e_u(0,8-bit_ptr);
+         e_u(0,bit_ptr);
      }
+
+     //Payload will have been byte aligned by now,
+     //insert the rbsp trailing bits
+     e_u(1, 1);
+     e_u(0, 7);
+
      ret_val = create_rbsp(buffer, NAL_TYPE_SEI);
    }
 
