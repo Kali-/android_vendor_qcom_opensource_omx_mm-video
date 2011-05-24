@@ -34,6 +34,9 @@ libOmxVdec-def += -DMAX_RES_1080P
 libOmxVdec-def += -DMAX_RES_1080P_EBI
 endif
 
+ifneq (, $(filter HONEYCOMB HMJ19, $(BUILD_ID)))
+libOmxVdec-def += -D_ANDROID_HONEYCOMB_
+endif
 # ---------------------------------------------------------------------------------
 # 			Make the Shared library (libOmxVdec)
 # ---------------------------------------------------------------------------------
