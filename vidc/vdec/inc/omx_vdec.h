@@ -74,6 +74,10 @@ extern "C"{
 #define DEBUG_PRINT_ERROR printf
 #endif // _ANDROID_
 
+#ifdef _ANDROID_HONEYCOMB_
+#include <media/stagefright/HardwareAPI.h>
+#endif
+
 #include <pthread.h>
 #ifndef PC_DEBUG
 #include <semaphore.h>
@@ -102,37 +106,6 @@ extern "C" {
         VideoHeap(int fd, size_t size, void* base);
         virtual ~VideoHeap() {}
     };
-
-    /**************************************************
-     * NOTE: Following structure is a copy of structure @
-     * frameworks/base/include/media/stagefright/HardwareAPI.h
-     * These structures should always match. Any mismatch
-     * will cause failure of the code related to these
-     * extensions.
-     *************************************************/
-struct EnableAndroidNativeBuffersParams {
-    OMX_U32 nSize;
-    OMX_VERSIONTYPE nVersion;
-    OMX_U32 nPortIndex;
-    OMX_BOOL enable;
-};
-
-/**************************************************
- * NOTE: Following structure is a copy of structure @
- * frameworks/base/include/media/stagefright/HardwareAPI.h
- * These structures should always match. Any mismatch
- * will cause failure of the code related to these
- * extensions.
- *************************************************/
-typedef struct UseAndroidNativeBufferParams {
-    OMX_U32 nSize;
-    OMX_VERSIONTYPE nVersion;
-    OMX_U32 nPortIndex;
-    OMX_PTR pAppPrivate;
-    OMX_BUFFERHEADERTYPE **bufferHeader;
-    const sp<android_native_buffer_t>& nativeBuffer;
-};
-
 #endif // _ANDROID_
 //////////////////////////////////////////////////////////////////////////////
 //                       Module specific globals
@@ -613,8 +586,10 @@ private:
     }
 #ifdef _ANDROID_
     OMX_ERRORTYPE createDivxDrmContext( OMX_PTR drmHandle );
-    OMX_ERRORTYPE use_android_native_buffer(OMX_IN OMX_HANDLETYPE hComp, OMX_PTR data);
 #endif //_ANDROID_
+#ifdef _ANDROID_HONEYCOMB_
+    OMX_ERRORTYPE use_android_native_buffer(OMX_IN OMX_HANDLETYPE hComp, OMX_PTR data);
+#endif
 
 
     //*************************************************************
