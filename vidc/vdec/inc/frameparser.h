@@ -83,12 +83,18 @@ private:
    unsigned char *mask_code;
    unsigned char last_byte_h263;
    unsigned char last_byte;
+   bool mpeg4_header_found;
+   bool skip_frame_boundary;
 
    /*Variables for NAL Length Parsing*/
    enum state_nal_parse state_nal;
    unsigned int nal_length;
    unsigned int accum_length;
    unsigned int bytes_tobeparsed;
+   /*Functions to support additional start code parsing*/
+   void parse_additional_start_code(OMX_U8 *psource, OMX_U32 *parsed_length);
+   void check_skip_frame_boundary(OMX_U32 *partial_frame);
+   void update_skip_frame();
 };
 
 #endif /* FRAMEPARSER_H */
