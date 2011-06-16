@@ -634,6 +634,12 @@ void omx_vdec::process_event_cb(void *ctxt, unsigned char id)
 
               case OMX_CommandPortDisable:
                 DEBUG_PRINT_HIGH("\n OMX_CommandPortDisable complete for port [%d]", p2);
+                if (BITMASK_PRESENT(&pThis->m_flags,
+                    OMX_COMPONENT_OUTPUT_FLUSH_IN_DISABLE_PENDING))
+                {
+                  BITMASK_SET(&pThis->m_flags, OMX_COMPONENT_DISABLE_OUTPUT_DEFERRED);
+                  break;
+                }
                 if (p2 == OMX_CORE_OUTPUT_PORT_INDEX && pThis->in_reconfig)
                 {
                   pThis->in_reconfig = false;
@@ -805,6 +811,24 @@ void omx_vdec::process_event_cb(void *ctxt, unsigned char id)
                                            OMX_EventCmdComplete,OMX_CommandFlush,
                                            OMX_CORE_OUTPUT_PORT_INDEX,NULL );
                 }
+                if(BITMASK_PRESENT(&pThis->m_flags,
+                       OMX_COMPONENT_OUTPUT_FLUSH_IN_DISABLE_PENDING))
+                {
+                  DEBUG_PRINT_LOW("\n Internal flush complete");
+                  BITMASK_CLEAR (&pThis->m_flags,
+                                 OMX_COMPONENT_OUTPUT_FLUSH_IN_DISABLE_PENDING);
+                  if (BITMASK_PRESENT(&pThis->m_flags,
+                          OMX_COMPONENT_DISABLE_OUTPUT_DEFERRED))
+                  {
+                    pThis->post_event(OMX_CommandPortDisable,
+                               OMX_CORE_OUTPUT_PORT_INDEX,
+                               OMX_COMPONENT_GENERATE_EVENT);
+                    BITMASK_CLEAR (&pThis->m_flags,
+                                   OMX_COMPONENT_DISABLE_OUTPUT_DEFERRED);
+
+                  }
+                }
+
                 if (BITMASK_PRESENT(&pThis->m_flags ,OMX_COMPONENT_IDLE_PENDING))
                 {
                   if (!pThis->input_flush_progress)
@@ -1941,6 +1965,7 @@ OMX_ERRORTYPE  omx_vdec::send_command_proxy(OMX_IN OMX_HANDLETYPE hComp,
                 sem_posted = 1;
                 sem_post (&m_cmd_lock);
               }
+                BITMASK_SET(&m_flags, OMX_COMPONENT_OUTPUT_FLUSH_IN_DISABLE_PENDING);
                 execute_omx_flush(OMX_CORE_OUTPUT_PORT_INDEX);
             }
             // Skip the event notification
@@ -4687,7 +4712,7 @@ OMX_ERRORTYPE  omx_vdec::free_buffer(OMX_IN OMX_HANDLETYPE         hComp,
             eRet = OMX_ErrorBadPortIndex;
         }
         if(BITMASK_PRESENT((&m_flags),OMX_COMPONENT_OUTPUT_DISABLE_PENDING)
-           && release_output_done() )
+           && release_output_done())
         {
             DEBUG_PRINT_LOW("FreeBuffer : If any Disable event pending,post it\n");
 
