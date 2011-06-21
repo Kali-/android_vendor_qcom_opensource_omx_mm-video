@@ -1105,6 +1105,7 @@ OMX_U32 venc_dev::pmem_allocate(OMX_U32 size, OMX_U32 alignment, OMX_U32 count)
   recon_addr.buffer_size = size;
   recon_addr.pmem_fd = pmem_fd;
   recon_addr.offset = 0;
+  recon_addr.pbuffer = (unsigned char *)buf_addr;
 
   ioctl_msg.in = (void*)&recon_addr;
   ioctl_msg.out = NULL;
@@ -1128,11 +1129,19 @@ OMX_U32 venc_dev::pmem_allocate(OMX_U32 size, OMX_U32 alignment, OMX_U32 count)
 OMX_U32 venc_dev::pmem_free()
 {
   int cnt = 0;
+  struct venc_ioctl_msg ioctl_msg;
+  struct venc_recon_addr recon_addr;
   for (cnt = 0; cnt < recon_buffers_count; cnt++)
   {
     if(recon_buff[cnt].pmem_fd)
     {
-      if(ioctl(m_nDriver_fd, VEN_IOCTL_FREE_RECON_BUFFER ,NULL) < 0)
+      recon_addr.pbuffer = recon_buff[cnt].virtual_address;
+      recon_addr.offset = recon_buff[cnt].offset;
+      recon_addr.pmem_fd = recon_buff[cnt].pmem_fd;
+      recon_addr.buffer_size = recon_buff[cnt].size;
+      ioctl_msg.in = (void*)&recon_addr;
+      ioctl_msg.out = NULL;
+      if(ioctl(m_nDriver_fd, VEN_IOCTL_FREE_RECON_BUFFER ,&ioctl_msg) < 0)
         DEBUG_PRINT_ERROR("VEN_IOCTL_FREE_RECON_BUFFER failed");
       munmap(recon_buff[cnt].virtual_address, recon_buff[cnt].size);
       close(recon_buff[cnt].pmem_fd);
