@@ -579,12 +579,12 @@ OMX_ERRORTYPE  omx_venc::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
       OMX_VIDEO_PARAM_MPEG4TYPE mp4_param;
       memcpy(&mp4_param, pParam, sizeof(struct OMX_VIDEO_PARAM_MPEG4TYPE));
       DEBUG_PRINT_LOW("set_parameter: OMX_IndexParamVideoMpeg4");
-      if(m_sParamMPEG4.eProfile == OMX_VIDEO_MPEG4ProfileAdvancedSimple)
+      if(pParam->eProfile == OMX_VIDEO_MPEG4ProfileAdvancedSimple)
       {
 #ifdef MAX_RES_1080P
-        if(pParam->nBFrames > 1)
+        if(pParam->nBFrames)
         {
-          DEBUG_PRINT_ERROR("Warning: Only 1 Bframe is supported, changing BFrame from %d to 1", pParam->nBFrames);
+          DEBUG_PRINT_HIGH("INFO: Only 1 Bframe is supported");
           mp4_param.nBFrames = 1;
         }
 #else
@@ -603,7 +603,6 @@ OMX_ERRORTYPE  omx_venc::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
           mp4_param.nBFrames = 0;
         }
       }
-
       if(handle->venc_set_param(&mp4_param,OMX_IndexParamVideoMpeg4) != true)
       {
         return OMX_ErrorUnsupportedSetting;
@@ -633,9 +632,9 @@ OMX_ERRORTYPE  omx_venc::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
          (pParam->eProfile == OMX_VIDEO_AVCProfileMain))
       {
 #ifdef MAX_RES_1080P
-        if(pParam->nBFrames > 1)
+        if(pParam->nBFrames)
         {
-          DEBUG_PRINT_ERROR("Warning: Only 1 Bframe is supported, changing BFrame from %d to 1", pParam->nBFrames);
+          DEBUG_PRINT_HIGH("INFO: Only 1 Bframe is supported");
           avc_param.nBFrames = 1;
         }
         if(pParam->nRefFrames != 2)

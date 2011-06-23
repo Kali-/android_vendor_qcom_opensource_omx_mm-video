@@ -638,9 +638,9 @@ bool venc_dev::venc_set_param(void *paramData,OMX_INDEXTYPE index )
         else {
           if(pParam->eProfile == OMX_VIDEO_MPEG4ProfileAdvancedSimple)
           {
-            if(pParam->nBFrames > 1)
+            if(pParam->nBFrames)
             {
-              DEBUG_PRINT_ERROR("Warning: BFrame set to %d (only 1 Bframe is supported)", pParam->nBFrames);
+              DEBUG_PRINT_HIGH("INFO: Only 1 Bframe is supported");
               bFrames = 1;
             }
           }
@@ -675,6 +675,7 @@ bool venc_dev::venc_set_param(void *paramData,OMX_INDEXTYPE index )
     {
       OMX_VIDEO_PARAM_H263TYPE* pParam = (OMX_VIDEO_PARAM_H263TYPE*)paramData;
       DEBUG_PRINT_LOW("venc_set_param: OMX_IndexParamVideoH263\n");
+      OMX_U32 bFrames = 0;
       if(pParam->nPortIndex == (OMX_U32) PORT_INDEX_OUT)
       {
         m_profile_set = false;
@@ -684,8 +685,10 @@ bool venc_dev::venc_set_param(void *paramData,OMX_INDEXTYPE index )
           DEBUG_PRINT_ERROR("\nERROR: Unsuccessful in updating Profile and level");
           return false;
         }
-        pParam->nBFrames = 0;
-        if(venc_set_intra_period (pParam->nPFrames, pParam->nBFrames) == false)
+        if (pParam->nBFrames)
+          DEBUG_PRINT_ERROR("\nWARNING: B frame not supported for H.263");
+
+        if(venc_set_intra_period (pParam->nPFrames, bFrames) == false)
         {
           DEBUG_PRINT_ERROR("\nERROR: Request for setting intra period failed");
           return false;
@@ -721,9 +724,9 @@ bool venc_dev::venc_set_param(void *paramData,OMX_INDEXTYPE index )
         else {
           if(pParam->eProfile != OMX_VIDEO_AVCProfileBaseline)
           {
-            if(pParam->nBFrames > 1)
+            if(pParam->nBFrames)
             {
-              DEBUG_PRINT_ERROR("Warning: BFrame set to %d (only 1 Bframe is supported)", pParam->nBFrames);
+              DEBUG_PRINT_HIGH("INFO: Only 1 Bframe is supported");
               bFrames = 1;
             }
           }
@@ -1740,9 +1743,9 @@ bool venc_dev::venc_set_intra_period(OMX_U32 nPFrames, OMX_U32 nBFrames)
      (codec_profile.profile == VEN_PROFILE_H264_HIGH))
   {
 #ifdef MAX_RES_1080P
-    if (nBFrames > 1)
+    if (nBFrames)
     {
-      DEBUG_PRINT_ERROR("Invalid number of B frames set %d (only 1 Bframe is supported)",nBFrames);
+      DEBUG_PRINT_HIGH("INFO: Only 1 Bframe is supported");
       intraperiod_cfg.num_bframes = 1;
     }
     else
@@ -1759,7 +1762,7 @@ bool venc_dev::venc_set_intra_period(OMX_U32 nPFrames, OMX_U32 nBFrames)
     intraperiod_cfg.num_bframes = 0;
 
   DEBUG_PRINT_ERROR("\n venc_set_intra_period: nPFrames = %u nBFrames = %u",
-                    nPFrames, nBFrames);
+                    intraperiod_cfg.num_pframes, intraperiod_cfg.num_bframes);
   ioctl_msg.in = (void*)&intraperiod_cfg;
   ioctl_msg.out = NULL;
   if(ioctl (m_nDriver_fd,VEN_IOCTL_SET_INTRA_PERIOD,(void*)&ioctl_msg)< 0)
