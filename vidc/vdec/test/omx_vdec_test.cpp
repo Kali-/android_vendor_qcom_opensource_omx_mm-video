@@ -87,6 +87,8 @@ extern "C" {
 #define true 1
 #define VOP_START_CODE 0x000001B6
 #define SHORT_HEADER_START_CODE 0x00008000
+#define MPEG2_FRAME_START_CODE 0x00000100
+#define MPEG2_SEQ_START_CODE 0x000001B3
 #define VC1_START_CODE  0x00000100
 #define VC1_FRAME_START_CODE  0x0000010D
 #define VC1_FRAME_FIELD_CODE  0x0000010C
@@ -130,7 +132,8 @@ typedef enum {
   CODEC_FORMAT_H263,
   CODEC_FORMAT_VC1,
   CODEC_FORMAT_DIVX,
-  CODEC_FORMAT_MAX = CODEC_FORMAT_DIVX
+  CODEC_FORMAT_MPEG2,
+  CODEC_FORMAT_MAX = CODEC_FORMAT_MPEG2
 } codec_format;
 
 typedef enum {
@@ -150,7 +153,10 @@ typedef enum {
 
   FILE_TYPE_START_OF_DIVX_SPECIFIC = 40,
   FILE_TYPE_DIVX_4_5_6 = FILE_TYPE_START_OF_DIVX_SPECIFIC,
-  FILE_TYPE_DIVX_311
+  FILE_TYPE_DIVX_311,
+
+  FILE_TYPE_START_OF_MPEG2_SPECIFIC = 50,
+  FILE_TYPE_MPEG2_START_CODE = FILE_TYPE_START_OF_MPEG2_SPECIFIC
 
 } file_type;
 
@@ -305,6 +311,7 @@ static int open_video_file ();
 static int Read_Buffer_From_DAT_File(OMX_BUFFERHEADERTYPE  *pBufHdr );
 static int Read_Buffer_ArbitraryBytes(OMX_BUFFERHEADERTYPE  *pBufHdr);
 static int Read_Buffer_From_Vop_Start_Code_File(OMX_BUFFERHEADERTYPE  *pBufHdr);
+static int Read_Buffer_From_Mpeg2_Start_Code(OMX_BUFFERHEADERTYPE  *pBufHdr);
 static int Read_Buffer_From_Size_Nal(OMX_BUFFERHEADERTYPE  *pBufHdr);
 static int Read_Buffer_From_RCV_File_Seq_Layer(OMX_BUFFERHEADERTYPE  *pBufHdr);
 static int Read_Buffer_From_RCV_File(OMX_BUFFERHEADERTYPE  *pBufHdr);
@@ -1126,6 +1133,7 @@ int main(int argc, char **argv)
       printf(" 3--> H263\n");
       printf(" 4--> VC1\n");
       printf(" 5--> DivX\n");
+      printf(" 6--> MPEG2\n");
       fflush(stdin);
       scanf("%d", &codec_format_option);
       fflush(stdin);
@@ -1138,7 +1146,7 @@ int main(int argc, char **argv)
       printf(" ENTER THE TEST CASE YOU WOULD LIKE TO EXECUTE\n");
       printf(" *********************************************\n");
       printf(" 1--> PER ACCESS UNIT CLIP (.dat). Clip only available for H264 and Mpeg4\n");
-      printf(" 2--> ARBITRARY BYTES (need .264/.264c/.m4v/.263/.rcv/.vc1)\n");
+      printf(" 2--> ARBITRARY BYTES (need .264/.264c/.m4v/.263/.rcv/.vc1/.m2v)\n");
       if (codec_format_option == CODEC_FORMAT_H264)
       {
         printf(" 3--> NAL LENGTH SIZE CLIP (.264c)\n");
@@ -1159,6 +1167,11 @@ int main(int argc, char **argv)
           printf(" 4--> DivX 3.11 clip \n");
 #endif
       }
+      else if (codec_format_option == CODEC_FORMAT_MPEG2)
+      {
+        printf(" 3--> MPEG2 START CODE CLIP (.m2v)\n");
+      }
+
       fflush(stdin);
       scanf("%d", &file_type_option);
       fflush(stdin);
@@ -1273,6 +1286,9 @@ int main(int argc, char **argv)
           break;
         case CODEC_FORMAT_VC1:
           file_type_option = (file_type)(FILE_TYPE_START_OF_VC1_SPECIFIC + file_type_option - FILE_TYPE_COMMON_CODEC_MAX);
+          break;
+        case CODEC_FORMAT_MPEG2:
+          file_type_option = (file_type)(FILE_TYPE_START_OF_MPEG2_SPECIFIC + file_type_option - FILE_TYPE_COMMON_CODEC_MAX);
           break;
         default:
           printf("Error: Unknown code %d\n", codec_format_option);
@@ -1441,6 +1457,9 @@ int run_tests()
           (codec_format_option == CODEC_FORMAT_MP4)) {
     Read_Buffer = Read_Buffer_From_Vop_Start_Code_File;
   }
+  else if (codec_format_option == CODEC_FORMAT_MPEG2) {
+    Read_Buffer = Read_Buffer_From_Mpeg2_Start_Code;
+  }
   else if(file_type_option == FILE_TYPE_DIVX_4_5_6) {
     Read_Buffer = Read_Buffer_From_DivX_4_5_6_File;
   }
@@ -1464,6 +1483,7 @@ int run_tests()
     case FILE_TYPE_ARBITRARY_BYTES:
     case FILE_TYPE_264_NAL_SIZE_LENGTH:
     case FILE_TYPE_PICTURE_START_CODE:
+    case FILE_TYPE_MPEG2_START_CODE:
     case FILE_TYPE_RCV:
     case FILE_TYPE_VC1:
     case FILE_TYPE_DIVX_4_5_6:
@@ -1601,6 +1621,10 @@ int Init_Decoder()
     {
       strncpy(vdecCompNames, "OMX.qcom.video.decoder.vc1", 27);
     }
+    else if (codec_format_option == CODEC_FORMAT_MPEG2)
+    {
+      strncpy(vdecCompNames, "OMX.qcom.video.decoder.mpeg2", 29);
+    }
     else if (file_type_option == FILE_TYPE_RCV)
     {
       strncpy(vdecCompNames, "OMX.qcom.video.decoder.wmv", 27);
@@ -1676,6 +1700,10 @@ int Init_Decoder()
       portFmt.format.video.eCompressionFormat =
           (OMX_VIDEO_CODINGTYPE)QOMX_VIDEO_CodingDivx;
     }
+    else if (codec_format_option == CODEC_FORMAT_MPEG2)
+    {
+      portFmt.format.video.eCompressionFormat = OMX_VIDEO_CodingMPEG2;
+    }
     else
     {
       DEBUG_PRINT_ERROR("Error: Unsupported codec %d\n", codec_format_option);
@@ -1708,6 +1736,7 @@ int Play_Decoder()
     {
       case FILE_TYPE_DAT_PER_AU:
       case FILE_TYPE_PICTURE_START_CODE:
+      case FILE_TYPE_MPEG2_START_CODE:
       case FILE_TYPE_RCV:
       case FILE_TYPE_VC1:
 #ifdef MAX_RES_1080P
@@ -2606,6 +2635,88 @@ static int Read_Buffer_From_Vop_Start_Code_File(OMX_BUFFERHEADERTYPE  *pBufHdr)
     timeStampLfile += timestampInterval;
     return readOffset;
 }
+static int Read_Buffer_From_Mpeg2_Start_Code(OMX_BUFFERHEADERTYPE  *pBufHdr)
+{
+  unsigned int readOffset = 0;
+  int bytesRead = 0;
+  unsigned int code = 0;
+  pBufHdr->nFilledLen = 0;
+  static unsigned int firstParse = true;
+  unsigned int seenFrame = false;
+
+  DEBUG_PRINT("Inside %s", __FUNCTION__);
+
+  /* Read one byte at a time. Construct the code every byte in order to
+   * compare to the start codes. Keep looping until we've read in a complete
+   * frame, which can be either just a picture start code + picture, or can
+   * include the sequence header as well
+   */
+  while (1) {
+    bytesRead = read(inputBufferFileFd, &pBufHdr->pBuffer[readOffset], 1);
+
+    /* Exit the loop if we can't read any more bytes */
+    if (bytesRead == 0 || bytesRead == -1) {
+      break;
+    }
+
+    /* Construct the code one byte at a time */
+    code <<= 8;
+    code |= (0x000000FF & pBufHdr->pBuffer[readOffset]);
+
+    /* Can't compare the code to MPEG2 start codes until we've read the
+     * first four bytes
+     */
+    if (readOffset >= 3) {
+
+      /* If this is the first time we're reading from the file, then we
+       * need to throw away the system start code information at the
+       * beginning. We can just look for the first sequence header.
+       */
+      if (firstParse) {
+        if (code == MPEG2_SEQ_START_CODE) {
+          /* Seek back by 4 bytes and reset code so that we can skip
+           * down to the common case below.
+           */
+          lseek(inputBufferFileFd, -4, SEEK_CUR);
+          code = 0;
+          readOffset -= 3;
+          firstParse = false;
+          continue;
+        }
+      }
+
+      /* If we have already parsed a frame and we see a sequence header, then
+       * the sequence header is part of the next frame so we seek back and
+       * break.
+       */
+      if (code == MPEG2_SEQ_START_CODE) {
+        if (seenFrame) {
+          lseek(inputBufferFileFd, -4, SEEK_CUR);
+          readOffset -= 3;
+          break;
+        }
+        /* If we haven't seen a frame yet, then read in all the data until we
+         * either see another frame start code or sequence header start code.
+         */
+      } else if (code == MPEG2_FRAME_START_CODE) {
+        if (!seenFrame) {
+          seenFrame = true;
+        } else {
+          lseek(inputBufferFileFd, -4, SEEK_CUR);
+          readOffset -= 3;
+          break;
+        }
+      }
+    }
+
+    readOffset++;
+  }
+
+  pBufHdr->nTimeStamp = timeStampLfile;
+  timeStampLfile += timestampInterval;
+  return readOffset;
+}
+
 
 static int Read_Buffer_From_Size_Nal(OMX_BUFFERHEADERTYPE  *pBufHdr)
 {

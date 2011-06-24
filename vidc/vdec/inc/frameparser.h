@@ -33,14 +33,15 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "h264_utils.h"
 //#include <stdlib.h>
 
-
 enum codec_type
 {
     CODEC_TYPE_MPEG4 = 0,
     CODEC_TYPE_DIVX = 0,
     CODEC_TYPE_H263 = 1,
     CODEC_TYPE_H264 = 2,
-    CODEC_TYPE_VC1 = 3
+    CODEC_TYPE_VC1 = 3,
+    CODEC_TYPE_MPEG2 = 4,
+    CODEC_TYPE_MAX = CODEC_TYPE_MPEG2
 };
 
 enum state_start_code_parse
@@ -83,7 +84,7 @@ private:
    unsigned char *mask_code;
    unsigned char last_byte_h263;
    unsigned char last_byte;
-   bool mpeg4_header_found;
+   bool header_found;
    bool skip_frame_boundary;
 
    /*Variables for NAL Length Parsing*/

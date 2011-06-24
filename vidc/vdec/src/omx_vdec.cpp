@@ -1117,6 +1117,20 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
     strcat(inputfilename, "m4v");
 #endif
   }
+  else if(!strncmp(drv_ctx.kind,"OMX.qcom.video.decoder.mpeg2",\
+        OMX_MAX_STRINGNAME_SIZE))
+  {
+    strncpy((char *)m_cRole, "video_decoder.mpeg2",\
+        OMX_MAX_STRINGNAME_SIZE);
+    drv_ctx.decoder_format = VDEC_CODECTYPE_MPEG2;
+    eCompressionFormat = OMX_VIDEO_CodingMPEG2;
+    /*Initialize Start Code for MPEG2*/
+    codec_type_parse = CODEC_TYPE_MPEG2;
+    m_frame_parser.init_start_codes (codec_type_parse);
+#ifdef INPUT_BUFFER_LOG
+    strcat(inputfilename, "mpg");
+#endif
+  }
   else if(!strncmp(drv_ctx.kind, "OMX.qcom.video.decoder.h263",\
          OMX_MAX_STRINGNAME_SIZE))
   {
@@ -2392,6 +2406,24 @@ OMX_ERRORTYPE omx_vdec::get_supported_profile_level_for_1080p(OMX_VIDEO_PARAM_PR
         eRet = OMX_ErrorNoMore;
       }
     }
+    else if (!strncmp(drv_ctx.kind, "OMX.qcom.video.decoder.mpeg2",OMX_MAX_STRINGNAME_SIZE))
+    {
+      if (profileLevelType->nProfileIndex == 0)
+      {
+        profileLevelType->eProfile = OMX_VIDEO_MPEG2ProfileSimple;
+        profileLevelType->eLevel   = OMX_VIDEO_MPEG2LevelHL;
+      }
+      else if(profileLevelType->nProfileIndex == 1)
+      {
+        profileLevelType->eProfile = OMX_VIDEO_MPEG2ProfileMain;
+        profileLevelType->eLevel   = OMX_VIDEO_MPEG2LevelHL;
+      }
+      else
+      {
+        DEBUG_PRINT_ERROR("get_parameter: OMX_IndexParamVideoProfileLevelQuerySupported nProfileIndex ret NoMore %d\n", profileLevelType->nProfileIndex);
+        eRet = OMX_ErrorNoMore;
+      }
+    }
   }
   else
   {
@@ -2604,6 +2636,12 @@ OMX_ERRORTYPE  omx_vdec::get_parameter(OMX_IN OMX_HANDLETYPE     hComp,
             DEBUG_PRINT_LOW("get_parameter: OMX_IndexParamVideoMpeg4 %08x\n",
                         paramIndex);
             break;
+        }
+    case OMX_IndexParamVideoMpeg2:
+        {
+          DEBUG_PRINT_LOW("get_parameter: OMX_IndexParamVideoMpeg2 %08x\n",
+              paramIndex);
+          break;
         }
     case OMX_IndexParamVideoProfileLevelQuerySupported:
         {
@@ -2962,6 +3000,18 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
                   eRet =OMX_ErrorUnsupportedSetting;
               }
           }
+          else if(!strncmp(drv_ctx.kind, "OMX.qcom.video.decoder.mpeg2",OMX_MAX_STRINGNAME_SIZE))
+          {
+            if(!strncmp((const char*)comp_role->cRole,"video_decoder.mpeg2",OMX_MAX_STRINGNAME_SIZE))
+            {
+              strncpy((char*)m_cRole,"video_decoder.mpeg2",OMX_MAX_STRINGNAME_SIZE);
+            }
+            else
+            {
+              DEBUG_PRINT_ERROR("Setparameter: unknown Index %s\n", comp_role->cRole);
+              eRet = OMX_ErrorUnsupportedSetting;
+            }
+          }
 #ifdef MAX_RES_1080P
           else if((!strncmp(drv_ctx.kind, "OMX.qcom.video.decoder.divx",OMX_MAX_STRINGNAME_SIZE)) ||
                   (!strncmp(drv_ctx.kind, "OMX.qcom.video.decoder.divx311",OMX_MAX_STRINGNAME_SIZE))
@@ -3055,7 +3105,13 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
                     paramIndex);
               break;
           }
-      case OMX_QcomIndexParamVideoDecoderPictureOrder:
+      case OMX_IndexParamVideoMpeg2:
+          {
+              DEBUG_PRINT_LOW("set_parameter: OMX_IndexParamVideoMpeg2 %d\n",
+                    paramIndex);
+              break;
+          }
+       case OMX_QcomIndexParamVideoDecoderPictureOrder:
           {
               QOMX_VIDEO_DECODER_PICTURE_ORDER *pictureOrder =
                   (QOMX_VIDEO_DECODER_PICTURE_ORDER *)paramData;
@@ -3409,7 +3465,8 @@ OMX_ERRORTYPE  omx_vdec::set_config(OMX_IN OMX_HANDLETYPE      hComp,
         len = 0;
       }
     }
-    else if (!strcmp(drv_ctx.kind, "OMX.qcom.video.decoder.mpeg4"))
+    else if (!strcmp(drv_ctx.kind, "OMX.qcom.video.decoder.mpeg4") ||
+             !strcmp(drv_ctx.kind, "OMX.qcom.video.decoder.mpeg2"))
     {
       m_vendor_config.nPortIndex = config->nPortIndex;
       m_vendor_config.nDataSize = config->nDataSize;
@@ -5006,7 +5063,9 @@ OMX_ERRORTYPE  omx_vdec::empty_this_buffer_proxy(OMX_IN OMX_HANDLETYPE         h
 
   }
 
-  if (!arbitrary_bytes && first_frame < 2  && codec_type_parse == CODEC_TYPE_MPEG4)
+  if (!arbitrary_bytes &&
+       first_frame < 2 &&
+       (codec_type_parse == CODEC_TYPE_MPEG4 || codec_type_parse == CODEC_TYPE_MPEG2))
   {
 
     if (first_frame == 0)
@@ -5015,10 +5074,12 @@ OMX_ERRORTYPE  omx_vdec::empty_this_buffer_proxy(OMX_IN OMX_HANDLETYPE         h
        DEBUG_PRINT_LOW("\n Copied the first buffer data size %d ",
                     temp_buffer->buffer_len);
 #ifdef MAX_RES_1080P
-       mp4StreamType psBits;
-       psBits.data = (unsigned char *)temp_buffer->bufferaddr;
-       psBits.numBytes = temp_buffer->buffer_len;
-       mp4_headerparser.parseHeader(&psBits);
+       if (codec_type_parse == CODEC_TYPE_MPEG4) {
+           mp4StreamType psBits;
+           psBits.data = (unsigned char *)temp_buffer->bufferaddr;
+           psBits.numBytes = temp_buffer->buffer_len;
+           mp4_headerparser.parseHeader(&psBits);
+       }
 #endif
        first_frame = 1;
        memcpy (first_buffer,temp_buffer->bufferaddr,temp_buffer->buffer_len);
@@ -5475,6 +5536,18 @@ OMX_ERRORTYPE  omx_vdec::component_role_enum(OMX_IN OMX_HANDLETYPE hComp,
     if((0 == index) && role)
     {
       strncpy((char *)role, "video_decoder.mpeg4",OMX_MAX_STRINGNAME_SIZE);
+      DEBUG_PRINT_LOW("component_role_enum: role %s\n",role);
+    }
+    else
+    {
+      eRet = OMX_ErrorNoMore;
+    }
+  }
+  if(!strncmp(drv_ctx.kind, "OMX.qcom.video.decoder.mpeg2",OMX_MAX_STRINGNAME_SIZE))
+  {
+    if((0 == index) && role)
+    {
+      strncpy((char *)role, "video_decoder.mpeg2",OMX_MAX_STRINGNAME_SIZE);
       DEBUG_PRINT_LOW("component_role_enum: role %s\n",role);
     }
     else
@@ -6248,6 +6321,7 @@ OMX_ERRORTYPE omx_vdec::push_input_buffer (OMX_HANDLETYPE hComp)
     {
       case CODEC_TYPE_MPEG4:
       case CODEC_TYPE_H263:
+      case CODEC_TYPE_MPEG2:
         ret =  push_input_sc_codec(hComp);
       break;
       case CODEC_TYPE_H264:
