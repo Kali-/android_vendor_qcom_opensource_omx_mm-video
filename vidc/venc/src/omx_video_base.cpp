@@ -2230,15 +2230,17 @@ OMX_ERRORTYPE omx_video::free_input_buffer(OMX_BUFFERHEADERTYPE *bufferHdr)
 
   index = bufferHdr - m_inp_mem_ptr;
 
+  if(index < m_sInPortDef.nBufferCountActual &&
+     dev_free_buf(&m_pInput_pmem[index],PORT_INDEX_IN) != true)
+  {
+    DEBUG_PRINT_ERROR("\nERROR: dev_free_buf() Failed for i/p buf");
+  }
+
   if(index < m_sInPortDef.nBufferCountActual && m_pInput_pmem)
   {
     if(m_pInput_pmem[index].fd > 0 && input_use_buffer == false)
     {
       DEBUG_PRINT_LOW("\n FreeBuffer:: i/p AllocateBuffer case");
-      if(dev_free_buf(&m_pInput_pmem[index],PORT_INDEX_IN) != true)
-      {
-        DEBUG_PRINT_ERROR("\nERROR: dev_free_buf() Failed for i/p buf");
-      }
       munmap (m_pInput_pmem[index].buffer,m_pInput_pmem[index].size);
       close (m_pInput_pmem[index].fd);
       m_pInput_pmem[index].fd = -1;
@@ -2276,15 +2278,17 @@ OMX_ERRORTYPE omx_video::free_output_buffer(OMX_BUFFERHEADERTYPE *bufferHdr)
   }
   index = bufferHdr - m_out_mem_ptr;
 
+  if(index < m_sOutPortDef.nBufferCountActual &&
+     dev_free_buf(&m_pOutput_pmem[index],PORT_INDEX_OUT) != true)
+  {
+    DEBUG_PRINT_ERROR("ERROR: dev_free_buf Failed for o/p buf");
+  }
+
   if(index < m_sOutPortDef.nBufferCountActual && m_pOutput_pmem)
   {
     if(m_pOutput_pmem[index].fd > 0 && output_use_buffer == false )
     {
       DEBUG_PRINT_LOW("\n FreeBuffer:: o/p AllocateBuffer case");
-      if(dev_free_buf(&m_pOutput_pmem[index],PORT_INDEX_OUT) != true)
-      {
-        DEBUG_PRINT_ERROR("ERROR: dev_free_buf Failed for o/p buf");
-      }
       munmap (m_pOutput_pmem[index].buffer,m_pOutput_pmem[index].size);
       close (m_pOutput_pmem[index].fd);
       m_pOutput_pmem[index].fd = -1;
