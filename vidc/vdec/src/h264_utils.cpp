@@ -552,6 +552,7 @@ void h264_stream_parser::reset()
   memset(&sei_pic_timing, 0, sizeof(sei_pic_timing));
   memset(&frame_packing_arrangement,0,sizeof(frame_packing_arrangement));
   frame_packing_arrangement.cancel_flag = 1;
+  mbaff_flag = 0;
 }
 
 void h264_stream_parser::init_bitstream(OMX_U8* data, OMX_U32 size)
@@ -955,7 +956,7 @@ void h264_stream_parser::parse_sps()
   value = uev(); //pic_width_in_mbs_minus1
   value = uev(); //pic_height_in_map_units_minus1
   if (!extract_bits(1)) //frame_mbs_only_flag
-    extract_bits(1); //mb_adaptive_frame_field_flag
+    mbaff_flag = extract_bits(1); //mb_adaptive_frame_field_flag
   extract_bits(1); //direct_8x8_inference_flag
   if (extract_bits(1)) //frame_cropping_flag
   {
@@ -1170,6 +1171,12 @@ void h264_stream_parser::get_frame_pack_data(
    return;
 }
 
+
+bool h264_stream_parser::is_mbaff()
+{
+   DEBUG_PRINT_LOW("\n%s:%d MBAFF flag=%d", __func__, __LINE__,mbaff_flag);
+   return mbaff_flag;
+}
 
 void h264_stream_parser::parse_nal(OMX_U8* data_ptr, OMX_U32 data_len, OMX_U32 nal_type, bool enable_emu_sc)
 {

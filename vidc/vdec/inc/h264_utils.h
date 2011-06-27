@@ -414,6 +414,7 @@ class h264_stream_parser
                    bool enable_emu_sc = true);
     OMX_S64 process_ts_with_sei_vui(OMX_S64 timestamp);
     void get_frame_pack_data(OMX_QCOM_FRAME_PACK_ARRANGEMENT *frame_pack);
+    bool is_mbaff();
 #ifdef PANSCAN_HDLR
     void update_panscan_data(OMX_S64 timestamp);
 #endif
@@ -456,6 +457,7 @@ class h264_stream_parser
     h264_pan_scan panscan_param;
 #endif
     OMX_QCOM_FRAME_PACK_ARRANGEMENT frame_packing_arrangement;
+	bool 	mbaff_flag;
 };
 
 #endif /* H264_UTILS_H */

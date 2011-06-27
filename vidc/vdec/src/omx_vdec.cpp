@@ -6385,10 +6385,10 @@ OMX_ERRORTYPE omx_vdec::push_input_h264 (OMX_HANDLETYPE hComp)
       if(h264_scratch.nFilledLen)
       {
 #ifndef PROCESS_SEI_AND_VUI_IN_EXTRADATA
+        h264_parser->parse_nal((OMX_U8*)h264_scratch.pBuffer,
+                                h264_scratch.nFilledLen, NALU_TYPE_SPS);
         if (client_extradata & OMX_TIMEINFO_EXTRADATA)
         {
-          h264_parser->parse_nal((OMX_U8*)h264_scratch.pBuffer,
-                                  h264_scratch.nFilledLen, NALU_TYPE_SPS);
           h264_parser->parse_nal((OMX_U8*)h264_scratch.pBuffer,
                                   h264_scratch.nFilledLen, NALU_TYPE_SEI);
         }
@@ -7485,7 +7485,8 @@ void omx_vdec::append_interlace_extradata(OMX_OTHER_EXTRADATATYPE *extra,
   interlace_format->nSize = sizeof(OMX_STREAMINTERLACEFORMAT);
   interlace_format->nVersion.nVersion = OMX_SPEC_VERSION;
   interlace_format->nPortIndex = OMX_CORE_OUTPUT_PORT_INDEX;
-  if (interlaced_format_type == VDEC_InterlaceFrameProgressive)
+  if ( (interlaced_format_type == VDEC_InterlaceFrameProgressive) &&
+      (!h264_parser->is_mbaff()) )
   {
     interlace_format->bInterlaceFormat = OMX_FALSE;
     interlace_format->nInterlaceFormats = OMX_InterlaceFrameProgressive;
@@ -7493,7 +7494,7 @@ void omx_vdec::append_interlace_extradata(OMX_OTHER_EXTRADATATYPE *extra,
   else
   {
     interlace_format->bInterlaceFormat = OMX_TRUE;
-    interlace_format->nInterlaceFormats = interlaced_format_type;
+    interlace_format->nInterlaceFormats = OMX_InterlaceInterleaveFrameTopFieldFirst;;
   }
   print_debug_extradata(extra);
 }
