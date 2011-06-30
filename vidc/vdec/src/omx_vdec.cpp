@@ -5037,6 +5037,8 @@ OMX_ERRORTYPE  omx_vdec::empty_this_buffer_proxy(OMX_IN OMX_HANDLETYPE         h
     if (m_frame_parser.mutils)
       m_frame_parser.mutils->initialize_frame_checking_environment();
     m_frame_parser.flush();
+    h264_last_au_ts = LLONG_MAX;
+    h264_last_au_flags = 0;
   }
 
   DEBUG_PRINT_LOW("[ETBP] pBuf(%p) nTS(%lld) Sz(%d)",
