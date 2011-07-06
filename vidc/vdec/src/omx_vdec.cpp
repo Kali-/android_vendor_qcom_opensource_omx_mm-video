@@ -425,8 +425,6 @@ omx_vdec::omx_vdec(): m_state(OMX_StateInvalid),
                       prev_ts(LLONG_MAX),
                       rst_prev_ts(true),
                       frm_int(0),
-                      frm_int_top(0),
-                      frm_int_bot(0),
                       m_in_alloc_cnt(0),
                       m_display_id(NULL),
                       ouput_egl_buffers(false),
@@ -492,6 +490,7 @@ omx_vdec::omx_vdec(): m_state(OMX_StateInvalid),
   m_debug_extradata = atoi(extradata_value);
   DEBUG_PRINT_HIGH("vidc.dec.debug.extradata value is %d",m_debug_extradata);
 #endif
+
 }
 
 
@@ -1292,7 +1291,6 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
         eRet = OMX_ErrorInsufficientResources;
       }
     }
-
     if(pipe(fds))
     {
       DEBUG_PRINT_ERROR("pipe creation failed\n");
@@ -2741,18 +2739,14 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
             drv_ctx.frame_rate.fps_denominator = 1;
             frm_int = drv_ctx.frame_rate.fps_denominator * 1e6 /
                       drv_ctx.frame_rate.fps_numerator;
-            frm_int_top = (drv_ctx.frame_rate.fps_numerator <= 5)? 1e6 :
-                          1e6  / (drv_ctx.frame_rate.fps_numerator - 5);
-            frm_int_bot = 1e6  / (drv_ctx.frame_rate.fps_numerator + 5);
             ioctl_msg.in = &drv_ctx.frame_rate;
             if (ioctl (drv_ctx.video_driver_fd, VDEC_IOCTL_SET_FRAME_RATE,
                        (void*)&ioctl_msg) < 0)
             {
               DEBUG_PRINT_ERROR("Setting frame rate to driver failed");
             }
-            DEBUG_PRINT_LOW("set_parameter: frm_int(%u) fint_bot(%u) fint_top(%u) fps(%.2f)",
-                             frm_int, frm_int_bot, frm_int_top,
-                             drv_ctx.frame_rate.fps_numerator /
+            DEBUG_PRINT_LOW("set_parameter: frm_int(%u) fps(%.2f)",
+                             frm_int, drv_ctx.frame_rate.fps_numerator /
                              (float)drv_ctx.frame_rate.fps_denominator);
         }
          DEBUG_PRINT_LOW("set_parameter: OMX_IndexParamPortDefinition IP port\n");
@@ -5810,7 +5804,7 @@ OMX_ERRORTYPE omx_vdec::fill_buffer_done(OMX_HANDLETYPE hComp,
         handle_extradata(buffer);
       if (client_extradata & OMX_TIMEINFO_EXTRADATA)
         // Keep min timestamp interval to handle corrupted bit stream scenario
-        set_frame_rate(buffer->nTimeStamp, true);
+        set_frame_rate(buffer->nTimeStamp);
       else if (arbitrary_bytes)
         adjust_timestamp(buffer->nTimeStamp);
 
@@ -6400,14 +6394,12 @@ OMX_ERRORTYPE omx_vdec::push_input_h264 (OMX_HANDLETYPE hComp)
       DEBUG_PRINT_LOW("\n Parsed New NAL Length = %d",h264_scratch.nFilledLen);
       if(h264_scratch.nFilledLen)
       {
-#ifndef PROCESS_SEI_AND_VUI_IN_EXTRADATA
-        h264_parser->parse_nal((OMX_U8*)h264_scratch.pBuffer,
-                                h264_scratch.nFilledLen, NALU_TYPE_SPS);
+          h264_parser->parse_nal((OMX_U8*)h264_scratch.pBuffer, h264_scratch.nFilledLen,
+                                 NALU_TYPE_SPS);
+#ifndef PROCESS_EXTRADATA_IN_OUTPUT_PORT
         if (client_extradata & OMX_TIMEINFO_EXTRADATA)
-        {
           h264_parser->parse_nal((OMX_U8*)h264_scratch.pBuffer,
                                   h264_scratch.nFilledLen, NALU_TYPE_SEI);
-        }
         else if (client_extradata & OMX_FRAMEINFO_EXTRADATA)
           // If timeinfo is present frame info from SEI is already processed
           h264_parser->parse_nal((OMX_U8*)h264_scratch.pBuffer,
@@ -6427,7 +6419,7 @@ OMX_ERRORTYPE omx_vdec::push_input_h264 (OMX_HANDLETYPE hComp)
            m_frame_parser.mutils->nalu_type == NALU_TYPE_IDR) {
           h264_last_au_ts = h264_scratch.nTimeStamp;
           h264_last_au_flags = h264_scratch.nFlags;
-#ifndef PROCESS_SEI_AND_VUI_IN_EXTRADATA
+#ifndef PROCESS_EXTRADATA_IN_OUTPUT_PORT
           if (client_extradata & OMX_TIMEINFO_EXTRADATA)
           {
             OMX_S64 ts_in_sei = h264_parser->process_ts_with_sei_vui(h264_last_au_ts);
@@ -6549,7 +6541,7 @@ OMX_ERRORTYPE omx_vdec::push_input_h264 (OMX_HANDLETYPE hComp)
         DEBUG_PRINT_LOW("\n pdest_frame->nFilledLen =%d TimeStamp = %x",
                      pdest_frame->nFilledLen,pdest_frame->nTimeStamp);
         DEBUG_PRINT_LOW("\n Push AU frame number %d to driver", frame_count++);
-#ifndef PROCESS_SEI_AND_VUI_IN_EXTRADATA
+#ifndef PROCESS_EXTRADATA_IN_OUTPUT_PORT
         if (client_extradata & OMX_TIMEINFO_EXTRADATA)
         {
           OMX_S64 ts_in_sei = h264_parser->process_ts_with_sei_vui(pdest_frame->nTimeStamp);
@@ -7148,36 +7140,31 @@ void omx_vdec::complete_pending_buffer_done_cbs()
   }
 }
 
-void omx_vdec::set_frame_rate(OMX_S64 act_timestamp, bool min_delta)
+void omx_vdec::set_frame_rate(OMX_S64 act_timestamp)
 {
   OMX_U32 new_frame_interval = 0;
   struct vdec_ioctl_msg ioctl_msg = {NULL, NULL};
-  bool set_fps = false;
   if (VALID_TS(act_timestamp) && VALID_TS(prev_ts) && act_timestamp != prev_ts)
   {
     new_frame_interval = (act_timestamp > prev_ts)?
                           act_timestamp - prev_ts :
                           prev_ts - act_timestamp;
-    if (min_delta)
-      set_fps = (new_frame_interval < frm_int || frm_int == 0);
-    else
-      set_fps = (new_frame_interval < frm_int_bot || new_frame_interval > frm_int_top || frm_int == 0);
-    if (set_fps)
+    if (new_frame_interval < frm_int || frm_int == 0)
     {
       frm_int = new_frame_interval;
-      frm_int_top = (frm_int >= 200e3)? 1e6 : (200e3 * frm_int) / (200e3 - frm_int);
-      frm_int_bot = (200e3 * frm_int) / (200e3 + frm_int);
-      drv_ctx.frame_rate.fps_numerator = 1e6;
-      drv_ctx.frame_rate.fps_denominator = frm_int;
-      DEBUG_PRINT_LOW("set_frame_rate: frm_int(%u) fint_bot(%u) fint_top(%u) fps(%f)",
-                       frm_int, frm_int_bot, frm_int_top,
-                       drv_ctx.frame_rate.fps_numerator /
-                       (float)drv_ctx.frame_rate.fps_denominator);
-      ioctl_msg.in = &drv_ctx.frame_rate;
-      if (ioctl (drv_ctx.video_driver_fd, VDEC_IOCTL_SET_FRAME_RATE,
-                (void*)&ioctl_msg) < 0)
+      if(frm_int)
       {
-        DEBUG_PRINT_ERROR("Setting frame rate failed");
+        drv_ctx.frame_rate.fps_numerator = 1e6;
+        drv_ctx.frame_rate.fps_denominator = frm_int;
+        DEBUG_PRINT_LOW("set_frame_rate: frm_int(%u) fps(%f)",
+                         frm_int, drv_ctx.frame_rate.fps_numerator /
+                         (float)drv_ctx.frame_rate.fps_denominator);
+        ioctl_msg.in = &drv_ctx.frame_rate;
+        if (ioctl (drv_ctx.video_driver_fd, VDEC_IOCTL_SET_FRAME_RATE,
+                  (void*)&ioctl_msg) < 0)
+        {
+          DEBUG_PRINT_ERROR("Setting frame rate failed");
+        }
       }
     }
   }
@@ -7204,7 +7191,7 @@ void omx_vdec::adjust_timestamp(OMX_S64 &act_timestamp)
       prev_ts = act_timestamp;
     }
     else
-      set_frame_rate(act_timestamp, true);
+      set_frame_rate(act_timestamp);
   }
   else if (frm_int > 0)           // In this case the frame rate was set along
   {                               // with the port definition, start ts with 0
@@ -7247,15 +7234,20 @@ void omx_vdec::handle_extradata(OMX_BUFFERHEADERTYPE *p_buf_hdr)
       else if (p_extra->eType == VDEC_EXTRADATA_SEI)
       {
         p_sei = p_extra;
+#ifdef MAX_RES_1080P
+        h264_parser->parse_nal((OMX_U8*)p_sei->data, p_sei->nSize, NALU_TYPE_SEI);
+#endif
         p_extra->eType = OMX_ExtraDataMax; // Invalid type to avoid expose this extradata to OMX client
       }
       else if (p_extra->eType == VDEC_EXTRADATA_VUI)
       {
         p_vui = p_extra;
+#ifdef MAX_RES_1080P
+        h264_parser->parse_nal((OMX_U8*)p_vui->data, p_vui->nSize, NALU_TYPE_VUI);
+#endif
         p_extra->eType = OMX_ExtraDataMax; // Invalid type to avoid expose this extradata to OMX client
       }
       print_debug_extradata(p_extra);
-
       p_extra = (OMX_OTHER_EXTRADATATYPE *) (((OMX_U8 *) p_extra) + p_extra->nSize);
       if ((OMX_U8*)p_extra > (p_buf_hdr->pBuffer + p_buf_hdr->nAllocLen) ||
           p_extra->nDataSize == 0)
@@ -7272,7 +7264,7 @@ void omx_vdec::handle_extradata(OMX_BUFFERHEADERTYPE *p_buf_hdr)
     }
   }
 
-#ifdef PROCESS_SEI_AND_VUI_IN_EXTRADATA
+#ifdef PROCESS_EXTRADATA_IN_OUTPUT_PORT
   if (drv_ctx.decoder_format == VDEC_CODECTYPE_H264)
   {
     if (client_extradata & OMX_TIMEINFO_EXTRADATA)
@@ -7290,7 +7282,7 @@ void omx_vdec::handle_extradata(OMX_BUFFERHEADERTYPE *p_buf_hdr)
       h264_parser->parse_nal((OMX_U8*)p_sei->data, p_sei->nSize, NALU_TYPE_SEI);
   }
 #endif
-  if ((client_extradata & OMX_INTERLACE_EXTRADATA) && p_extra &&
+   if ((client_extradata & OMX_INTERLACE_EXTRADATA) && p_extra &&
       ((OMX_U8*)p_extra + OMX_INTERLACE_EXTRADATA_SIZE) <
        (p_buf_hdr->pBuffer + p_buf_hdr->nAllocLen))
   {
@@ -7362,7 +7354,7 @@ OMX_ERRORTYPE omx_vdec::enable_extradata(OMX_U32 requested_extradata, bool enabl
   driver_extradata = requested_extradata & DRIVER_EXTRADATA_MASK;
   if (requested_extradata & OMX_FRAMEINFO_EXTRADATA)
     driver_extradata |= VDEC_EXTRADATA_MB_ERROR_MAP; // Required for conceal MB frame info
-#ifdef PROCESS_SEI_AND_VUI_IN_EXTRADATA
+#ifdef PROCESS_EXTRADATA_IN_OUTPUT_PORT
   if (drv_ctx.decoder_format == VDEC_CODECTYPE_H264)
   {
     driver_extradata |= ((requested_extradata & OMX_FRAMEINFO_EXTRADATA)?
@@ -7492,6 +7484,7 @@ void omx_vdec::append_interlace_extradata(OMX_OTHER_EXTRADATATYPE *extra,
                                           OMX_U32 interlaced_format_type)
 {
   OMX_STREAMINTERLACEFORMAT *interlace_format;
+  OMX_U32 mbaff = 0;
   extra->nSize = OMX_INTERLACE_EXTRADATA_SIZE;
   extra->nVersion.nVersion = OMX_SPEC_VERSION;
   extra->nPortIndex = OMX_CORE_OUTPUT_PORT_INDEX;
@@ -7501,8 +7494,8 @@ void omx_vdec::append_interlace_extradata(OMX_OTHER_EXTRADATATYPE *extra,
   interlace_format->nSize = sizeof(OMX_STREAMINTERLACEFORMAT);
   interlace_format->nVersion.nVersion = OMX_SPEC_VERSION;
   interlace_format->nPortIndex = OMX_CORE_OUTPUT_PORT_INDEX;
-  if ( (interlaced_format_type == VDEC_InterlaceFrameProgressive) &&
-      (!h264_parser->is_mbaff()) )
+  mbaff = (h264_parser)? (h264_parser->is_mbaff()): false;
+  if ((interlaced_format_type == VDEC_InterlaceFrameProgressive)  && !mbaff)
   {
     interlace_format->bInterlaceFormat = OMX_FALSE;
     interlace_format->nInterlaceFormats = OMX_InterlaceFrameProgressive;

@@ -165,8 +165,6 @@ extern "C" {
 #define OMX_PORTDEF_EXTRADATA_SIZE ((sizeof(OMX_OTHER_EXTRADATATYPE) +\
                                        sizeof(OMX_PARAM_PORTDEFINITIONTYPE) + 3)&(~3))
 
-//#define PROCESS_SEI_AND_VUI_IN_EXTRADATA
-
 //  Define next macro with required values to enable default extradata,
 //    VDEC_EXTRADATA_MB_ERROR_MAP
 //    OMX_INTERLACE_EXTRADATA
@@ -522,7 +520,7 @@ private:
     OMX_ERRORTYPE start_port_reconfig();
     OMX_ERRORTYPE update_picture_resolution();
     void adjust_timestamp(OMX_S64 &act_timestamp);
-    void set_frame_rate(OMX_S64 act_timestamp, bool min_delta = false);
+    void set_frame_rate(OMX_S64 act_timestamp);
     void handle_extradata(OMX_BUFFERHEADERTYPE *p_buf_hdr);
     OMX_ERRORTYPE enable_extradata(OMX_U32 requested_extradata, bool enable = true);
     void print_debug_extradata(OMX_OTHER_EXTRADATATYPE *extra);
@@ -681,8 +679,6 @@ private:
     OMX_S64 prev_ts;
     bool rst_prev_ts;
     OMX_U32 frm_int;
-    OMX_U32 frm_int_top;
-    OMX_U32 frm_int_bot;
 
     struct vdec_allocatorproperty op_buf_rcnfg;
     bool in_reconfig;
