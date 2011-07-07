@@ -68,6 +68,7 @@ LOCAL_SHARED_LIBRARIES  += libdivxdrmdecrypt
 
 LOCAL_SRC_FILES         := src/frameparser.cpp
 LOCAL_SRC_FILES         += src/h264_utils.cpp
+LOCAL_SRC_FILES         += src/ts_parser.cpp
 ifeq "$(findstring msm8660,$(TARGET_PRODUCT))" "msm8660"
 LOCAL_SRC_FILES         += src/mp4_utils.cpp
 endif

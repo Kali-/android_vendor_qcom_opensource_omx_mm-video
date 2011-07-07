@@ -92,6 +92,7 @@ extern "C"{
 #endif
 #include <linux/android_pmem.h>
 #include "extra_data_handler.h"
+#include "ts_parser.h"
 
 extern "C" {
   OMX_API void * get_omx_component_factory_fn(void);
@@ -710,6 +711,7 @@ private:
     DivXDrmDecrypt* iDivXDrmDecrypt;
 #endif //_ANDROID_
     OMX_PARAM_PORTDEFINITIONTYPE m_port_def;
+    omx_time_stamp_reorder time_stamp_dts;
 };
 
 #endif // __OMX_VDEC_H__
