@@ -441,10 +441,8 @@ omx_vdec::omx_vdec(): m_state(OMX_StateInvalid),
                       m_out_mem_region_smi(OMX_FALSE),
                       m_out_pvt_entry_pmem(OMX_FALSE)
 #ifdef _ANDROID_
-                      ,iDivXDrmDecrypt(NULL),
+                      ,iDivXDrmDecrypt(NULL)
 #endif
-                      prev_buffer(NULL),
-                      reorder_timestamp(OMX_FALSE)
 {
   /* Assumption is that , to begin with , we have all the frames with decoder */
   DEBUG_PRINT_HIGH("In OMX vdec Constructor");
@@ -1162,7 +1160,6 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
 #ifdef INPUT_BUFFER_LOG
     strcat(inputfilename, "vc1");
 #endif
-    reorder_timestamp = OMX_TRUE;
   }
   else if(!strncmp(drv_ctx.kind, "OMX.qcom.video.decoder.wmv",\
          OMX_MAX_STRINGNAME_SIZE))
@@ -1175,14 +1172,12 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
 #ifdef INPUT_BUFFER_LOG
     strcat(inputfilename, "vc1");
 #endif
-    reorder_timestamp = OMX_TRUE;
   }
   else
   {
     DEBUG_PRINT_ERROR("\nERROR:Unknown Component\n");
     eRet = OMX_ErrorInvalidComponentName;
   }
-
 #ifdef INPUT_BUFFER_LOG
   inputBufferFile1 = fopen (inputfilename, "ab");
 #endif
@@ -1333,21 +1328,7 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
       }
     }
   }
-  if (eRet == OMX_ErrorNone && reorder_timestamp == OMX_TRUE)
-  {
-    struct vdec_ioctl_msg ioctl_msg = {NULL,NULL};
-    enum vdec_output_order vc1_picture_order;
-    vc1_picture_order = VDEC_ORDER_DECODE;
-    ioctl_msg.in = &vc1_picture_order;
-    ioctl_msg.out = NULL;
-    if (ioctl(drv_ctx.video_driver_fd, VDEC_IOCTL_SET_PICTURE_ORDER,
-              (void*)&ioctl_msg) < 0)
-    {
-      DEBUG_PRINT_ERROR("\n Set picture order failed");
-      reorder_timestamp = OMX_FALSE;
-      return OMX_ErrorUnsupportedSetting;
-    }
-  }
+
   if (eRet != OMX_ErrorNone)
   {
     DEBUG_PRINT_ERROR("\n Component Init Failed");
@@ -3034,31 +3015,28 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
           }
       case OMX_QcomIndexParamVideoDecoderPictureOrder:
           {
-            QOMX_VIDEO_DECODER_PICTURE_ORDER *pictureOrder =
-              (QOMX_VIDEO_DECODER_PICTURE_ORDER *)paramData;
-            enum vdec_output_order pic_order = VDEC_ORDER_DISPLAY;
-            DEBUG_PRINT_HIGH("set_parameter: OMX_QcomIndexParamVideoDecoderPictureOrder %d\n",
-                             pictureOrder->eOutputPictureOrder);
-            if (pictureOrder->eOutputPictureOrder == QOMX_VIDEO_DISPLAY_ORDER){
-              pic_order = drv_ctx.picture_order = VDEC_ORDER_DISPLAY;
-              if (reorder_timestamp == OMX_TRUE)
-                pic_order = VDEC_ORDER_DECODE;
-              }
-            else if (pictureOrder->eOutputPictureOrder == QOMX_VIDEO_DECODE_ORDER){
-              pic_order = drv_ctx.picture_order = VDEC_ORDER_DECODE;
-              reorder_timestamp = OMX_FALSE;
-              } else
-                eRet = OMX_ErrorBadParameter;
-              if (eRet == OMX_ErrorNone )
-                {
-                ioctl_msg.in = &pic_order;
-                ioctl_msg.out = NULL;
-                if (ioctl(drv_ctx.video_driver_fd, VDEC_IOCTL_SET_PICTURE_ORDER,
-                          (void*)&ioctl_msg) < 0)
-                {
-                  DEBUG_PRINT_ERROR("\n Set picture order failed");
-                  eRet = OMX_ErrorUnsupportedSetting;
-                }
+              QOMX_VIDEO_DECODER_PICTURE_ORDER *pictureOrder =
+                  (QOMX_VIDEO_DECODER_PICTURE_ORDER *)paramData;
+              enum vdec_output_order pic_order = VDEC_ORDER_DISPLAY;
+              DEBUG_PRINT_HIGH("set_parameter: OMX_QcomIndexParamVideoDecoderPictureOrder %d\n",
+                    pictureOrder->eOutputPictureOrder);
+              if (pictureOrder->eOutputPictureOrder == QOMX_VIDEO_DISPLAY_ORDER)
+                  pic_order = VDEC_ORDER_DISPLAY;
+              else if (pictureOrder->eOutputPictureOrder == QOMX_VIDEO_DECODE_ORDER)
+                  pic_order = VDEC_ORDER_DECODE;
+              else
+                  eRet = OMX_ErrorBadParameter;
+              if (eRet == OMX_ErrorNone && pic_order != drv_ctx.picture_order)
+              {
+                  drv_ctx.picture_order = pic_order;
+                  ioctl_msg.in = &drv_ctx.picture_order;
+                  ioctl_msg.out = NULL;
+                  if (ioctl(drv_ctx.video_driver_fd, VDEC_IOCTL_SET_PICTURE_ORDER,
+                      (void*)&ioctl_msg) < 0)
+                  {
+                      DEBUG_PRINT_ERROR("\n Set picture order failed");
+                      eRet = OMX_ErrorUnsupportedSetting;
+                  }
               }
               break;
           }
@@ -3124,8 +3102,6 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
               DEBUG_PRINT_ERROR("Failed to set IDR only decoding on driver.");
               eRet = OMX_ErrorHardware;
           }
-          else
-            reorder_timestamp = OMX_FALSE;
       }
       break;
     case OMX_QcomIndexParamIndexExtraDataType:
@@ -3387,6 +3363,7 @@ OMX_ERRORTYPE  omx_vdec::set_config(OMX_IN OMX_HANDLETYPE      hComp,
             m_vendor_config.pData = NULL;
             m_vendor_config.nDataSize = 0;
         }
+
         if (((*((OMX_U32 *) config->pData)) &
              VC1_SP_MP_START_CODE_MASK) ==
              VC1_SP_MP_START_CODE)
@@ -3429,6 +3406,7 @@ OMX_ERRORTYPE  omx_vdec::set_config(OMX_IN OMX_HANDLETYPE      hComp,
   }
   else if (configIndex == OMX_IndexConfigVideoNalSize)
   {
+
     pNal = reinterpret_cast < OMX_VIDEO_CONFIG_NALSIZE * >(configData);
     nal_length = pNal->nNaluBytes;
     m_frame_parser.init_nal_length(nal_length);
@@ -3463,7 +3441,7 @@ OMX_ERRORTYPE  omx_vdec::get_extension_index(OMX_IN OMX_HANDLETYPE      hComp,
         return OMX_ErrorInvalidState;
     }
 #ifdef MAX_RES_1080P
-  else if (!strncmp(paramName, "OMX.QCOM.index.param.video.SyncFrameDecodingMode",sizeof("OMX.QCOM.index.param.video.SyncFrameDecodingMode") - 1)) {
+	else if (!strncmp(paramName, "OMX.QCOM.index.param.video.SyncFrameDecodingMode",sizeof("OMX.QCOM.index.param.video.SyncFrameDecodingMode") - 1)) {
         *indexType = (OMX_INDEXTYPE)OMX_QcomIndexParamVideoSyncFrameDecodingMode;
     }
  else if (!strncmp(paramName, "OMX.QCOM.index.param.IndexExtraData",sizeof("OMX.QCOM.index.param.IndexExtraData") - 1))
@@ -3484,8 +3462,8 @@ OMX_ERRORTYPE  omx_vdec::get_extension_index(OMX_IN OMX_HANDLETYPE      hComp,
     }
 #endif
 	else {
-      DEBUG_PRINT_ERROR("Extension: %s not implemented\n", paramName);
-      return OMX_ErrorNotImplemented;
+        DEBUG_PRINT_ERROR("Extension: %s not implemented\n", paramName);
+        return OMX_ErrorNotImplemented;
     }
     return OMX_ErrorNone;
 }
@@ -5279,8 +5257,8 @@ OMX_ERRORTYPE  omx_vdec::component_deinit(OMX_IN OMX_HANDLETYPE hComp)
     }
     if (h264_parser)
     {
-      free(h264_parser);
-      h264_parser = NULL;
+	    free(h264_parser);
+	    h264_parser = NULL;
     }
     if(m_platform_list)
     {
@@ -5786,8 +5764,7 @@ OMX_ERRORTYPE omx_vdec::fill_buffer_done(OMX_HANDLETYPE hComp,
     }
   }
 
-  DEBUG_PRINT_LOW("\n In fill Buffer done call address %p with TS: %lld",
-                  buffer, buffer->nTimeStamp);
+  DEBUG_PRINT_LOW("\n In fill Buffer done call address %p ",buffer);
 #ifdef OUTPUT_BUFFER_LOG
   if (outputBufferFile1)
   {
@@ -5989,12 +5966,6 @@ int omx_vdec::async_message_process (void *context, void* message)
                      OMX_COMPONENT_GENERATE_EVENT_INPUT_FLUSH);
     break;
   case VDEC_MSG_RESP_FLUSH_OUTPUT_DONE:
-    if (omx->reorder_timestamp)
-    {
-      DEBUG_PRINT_LOW("\n VDEC_MSG_RESP_FLUSH_OUTPUT_DONE with timestamp reorder");
-      omx->handle_timestamp_reordering(omx->prev_buffer, vdec_msg);
-    }
-    DEBUG_PRINT_LOW("\n VDEC_MSG_RESP_FLUSH_OUTPUT_DONE in async_message_process");
     omx->post_event (NULL,vdec_msg->status_code,\
                      OMX_COMPONENT_GENERATE_EVENT_OUTPUT_FLUSH);
     break;
@@ -6058,16 +6029,8 @@ int omx_vdec::async_message_process (void *context, void* message)
       }
       else
         omxhdr->nFilledLen = 0;
-      if (omx->reorder_timestamp)
-      {
-        DEBUG_PRINT_LOW("\n In %d: with timestamp reorder", vdec_msg->msgcode);
-        omx->handle_timestamp_reordering(omxhdr,vdec_msg);
-      }
-      else{
-        DEBUG_PRINT_LOW("\n In %d: with No timestamp reorder", vdec_msg->msgcode);
-        omx->post_event ((unsigned int)omxhdr, vdec_msg->status_code,
-                         OMX_COMPONENT_GENERATE_FBD);
-      }
+      omx->post_event ((unsigned int)omxhdr, vdec_msg->status_code,
+                       OMX_COMPONENT_GENERATE_FBD);
     }
     else if (vdec_msg->msgdata.output_frame.flags & OMX_BUFFERFLAG_EOS)
       omx->post_event (NULL, vdec_msg->status_code,
@@ -7717,107 +7680,3 @@ OMX_ERRORTYPE omx_vdec::createDivxDrmContext( OMX_PTR drmHandle )
 }
 #endif //_ANDROID_
 
-void omx_vdec::handle_timestamp_reordering(OMX_BUFFERHEADERTYPE *buffer,
-                                 struct vdec_msginfo *vdec_msg)
-{
-   OMX_TICKS nTimeStamp = 0;
-   if (!buffer || !vdec_msg)
-   {
-    DEBUG_PRINT_ERROR("\nReorder not required %p, %p", buffer, vdec_msg);
-    return;
-   }
-   switch (vdec_msg->msgcode)
-   {
-   case VDEC_MSG_RESP_FLUSH_OUTPUT_DONE:
-    if (prev_buffer)
-    {
-      DEBUG_PRINT_LOW("\nVDEC_MSG_RESP_FLUSH_OUTPUT_DONE");
-     post_event ((unsigned int)prev_buffer, prev_buffer_status,
-           OMX_COMPONENT_GENERATE_FBD);
-     prev_buffer = NULL;
-    }
-    break;
-   case VDEC_MSG_RESP_OUTPUT_FLUSHED:
-    if (prev_buffer)
-    {
-     DEBUG_PRINT_LOW("\nVDEC_MSG_RESP_OUTPUT_FLUSHED with prev_buffer");
-     post_event ((unsigned int)prev_buffer, prev_buffer_status,
-           OMX_COMPONENT_GENERATE_FBD);
-     prev_buffer = NULL;
-    }
-    DEBUG_PRINT_LOW("\nVDEC_MSG_RESP_OUTPUT_FLUSHED");
-    post_event ((unsigned int)buffer, vdec_msg->status_code,
-          OMX_COMPONENT_GENERATE_FBD);
-    break;
-   case VDEC_MSG_RESP_OUTPUT_BUFFER_DONE:
-    /*In case of Eos return prev and current buffer*/
-    if (buffer->nFlags & OMX_BUFFERFLAG_EOS)
-    {
-     if (prev_buffer)
-     {
-        if (vdec_msg->msgdata.output_frame.pic_type == PICTURE_TYPE_B)
-        {
-           DEBUG_PRINT_LOW("\n OMX_BUFFERFLAG_EOS with B Frame");
-           nTimeStamp = buffer->nTimeStamp;
-           buffer->nTimeStamp = prev_buffer->nTimeStamp;
-           prev_buffer->nTimeStamp = nTimeStamp;
-           post_event ((unsigned int)buffer, vdec_msg->status_code,
-                 OMX_COMPONENT_GENERATE_FBD);
-           post_event ((unsigned int)prev_buffer, prev_buffer_status,
-                 OMX_COMPONENT_GENERATE_FBD);
-        }
-        else
-        {
-          DEBUG_PRINT_LOW("\n OMX_BUFFERFLAG_EOS with I/P");
-           post_event ((unsigned int)prev_buffer, prev_buffer_status,
-                 OMX_COMPONENT_GENERATE_FBD);
-           post_event ((unsigned int)buffer, vdec_msg->status_code,
-                 OMX_COMPONENT_GENERATE_FBD);
-        }
-        prev_buffer = NULL;
-     }
-     else
-     {
-       DEBUG_PRINT_LOW("\n OMX_BUFFERFLAG_EOS Last Frame");
-       post_event ((unsigned int)buffer, vdec_msg->status_code,
-                   OMX_COMPONENT_GENERATE_FBD);
-     }
-    }
-    else
-    {
-       if (!prev_buffer)
-       {
-          DEBUG_PRINT_LOW("\nFirst Frame %p with TS: %lld", buffer, buffer->nTimeStamp);
-          prev_buffer = buffer;
-          prev_buffer_status = vdec_msg->status_code;
-       }
-       else
-       {
-         if (vdec_msg->msgdata.output_frame.pic_type == PICTURE_TYPE_B)
-         {
-           DEBUG_PRINT_LOW("\n B frame %p with TS: %lld", buffer, buffer->nTimeStamp);
-           nTimeStamp = buffer->nTimeStamp;
-           buffer->nTimeStamp = prev_buffer->nTimeStamp;
-           prev_buffer->nTimeStamp = nTimeStamp;
-           post_event ((unsigned int)buffer, vdec_msg->status_code,
-                 OMX_COMPONENT_GENERATE_FBD);
-         }
-         else
-         {
-           if(vdec_msg->msgdata.output_frame.pic_type == PICTURE_TYPE_I)
-             DEBUG_PRINT_LOW("\n I Frame %p with TS: %lld", buffer, buffer->nTimeStamp);
-           else
-             DEBUG_PRINT_LOW("\n P Frame %p with TS: %lld", buffer, buffer->nTimeStamp);
-           post_event ((unsigned int)prev_buffer, prev_buffer_status,
-                 OMX_COMPONENT_GENERATE_FBD);
-           prev_buffer = buffer;
-           prev_buffer_status = vdec_msg->status_code;
-         }
-       }
-    }
-    break;
-     default:
-       DEBUG_PRINT_ERROR("\ndefault: %d", vdec_msg->msgcode);
-    break;
-   }
-}
