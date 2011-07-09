@@ -195,6 +195,7 @@ struct video_driver_context
     struct vdec_output_frameinfo *ptr_respbuffer;
     struct vdec_framerate frame_rate;
     unsigned extradata;
+    bool timestamp_adjust;
     char kind[128];
 };
 

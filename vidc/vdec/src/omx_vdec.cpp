@@ -473,6 +473,7 @@ omx_vdec::omx_vdec(): m_state(OMX_StateInvalid),
   memset (&h264_scratch,0,sizeof (OMX_BUFFERHEADERTYPE));
   memset (m_hwdevice_name,0,sizeof(m_hwdevice_name));
   memset(&op_buf_rcnfg, 0 ,sizeof(vdec_allocatorproperty));
+  drv_ctx.timestamp_adjust = false;
   drv_ctx.video_driver_fd = -1;
   m_vendor_config.pData = NULL;
   pthread_mutex_init(&m_lock, NULL);
@@ -1101,12 +1102,12 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
 
   // Copy the role information which provides the decoder kind
   strncpy(drv_ctx.kind,role,128);
-
   if(!strncmp(drv_ctx.kind,"OMX.qcom.video.decoder.mpeg4",\
       OMX_MAX_STRINGNAME_SIZE))
   {
      strncpy((char *)m_cRole, "video_decoder.mpeg4",\
      OMX_MAX_STRINGNAME_SIZE);
+     drv_ctx.timestamp_adjust = true;
      drv_ctx.decoder_format = VDEC_CODECTYPE_MPEG4;
      eCompressionFormat = OMX_VIDEO_CodingMPEG4;
      /*Initialize Start Code for MPEG4*/
@@ -1134,6 +1135,7 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
   {
      strncpy((char *)m_cRole, "video_decoder.divx",OMX_MAX_STRINGNAME_SIZE);
      DEBUG_PRINT_LOW ("\n DIVX Decoder selected");
+     drv_ctx.timestamp_adjust = true;
      drv_ctx.decoder_format = VDEC_CODECTYPE_DIVX_5;
      eCompressionFormat = (OMX_VIDEO_CODINGTYPE)QOMX_VIDEO_CodingDivx;
      codec_type_parse = CODEC_TYPE_DIVX;
@@ -5828,7 +5830,6 @@ OMX_ERRORTYPE omx_vdec::fill_buffer_done(OMX_HANDLETYPE hComp,
         set_frame_rate(buffer->nTimeStamp);
       else if (arbitrary_bytes)
         adjust_timestamp(buffer->nTimeStamp);
-
       if (perf_flag)
       {
         if (!proc_frms)
@@ -7202,7 +7203,7 @@ void omx_vdec::adjust_timestamp(OMX_S64 &act_timestamp)
   }
   else if (VALID_TS(prev_ts))
   {
-    bool codec_cond = (drv_ctx.decoder_format == VDEC_CODECTYPE_DIVX_5)?
+    bool codec_cond = (drv_ctx.timestamp_adjust)?
                       (!VALID_TS(act_timestamp) || act_timestamp <= prev_ts) :
                       (!VALID_TS(act_timestamp) || act_timestamp == prev_ts);
     if(frm_int > 0 && codec_cond)
