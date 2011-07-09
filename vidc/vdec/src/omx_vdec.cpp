@@ -999,7 +999,9 @@ void omx_vdec::process_event_cb(void *ctxt, unsigned char id)
           DEBUG_PRINT_HIGH("\n Rxd OMX_COMPONENT_GENERATE_EOS_DONE");
           pThis->m_cb.EventHandler(&pThis->m_cmp, pThis->m_app_data, OMX_EventBufferFlag,
                             OMX_CORE_OUTPUT_PORT_INDEX, OMX_BUFFERFLAG_EOS, NULL );
-        break;
+          pThis->prev_ts = LLONG_MAX;
+          pThis->rst_prev_ts = true;
+          break;
 
         case OMX_COMPONENT_GENERATE_HARDWARE_ERROR:
           DEBUG_PRINT_ERROR("\n OMX_COMPONENT_GENERATE_HARDWARE_ERROR");
@@ -5853,6 +5855,10 @@ OMX_ERRORTYPE omx_vdec::fill_buffer_done(OMX_HANDLETYPE hComp,
   }
 #endif
     }
+    if (buffer->nFlags & OMX_BUFFERFLAG_EOS){
+      prev_ts = LLONG_MAX;
+      rst_prev_ts = true;
+      }
 
     pPMEMInfo = (OMX_QCOM_PLATFORM_PRIVATE_PMEM_INFO *)
                 ((OMX_QCOM_PLATFORM_PRIVATE_LIST *)
