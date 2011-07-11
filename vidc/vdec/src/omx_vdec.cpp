@@ -7585,8 +7585,8 @@ OMX_ERRORTYPE omx_vdec::vdec_alloc_h264_mv()
   struct vdec_h264_mv h264_mv;
   struct vdec_mv_buff_size mv_buff_size;
 
-  mv_buff_size.width = drv_ctx.video_resolution.frame_width;
-  mv_buff_size.height = drv_ctx.video_resolution.frame_height>>2;
+  mv_buff_size.width = drv_ctx.video_resolution.stride;
+  mv_buff_size.height = drv_ctx.video_resolution.scan_lines>>2;
 
   ioctl_msg.in = NULL;
   ioctl_msg.out = (void*)&mv_buff_size;
