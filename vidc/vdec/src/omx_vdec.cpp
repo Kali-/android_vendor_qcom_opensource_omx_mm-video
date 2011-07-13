@@ -713,7 +713,9 @@ void omx_vdec::process_event_cb(void *ctxt, unsigned char id)
             if (p2 == VDEC_S_INPUT_BITSTREAM_ERR && p1)
             {
               pThis->time_stamp_dts.remove_time_stamp(
-                ((OMX_BUFFERHEADERTYPE *)p1)->nTimeStamp, false);
+              ((OMX_BUFFERHEADERTYPE *)p1)->nTimeStamp,
+              (pThis->drv_ctx.interlace != VDEC_InterlaceFrameProgressive)
+                ?true:false);
             }
             if ( pThis->empty_buffer_done(&pThis->m_cmp,
                  (OMX_BUFFERHEADERTYPE *)p1) != OMX_ErrorNone)
@@ -723,7 +725,18 @@ void omx_vdec::process_event_cb(void *ctxt, unsigned char id)
             }
           }
           break;
-
+        case OMX_COMPONENT_GENERATE_INFO_FIELD_DROPPED:
+          {
+            int64_t *timestamp = (int64_t *)p1;
+            if (p1)
+            {
+              pThis->time_stamp_dts.remove_time_stamp(*timestamp,
+              (pThis->drv_ctx.interlace != VDEC_InterlaceFrameProgressive)
+              ?true:false);
+              free(timestamp);
+            }
+          }
+          break;
         case OMX_COMPONENT_GENERATE_FBD:
           if (p2 != VDEC_S_SUCCESS)
           {
@@ -984,8 +997,6 @@ void omx_vdec::process_event_cb(void *ctxt, unsigned char id)
             {
               OMX_INTERLACETYPE format = (OMX_INTERLACETYPE)-1;
               OMX_EVENTTYPE event = (OMX_EVENTTYPE)OMX_EventIndexsettingChanged;
-              pThis->time_stamp_dts.flush_timestamp();
-              pThis->time_stamp_dts.set_avi_mode(false);
               if (pThis->drv_ctx.interlace == VDEC_InterlaceInterleaveFrameTopFieldFirst)
                   format = OMX_InterlaceInterleaveFrameTopFieldFirst;
               else if (pThis->drv_ctx.interlace == VDEC_InterlaceInterleaveFrameBottomFieldFirst)
@@ -3030,7 +3041,7 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
                   pic_order = VDEC_ORDER_DISPLAY;
               else if (pictureOrder->eOutputPictureOrder == QOMX_VIDEO_DECODE_ORDER){
                   pic_order = VDEC_ORDER_DECODE;
-                  time_stamp_dts.set_avi_mode(false);
+                  time_stamp_dts.set_timestamp_reorder_mode(false);
               }
               else
                   eRet = OMX_ErrorBadParameter;
@@ -3155,11 +3166,11 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
         QOMX_INDEXTIMESTAMPREORDER *reorder = (QOMX_INDEXTIMESTAMPREORDER *)paramData;
         if (drv_ctx.picture_order == QOMX_VIDEO_DISPLAY_ORDER) {
           if (reorder->bEnable == OMX_TRUE)
-            time_stamp_dts.set_avi_mode(true);
+            time_stamp_dts.set_timestamp_reorder_mode(true);
           else
-            time_stamp_dts.set_avi_mode(false);
+            time_stamp_dts.set_timestamp_reorder_mode(false);
         } else {
-          time_stamp_dts.set_avi_mode(false);
+          time_stamp_dts.set_timestamp_reorder_mode(false);
           if (reorder->bEnable == OMX_TRUE)
           {
             eRet = OMX_ErrorUnsupportedSetting;
@@ -5053,7 +5064,6 @@ OMX_ERRORTYPE  omx_vdec::empty_this_buffer_proxy(OMX_IN OMX_HANDLETYPE         h
 
   DEBUG_PRINT_LOW("[ETBP] pBuf(%p) nTS(%lld) Sz(%d)",
     frameinfo.bufferaddr, frameinfo.timestamp, frameinfo.datalen);
-  time_stamp_dts.insert_timestamp(buffer);
   ioctl_msg.in = &frameinfo;
   ioctl_msg.out = NULL;
   if (ioctl(drv_ctx.video_driver_fd,VDEC_IOCTL_DECODE_FRAME,
@@ -5068,7 +5078,8 @@ OMX_ERRORTYPE  omx_vdec::empty_this_buffer_proxy(OMX_IN OMX_HANDLETYPE         h
                        OMX_COMPONENT_GENERATE_EBD);
     }
     return OMX_ErrorBadParameter;
-  }
+  } else
+      time_stamp_dts.insert_timestamp(buffer);
 
   return ret;
 }
@@ -5800,7 +5811,12 @@ OMX_ERRORTYPE omx_vdec::fill_buffer_done(OMX_HANDLETYPE hComp,
 #endif
 
   /* For use buffer we need to copy the data */
-  time_stamp_dts.get_next_timestamp(buffer, false);
+  if (!output_flush_progress)
+  {
+    time_stamp_dts.get_next_timestamp(buffer,
+    (drv_ctx.interlace != VDEC_InterlaceFrameProgressive)
+     ?true:false);
+  }
   if (m_cb.FillBufferDone)
   {
     if (buffer->nFilledLen > 0)
@@ -6012,6 +6028,17 @@ int omx_vdec::async_message_process (void *context, void* message)
     omx->post_event ((unsigned int)omxhdr,vdec_msg->status_code,
                      OMX_COMPONENT_GENERATE_EBD);
     break;
+    case VDEC_MSG_EVT_INFO_FIELD_DROPPED:
+      int64_t *timestamp;
+      timestamp = (int64_t *) malloc(sizeof(int64_t));
+      if (timestamp) {
+        *timestamp = vdec_msg->msgdata.output_frame.time_stamp;
+        omx->post_event ((unsigned int)timestamp, vdec_msg->status_code,
+                         OMX_COMPONENT_GENERATE_INFO_FIELD_DROPPED);
+        DEBUG_PRINT_HIGH("\nField dropped time stamp is %lld",
+             vdec_msg->msgdata.output_frame.time_stamp);
+      }
+      break;
   case VDEC_MSG_RESP_OUTPUT_FLUSHED:
     case VDEC_MSG_RESP_OUTPUT_BUFFER_DONE:
     omxhdr = (OMX_BUFFERHEADERTYPE*)vdec_msg->msgdata.output_frame.client_data;
@@ -7494,13 +7521,13 @@ void omx_vdec::append_interlace_extradata(OMX_OTHER_EXTRADATATYPE *extra,
   {
     interlace_format->bInterlaceFormat = OMX_FALSE;
     interlace_format->nInterlaceFormats = OMX_InterlaceFrameProgressive;
+    drv_ctx.interlace = VDEC_InterlaceFrameProgressive;
   }
   else
   {
-    time_stamp_dts.flush_timestamp();
-    time_stamp_dts.set_avi_mode(false);
     interlace_format->bInterlaceFormat = OMX_TRUE;
-    interlace_format->nInterlaceFormats = OMX_InterlaceInterleaveFrameTopFieldFirst;;
+    interlace_format->nInterlaceFormats = OMX_InterlaceInterleaveFrameTopFieldFirst;
+    drv_ctx.interlace = VDEC_InterlaceInterleaveFrameTopFieldFirst;
   }
   print_debug_extradata(extra);
 }

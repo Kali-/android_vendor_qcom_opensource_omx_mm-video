@@ -47,7 +47,7 @@ class omx_time_stamp_reorder {
 public:
 	omx_time_stamp_reorder();
 	~omx_time_stamp_reorder();
-	void set_avi_mode(bool avi);
+	void set_timestamp_reorder_mode(bool flag);
 	bool insert_timestamp(OMX_BUFFERHEADERTYPE *header);
 	bool get_next_timestamp(OMX_BUFFERHEADERTYPE *header, bool is_interlaced);
 	bool remove_time_stamp(OMX_TICKS ts, bool is_interlaced);
@@ -79,6 +79,6 @@ private:
 		error = true;
 		delete_list();
 	}
-	bool is_avi;
+	bool reorder_ts;
 };
 #endif

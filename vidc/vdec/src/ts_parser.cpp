@@ -28,9 +28,9 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "ts_parser.h"
 
 #define DEBUG
-void omx_time_stamp_reorder::set_avi_mode(bool avi)
+void omx_time_stamp_reorder::set_timestamp_reorder_mode(bool mode)
 {
-	is_avi = avi;
+	reorder_ts = mode;
 }
 
 omx_time_stamp_reorder::~omx_time_stamp_reorder()
@@ -40,7 +40,7 @@ omx_time_stamp_reorder::~omx_time_stamp_reorder()
 
 omx_time_stamp_reorder::omx_time_stamp_reorder()
 {
-	is_avi = false;
+	reorder_ts = false;
 	phead = pcurrent = NULL;
 	error = false;
 }
@@ -121,7 +121,7 @@ bool omx_time_stamp_reorder::add_new_list()
 bool omx_time_stamp_reorder::insert_timestamp(OMX_BUFFERHEADERTYPE *header)
 {
 	OMX_TICKS *table_entry = NULL;
-	if (!is_avi || error || !header) {
+	if (!reorder_ts || error || !header) {
 		if (error || !header)
 			DEBUG("\n Invalid condition in insert_timestamp %p", header);
 		return false;
@@ -161,7 +161,7 @@ bool omx_time_stamp_reorder::insert_timestamp(OMX_BUFFERHEADERTYPE *header)
 bool omx_time_stamp_reorder::remove_time_stamp(OMX_TICKS ts, bool is_interlaced = false)
 {
 	unsigned int num_ent_remove = (is_interlaced)?2:1;
-	if (!is_avi || error) {
+	if (!reorder_ts || error) {
 		DEBUG("\n not in avi mode");
 		return false;
 	}
@@ -192,7 +192,7 @@ bool omx_time_stamp_reorder::get_next_timestamp(OMX_BUFFERHEADERTYPE *header, bo
 {
 	timestamp *element = NULL,*duplicate = NULL;
 	bool status = false;
-	if (!is_avi || error || !header) {
+	if (!reorder_ts || error || !header) {
 		if (error || !header)
 			DEBUG("\n Invalid condition in insert_timestamp %p", header);
 		return false;
