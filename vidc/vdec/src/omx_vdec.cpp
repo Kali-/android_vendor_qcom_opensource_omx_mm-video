@@ -4897,6 +4897,17 @@ OMX_ERRORTYPE  omx_vdec::empty_this_buffer_proxy(OMX_IN OMX_HANDLETYPE         h
   }
 
   pending_input_buffers++;
+
+  /* return zero length and not an EOS buffer */
+  if (!arbitrary_bytes && (buffer->nFilledLen == 0) &&
+     ((buffer->nFlags & OMX_BUFFERFLAG_EOS) == 0))
+  {
+    DEBUG_PRINT_HIGH("\n return zero legth buffer");
+    post_event ((unsigned int)buffer,VDEC_S_SUCCESS,
+                     OMX_COMPONENT_GENERATE_EBD);
+    return OMX_ErrorNone;
+  }
+
 #ifdef MAX_RES_1080P
   if(codec_type_parse == CODEC_TYPE_MPEG4 || codec_type_parse == CODEC_TYPE_DIVX){
     mp4StreamType psBits;
@@ -6103,9 +6114,12 @@ OMX_ERRORTYPE omx_vdec::empty_this_buffer_proxy_arbitrary (
   DEBUG_PRINT_LOW("\n ETBProxyArb: nFilledLen %u, flags %d, timestamp %u",
         buffer->nFilledLen, buffer->nFlags, (unsigned)buffer->nTimeStamp);
 
-  if( input_flush_progress == true )
+  /* return zero length and not an EOS buffer */
+  /* return buffer if input flush in progress */
+  if ((input_flush_progress == true) || ((buffer->nFilledLen == 0) &&
+     ((buffer->nFlags & OMX_BUFFERFLAG_EOS) == 0)))
   {
-    DEBUG_PRINT_LOW("\n Flush in progress return buffer ");
+    DEBUG_PRINT_HIGH("\n return zero legth buffer or flush in progress");
     m_cb.EmptyBufferDone (hComp,m_app_data,buffer);
     return OMX_ErrorNone;
   }
