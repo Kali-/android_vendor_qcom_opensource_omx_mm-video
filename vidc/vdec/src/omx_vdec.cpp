@@ -6046,6 +6046,25 @@ int omx_vdec::async_message_process (void *context, void* message)
     DEBUG_PRINT_LOW("[RespBufDone] Buf(%p) Ts(%lld) Pic_type(%u)",
       omxhdr, vdec_msg->msgdata.output_frame.time_stamp,
       vdec_msg->msgdata.output_frame.pic_type);
+
+    /* update SYNCFRAME flag */
+    if (omx->eCompressionFormat == OMX_VIDEO_CodingAVC)
+    {
+      /* set SYNCFRAME flag if picture type is IDR for h264 */
+      if (vdec_msg->msgdata.output_frame.pic_type == PICTURE_TYPE_IDR)
+        vdec_msg->msgdata.output_frame.flags |= OMX_BUFFERFLAG_SYNCFRAME;
+      else
+        vdec_msg->msgdata.output_frame.flags &= ~OMX_BUFFERFLAG_SYNCFRAME;
+    }
+    else
+    {
+      /* set SYNCFRAME flag if picture type is I_TYPE */
+      if (vdec_msg->msgdata.output_frame.pic_type == PICTURE_TYPE_I)
+        vdec_msg->msgdata.output_frame.flags |= OMX_BUFFERFLAG_SYNCFRAME;
+      else
+        vdec_msg->msgdata.output_frame.flags &= ~OMX_BUFFERFLAG_SYNCFRAME;
+    }
+
     if (omxhdr && omxhdr->pOutputPortPrivate &&
         ((omxhdr - omx->m_out_mem_ptr) < omx->drv_ctx.op_buf.actualcount) &&
          (((struct vdec_output_frameinfo *)omxhdr->pOutputPortPrivate
