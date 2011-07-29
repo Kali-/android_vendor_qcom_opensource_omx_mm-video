@@ -37,7 +37,7 @@ libOmxVdec-def += -DMAX_RES_1080P_EBI
 libOmxVdec-def += -DPROCESS_EXTRADATA_IN_OUTPUT_PORT
 endif
 
-ifneq (, $(filter HONEYCOMB HMJ19, $(BUILD_ID)))
+ifeq ($(call is-android-codename,HONEYCOMB),true)
 libOmxVdec-def += -D_ANDROID_HONEYCOMB_
 endif
 # ---------------------------------------------------------------------------------
