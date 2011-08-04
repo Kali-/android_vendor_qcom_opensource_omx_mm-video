@@ -7282,7 +7282,16 @@ void omx_vdec::handle_extradata(OMX_BUFFERHEADERTYPE *p_buf_hdr)
     {
       DEBUG_PRINT_LOW("handle_extradata : pBuf(%p) BufTS(%lld) Type(%x) DataSz(%u)",
            p_buf_hdr, p_buf_hdr->nTimeStamp, p_extra->eType, p_extra->nDataSize);
-
+      if (p_extra->nSize < p_extra->nDataSize)
+      {
+        DEBUG_PRINT_ERROR(" \n Corrupt metadata Buffer size %d payload size %d",
+                          p_extra->nSize, p_extra->nDataSize);
+        p_extra = (OMX_OTHER_EXTRADATATYPE *) (((OMX_U8 *) p_extra) + p_extra->nSize);
+        if ((OMX_U8*)p_extra > (p_buf_hdr->pBuffer + p_buf_hdr->nAllocLen) ||
+            p_extra->nDataSize == 0)
+          p_extra = NULL;
+          continue;
+      }
       if (p_extra->eType == VDEC_EXTRADATA_MB_ERROR_MAP)
       {
         if (client_extradata & OMX_FRAMEINFO_EXTRADATA)
