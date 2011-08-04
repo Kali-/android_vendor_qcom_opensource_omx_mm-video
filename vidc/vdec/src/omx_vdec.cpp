@@ -1130,18 +1130,6 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
     strcat(inputfilename, "263");
 #endif
   }
-  else if(!strncmp(drv_ctx.kind, "OMX.qcom.video.decoder.divx",\
-         OMX_MAX_STRINGNAME_SIZE))
-  {
-     strncpy((char *)m_cRole, "video_decoder.divx",OMX_MAX_STRINGNAME_SIZE);
-     DEBUG_PRINT_LOW ("\n DIVX Decoder selected");
-     drv_ctx.timestamp_adjust = true;
-     drv_ctx.decoder_format = VDEC_CODECTYPE_DIVX_5;
-     eCompressionFormat = (OMX_VIDEO_CODINGTYPE)QOMX_VIDEO_CodingDivx;
-     codec_type_parse = CODEC_TYPE_DIVX;
-     m_frame_parser.init_start_codes (codec_type_parse);
-
-  }
 #ifdef MAX_RES_1080P
   else if(!strncmp(drv_ctx.kind, "OMX.qcom.video.decoder.divx311",\
          OMX_MAX_STRINGNAME_SIZE))
@@ -1149,6 +1137,41 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
      strncpy((char *)m_cRole, "video_decoder.divx",OMX_MAX_STRINGNAME_SIZE);
      DEBUG_PRINT_LOW ("\n DIVX 311 Decoder selected");
      drv_ctx.decoder_format = VDEC_CODECTYPE_DIVX_3;
+     eCompressionFormat = (OMX_VIDEO_CODINGTYPE)QOMX_VIDEO_CodingDivx;
+     codec_type_parse = CODEC_TYPE_DIVX;
+     m_frame_parser.init_start_codes (codec_type_parse);
+
+  }
+  else if(!strncmp(drv_ctx.kind, "OMX.qcom.video.decoder.divx4",\
+         OMX_MAX_STRINGNAME_SIZE))
+  {
+     strncpy((char *)m_cRole, "video_decoder.divx",OMX_MAX_STRINGNAME_SIZE);
+     DEBUG_PRINT_ERROR ("\n DIVX 4 Decoder selected");
+     drv_ctx.decoder_format = VDEC_CODECTYPE_DIVX_4;
+     eCompressionFormat = (OMX_VIDEO_CODINGTYPE)QOMX_VIDEO_CodingDivx;
+     codec_type_parse = CODEC_TYPE_DIVX;
+     m_frame_parser.init_start_codes (codec_type_parse);
+
+  }
+  else if(!strncmp(drv_ctx.kind, "OMX.qcom.video.decoder.divx",\
+         OMX_MAX_STRINGNAME_SIZE))
+  {
+     strncpy((char *)m_cRole, "video_decoder.divx",OMX_MAX_STRINGNAME_SIZE);
+     DEBUG_PRINT_ERROR ("\n DIVX 5/6 Decoder selected");
+     drv_ctx.decoder_format = VDEC_CODECTYPE_DIVX_6;
+     eCompressionFormat = (OMX_VIDEO_CODINGTYPE)QOMX_VIDEO_CodingDivx;
+     codec_type_parse = CODEC_TYPE_DIVX;
+     m_frame_parser.init_start_codes (codec_type_parse);
+
+  }
+#else
+  else if((!strncmp(drv_ctx.kind, "OMX.qcom.video.decoder.divx4",\
+         OMX_MAX_STRINGNAME_SIZE)) || (!strncmp(drv_ctx.kind, \
+         "OMX.qcom.video.decoder.divx", OMX_MAX_STRINGNAME_SIZE)))
+  {
+     strncpy((char *)m_cRole, "video_decoder.divx",OMX_MAX_STRINGNAME_SIZE);
+     DEBUG_PRINT_ERROR ("\n DIVX Decoder selected");
+     drv_ctx.decoder_format = VDEC_CODECTYPE_DIVX_5;
      eCompressionFormat = (OMX_VIDEO_CODINGTYPE)QOMX_VIDEO_CodingDivx;
      codec_type_parse = CODEC_TYPE_DIVX;
      m_frame_parser.init_start_codes (codec_type_parse);
