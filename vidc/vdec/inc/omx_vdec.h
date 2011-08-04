@@ -51,7 +51,13 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 extern "C"{
 #include<utils/Log.h>
 }
+#ifdef MAX_RES_720P
 #define LOG_TAG "OMX-VDEC-720P"
+#elif MAX_RES_1080P
+#define LOG_TAG "OMX-VDEC-1080P"
+#else
+#define LOG_TAG "OMX-VDEC"
+#endif
 #ifdef ENABLE_DEBUG_LOW
 #define DEBUG_PRINT_LOW LOGE
 #else
