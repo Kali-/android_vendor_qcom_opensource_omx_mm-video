@@ -119,6 +119,9 @@ char ouputextradatafilename [] = "/data/extradata";
     }
 #endif//_ANDROID_
 
+#define Log2(number, power)  { OMX_U32 temp = number; power = 0; while( (0 == (temp & 0x1)) &&  power < 16) { temp >>=0x1; power++; } }
+#define Q16ToFraction(q,num,den) { OMX_U32 power; Log2(q,power);  num = q >> power; den = 0x1 << (16 - power); }
+
 void* async_message_thread (void *input)
 {
   struct vdec_ioctl_msg ioctl_msg;
@@ -2790,16 +2793,25 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
       }
       else if(OMX_DirInput == portDefn->eDir)
       {
-        if(portDefn->format.video.xFramerate > 0 &&
-           portDefn->format.video.xFramerate <= MAX_SUPPORTED_FPS)
+        if((portDefn->format.video.xFramerate >> 16) > 0 &&
+           (portDefn->format.video.xFramerate >> 16) <= MAX_SUPPORTED_FPS)
         {
             // Frame rate only should be set if this is a "known value" or to
             // activate ts prediction logic (arbitrary mode only) sending input
             // timestamps with max value (LLONG_MAX).
             DEBUG_PRINT_HIGH("set_parameter: frame rate set by omx client : %d",
-                             portDefn->format.video.xFramerate);
-            drv_ctx.frame_rate.fps_numerator = portDefn->format.video.xFramerate;
-            drv_ctx.frame_rate.fps_denominator = 1;
+                             portDefn->format.video.xFramerate >> 16);
+            Q16ToFraction(portDefn->format.video.xFramerate, drv_ctx.frame_rate.fps_numerator,
+                          drv_ctx.frame_rate.fps_denominator);
+            if(!drv_ctx.frame_rate.fps_numerator)
+            {
+              DEBUG_PRINT_ERROR("Numerator is zero setting to 30");
+              drv_ctx.frame_rate.fps_numerator = 30;
+            }
+            if(drv_ctx.frame_rate.fps_denominator)
+              drv_ctx.frame_rate.fps_numerator = (int)
+                  drv_ctx.frame_rate.fps_numerator / drv_ctx.frame_rate.fps_denominator;
+              drv_ctx.frame_rate.fps_denominator = 1;
             frm_int = drv_ctx.frame_rate.fps_denominator * 1e6 /
                       drv_ctx.frame_rate.fps_numerator;
             ioctl_msg.in = &drv_ctx.frame_rate;
