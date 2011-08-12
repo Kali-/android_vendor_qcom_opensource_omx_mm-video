@@ -5144,6 +5144,9 @@ OMX_ERRORTYPE  omx_vdec::empty_this_buffer_proxy(OMX_IN OMX_HANDLETYPE         h
   }
 #endif
 
+  if(buffer->nFlags & QOMX_VIDEO_BUFFERFLAG_EOSEQ)
+    frameinfo.flags |= QOMX_VIDEO_BUFFERFLAG_EOSEQ;
+
   if (temp_buffer->buffer_len == 0 || (buffer->nFlags & OMX_BUFFERFLAG_EOS))
   {
     DEBUG_PRINT_HIGH("\n Rxd i/p EOS, Notify Driver that EOS has been reached");
@@ -5886,6 +5889,7 @@ OMX_ERRORTYPE omx_vdec::fill_buffer_done(OMX_HANDLETYPE hComp,
     buffer->nFilledLen = 0;
     buffer->nTimeStamp = 0;
     buffer->nFlags &= ~OMX_BUFFERFLAG_EXTRADATA;
+    buffer->nFlags &= ~QOMX_VIDEO_BUFFERFLAG_EOSEQ;
   }
 
   DEBUG_PRINT_LOW("\n fill_buffer_done: bufhdr = %p, bufhdr->pBuffer = %p",
@@ -6592,6 +6596,8 @@ OMX_ERRORTYPE omx_vdec::push_input_h264 (OMX_HANDLETYPE hComp)
           memcpy ((pdest_frame->pBuffer + pdest_frame->nFilledLen),
               h264_scratch.pBuffer,h264_scratch.nFilledLen);
           pdest_frame->nFilledLen += h264_scratch.nFilledLen;
+          if(m_frame_parser.mutils->nalu_type == NALU_TYPE_EOSEQ)
+            pdest_frame->nFlags |= QOMX_VIDEO_BUFFERFLAG_EOSEQ;
           h264_scratch.nFilledLen = 0;
         }
         else
@@ -6646,6 +6652,7 @@ OMX_ERRORTYPE omx_vdec::push_input_h264 (OMX_HANDLETYPE hComp)
             pdest_frame = (OMX_BUFFERHEADERTYPE *) address;
             DEBUG_PRINT_LOW("\n Pop the next pdest_buffer %p",pdest_frame);
             pdest_frame->nFilledLen = 0;
+            pdest_frame->nFlags = 0;
             pdest_frame->nTimeStamp = LLONG_MAX;
           }
         }

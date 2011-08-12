@@ -53,7 +53,7 @@ extern "C"{
 #include<utils/Log.h>
 }
 #define LOG_TAG "OMX-VDEC-TEST"
-#define DEBUG_PRINT 
+#define DEBUG_PRINT
 #define DEBUG_PRINT_ERROR LOGE
 
 //#define __DEBUG_DIVX__ // Define this macro to print (through logcat)
@@ -802,7 +802,13 @@ void* fbd_thread(void* pArg)
         }
       }
     }
-
+    if(pBuffer->nFlags & QOMX_VIDEO_BUFFERFLAG_EOSEQ)
+    {
+        DEBUG_PRINT("\n");
+        DEBUG_PRINT("***************************************************\n");
+        DEBUG_PRINT("FillBufferDone: End Of Sequence Received\n");
+        DEBUG_PRINT("***************************************************\n");
+    }
     /********************************************************************/
     /* De-Initializing the open max and relasing the buffers and */
     /* closing the files.*/
