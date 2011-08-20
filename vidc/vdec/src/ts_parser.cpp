@@ -135,6 +135,15 @@ bool omx_time_stamp_reorder::insert_timestamp(OMX_BUFFERHEADERTYPE *header)
 		handle_error();
 		return false;
 	}
+	if ((header->nFlags & OMX_BUFFERFLAG_EOS) && !header->nFilledLen)
+	{
+		DEBUG("\n EOS with zero length recieved");
+		if (!add_new_list()) {
+			handle_error();
+			return false;
+		}
+		return true;
+	}
 	for(int i = 0; i < TIME_SZ && !table_entry; i++) {
 		if (!pcurrent->input_timestamps[i].in_use) {
 			table_entry = &pcurrent->input_timestamps[i].timestamps;
