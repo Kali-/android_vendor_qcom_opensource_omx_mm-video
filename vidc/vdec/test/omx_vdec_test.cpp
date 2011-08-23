@@ -652,13 +652,8 @@ void* fbd_thread(void* pArg)
             gettimeofday(&t_start, NULL);
         }
       fbd_cnt++;
-#ifdef TEST_TS_FROM_SEI
-      LOGE("%s: fbd_cnt(%d) Buf(%p) Timestamp(%lld)",
-        __FUNCTION__, fbd_cnt, pBuffer, pBuffer->nTimeStamp);
-#else
       DEBUG_PRINT("%s: fbd_cnt(%d) Buf(%p) Timestamp(%lld)",
         __FUNCTION__, fbd_cnt, pBuffer, pBuffer->nTimeStamp);
-#endif
       canDisplay = 1;
       if (realtime_display)
       {

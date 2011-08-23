@@ -536,7 +536,10 @@ private:
     void append_interlace_extradata(OMX_OTHER_EXTRADATATYPE *extra,
                                     OMX_U32 interlaced_format_type);
     void append_frame_info_extradata(OMX_OTHER_EXTRADATATYPE *extra,
-         OMX_U32 num_conceal_mb, OMX_U32 picture_type, OMX_S64 timestamp);
+                                     OMX_U32 num_conceal_mb,
+                                     OMX_U32 picture_type,
+                                     OMX_S64 timestamp,
+                                     OMX_U32 frame_rate);
     void append_terminator_extradata(OMX_OTHER_EXTRADATATYPE *extra);
     OMX_ERRORTYPE update_portdef(OMX_PARAM_PORTDEFINITIONTYPE *portDefn);
     void append_portdef_extradata(OMX_OTHER_EXTRADATATYPE *extra);

@@ -30,6 +30,7 @@ endif
 ifeq ($(call is-board-platform,msm8660),true)
 libOmxVdec-def += -DMAX_RES_1080P
 libOmxVdec-def += -DPROCESS_EXTRADATA_IN_OUTPUT_PORT
+libOmxVdec-def += -DTEST_TS_FROM_SEI
 endif
 ifeq ($(call is-board-platform,msm8960),true)
 libOmxVdec-def += -DMAX_RES_1080P

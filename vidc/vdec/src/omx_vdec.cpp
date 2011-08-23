@@ -7365,6 +7365,7 @@ void omx_vdec::handle_extradata(OMX_BUFFERHEADERTYPE *p_buf_hdr)
   OMX_OTHER_EXTRADATATYPE *p_extra = NULL, *p_sei = NULL, *p_vui = NULL;
   OMX_U32 num_conceal_MB = 0;
   OMX_S64 ts_in_sei = 0;
+  OMX_U32 frame_rate = 0;
   p_extra = (OMX_OTHER_EXTRADATATYPE *)
            ((unsigned)(p_buf_hdr->pBuffer + p_buf_hdr->nOffset +
             p_buf_hdr->nFilledLen + 3)&(~3));
@@ -7465,9 +7466,11 @@ void omx_vdec::handle_extradata(OMX_BUFFERHEADERTYPE *p_buf_hdr)
        (p_buf_hdr->pBuffer + p_buf_hdr->nAllocLen))
   {
     p_buf_hdr->nFlags |= OMX_BUFFERFLAG_EXTRADATA;
+    /* vui extra data (frame_rate) information */
+    h264_parser->get_frame_rate(&frame_rate);
     append_frame_info_extradata(p_extra, num_conceal_MB,
         ((struct vdec_output_frameinfo *)p_buf_hdr->pOutputPortPrivate)->pic_type,
-        p_buf_hdr->nTimeStamp);
+        p_buf_hdr->nTimeStamp, frame_rate);
     p_extra = (OMX_OTHER_EXTRADATATYPE *) (((OMX_U8 *) p_extra) + p_extra->nSize);
   }
   if ((client_extradata & OMX_PORTDEF_EXTRADATA) &&
@@ -7620,9 +7623,13 @@ void omx_vdec::print_debug_extradata(OMX_OTHER_EXTRADATATYPE *extra)
       "             Picture Type: %u \n"
       "           Interlace Type: %u \n"
       " Pan Scan Total Frame Num: %u \n"
-      "   Concealed Macro Blocks: %u \n",
-      fminfo->ePicType, fminfo->interlaceType,
-      fminfo->panScan.numWindows, fminfo->nConcealedMacroblocks);
+      "   Concealed Macro Blocks: %u \n"
+      "               frame rate: %u \n",
+      fminfo->ePicType,
+      fminfo->interlaceType,
+      fminfo->panScan.numWindows,
+      fminfo->nConcealedMacroblocks,
+      fminfo->nFrameRate);
 
     for (int i = 0; i < fminfo->panScan.numWindows; i++)
     {
@@ -7680,7 +7687,7 @@ void omx_vdec::append_interlace_extradata(OMX_OTHER_EXTRADATATYPE *extra,
 }
 
 void omx_vdec::append_frame_info_extradata(OMX_OTHER_EXTRADATATYPE *extra,
-    OMX_U32 num_conceal_mb, OMX_U32 picture_type, OMX_S64 timestamp)
+    OMX_U32 num_conceal_mb, OMX_U32 picture_type, OMX_S64 timestamp, OMX_U32 frame_rate)
 {
   OMX_QCOM_EXTRADATA_FRAMEINFO *frame_info = NULL;
   extra->nSize = OMX_FRAMEINFO_EXTRADATA_SIZE;
@@ -7713,7 +7720,7 @@ void omx_vdec::append_frame_info_extradata(OMX_OTHER_EXTRADATATYPE *extra,
   if (drv_ctx.decoder_format == VDEC_CODECTYPE_H264)
     h264_parser->fill_pan_scan_data(&frame_info->panScan, timestamp);
   frame_info->nConcealedMacroblocks = num_conceal_mb;
-
+  frame_info->nFrameRate = frame_rate;
   print_debug_extradata(extra);
 }
 

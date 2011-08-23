@@ -1178,6 +1178,12 @@ bool h264_stream_parser::is_mbaff()
    return mbaff_flag;
 }
 
+void h264_stream_parser::get_frame_rate(OMX_U32 *frame_rate)
+{
+  if (vui_param.num_units_in_tick != 0)
+    *frame_rate = vui_param.time_scale / (2 * vui_param.num_units_in_tick);
+}
+
 void h264_stream_parser::parse_nal(OMX_U8* data_ptr, OMX_U32 data_len, OMX_U32 nal_type, bool enable_emu_sc)
 {
   OMX_U32 nal_unit_type = NALU_TYPE_UNSPECIFIED, cons_bytes = 0;
@@ -1209,7 +1215,7 @@ void h264_stream_parser::parse_nal(OMX_U8* data_ptr, OMX_U32 data_len, OMX_U32 n
       parse_sei();
     break;
     case NALU_TYPE_VUI:
-      parse_vui();
+      parse_vui(false);
     break;
     default:
       DEBUG_PRINT_LOW("nal_unit_type received : %lu", nal_type);

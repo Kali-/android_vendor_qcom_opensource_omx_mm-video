@@ -415,6 +415,7 @@ class h264_stream_parser
     OMX_S64 process_ts_with_sei_vui(OMX_S64 timestamp);
     void get_frame_pack_data(OMX_QCOM_FRAME_PACK_ARRANGEMENT *frame_pack);
     bool is_mbaff();
+    void get_frame_rate(OMX_U32 *frame_rate);
 #ifdef PANSCAN_HDLR
     void update_panscan_data(OMX_S64 timestamp);
 #endif
@@ -446,6 +447,7 @@ class h264_stream_parser
     OMX_U32 emulation_code_skip_cntr;
     OMX_U8* bitstream;
     OMX_U32 bitstream_bytes;
+    OMX_U32 frame_rate;
     bool    emulation_sc_enabled;
 
     h264_vui_param vui_param;
