@@ -21,13 +21,13 @@ libmm-venc-def += -DENABLE_DEBUG_ERROR
 libmm-venc-def += -UINPUT_BUFFER_LOG
 libmm-venc-def += -UOUTPUT_BUFFER_LOG
 libmm-venc-def += -USINGLE_ENCODER_INSTANCE
-ifeq "$(findstring msm7630,$(QCOM_TARGET_PRODUCT))" "msm7630"
+ifeq ($(call is-chipset-in-board-platform,msm7630),true)
 libmm-venc-def += -DMAX_RES_720P
 endif
-ifeq "$(findstring msm8660,$(QCOM_TARGET_PRODUCT))" "msm8660"
+ifeq ($(call is-board-platform,msm8660),true)
 libmm-venc-def += -DMAX_RES_1080P
 endif
-ifeq "$(findstring msm8960,$(QCOM_TARGET_PRODUCT))" "msm8960"
+ifeq ($(call is-board-platform,msm8960),true)
 libmm-venc-def += -DMAX_RES_1080P
 libmm-venc-def += -DMAX_RES_1080P_EBI
 endif
