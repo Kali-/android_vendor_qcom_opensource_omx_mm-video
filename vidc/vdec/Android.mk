@@ -23,15 +23,15 @@ libOmxVdec-def += -DENABLE_DEBUG_HIGH
 libOmxVdec-def += -DENABLE_DEBUG_ERROR
 libOmxVdec-def += -UINPUT_BUFFER_LOG
 libOmxVdec-def += -UOUTPUT_BUFFER_LOG
-ifeq "$(findstring msm7630,$(QCOM_TARGET_PRODUCT))" "msm7630"
+ifeq ($(call is-chipset-in-board-platform,msm7630),true)
 libOmxVdec-def += -DMAX_RES_720P
 libOmxVdec-def += -UPROCESS_EXTRADATA_IN_OUTPUT_PORT
 endif
-ifeq "$(findstring msm8660,$(QCOM_TARGET_PRODUCT))" "msm8660"
+ifeq ($(call is-board-platform,msm8660),true)
 libOmxVdec-def += -DMAX_RES_1080P
 libOmxVdec-def += -DPROCESS_EXTRADATA_IN_OUTPUT_PORT
 endif
-ifeq "$(findstring msm8960,$(QCOM_TARGET_PRODUCT))" "msm8960"
+ifeq ($(call is-board-platform,msm8960),true)
 libOmxVdec-def += -DMAX_RES_1080P
 libOmxVdec-def += -DMAX_RES_1080P_EBI
 libOmxVdec-def += -DPROCESS_EXTRADATA_IN_OUTPUT_PORT
@@ -69,10 +69,7 @@ LOCAL_SHARED_LIBRARIES  += libdivxdrmdecrypt
 LOCAL_SRC_FILES         := src/frameparser.cpp
 LOCAL_SRC_FILES         += src/h264_utils.cpp
 LOCAL_SRC_FILES         += src/ts_parser.cpp
-ifeq "$(findstring msm8660,$(TARGET_PRODUCT))" "msm8660"
-LOCAL_SRC_FILES         += src/mp4_utils.cpp
-endif
-ifeq "$(findstring msm8960,$(TARGET_PRODUCT))" "msm8960"
+ifeq ($(call is-board-platform-in-list,msm8660 msm8960),true)
 LOCAL_SRC_FILES         += src/mp4_utils.cpp
 endif
 LOCAL_SRC_FILES         += src/omx_vdec.cpp
