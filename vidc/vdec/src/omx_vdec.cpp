@@ -5891,6 +5891,7 @@ OMX_ERRORTYPE omx_vdec::fill_buffer_done(OMX_HANDLETYPE hComp,
     buffer->nTimeStamp = 0;
     buffer->nFlags &= ~OMX_BUFFERFLAG_EXTRADATA;
     buffer->nFlags &= ~QOMX_VIDEO_BUFFERFLAG_EOSEQ;
+    buffer->nFlags &= ~OMX_BUFFERFLAG_DATACORRUPT;
   }
 
   DEBUG_PRINT_LOW("\n fill_buffer_done: bufhdr = %p, bufhdr->pBuffer = %p",

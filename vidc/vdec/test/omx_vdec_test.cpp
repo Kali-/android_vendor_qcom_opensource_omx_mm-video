@@ -804,6 +804,13 @@ void* fbd_thread(void* pArg)
         DEBUG_PRINT("FillBufferDone: End Of Sequence Received\n");
         DEBUG_PRINT("***************************************************\n");
     }
+    if(pBuffer->nFlags & OMX_BUFFERFLAG_DATACORRUPT)
+    {
+      DEBUG_PRINT("\n");
+      DEBUG_PRINT("***************************************************\n");
+      DEBUG_PRINT("FillBufferDone: OMX_BUFFERFLAG_DATACORRUPT Received\n");
+      DEBUG_PRINT("***************************************************\n");
+    }
     /********************************************************************/
     /* De-Initializing the open max and relasing the buffers and */
     /* closing the files.*/
