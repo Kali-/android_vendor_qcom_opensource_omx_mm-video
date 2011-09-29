@@ -3258,8 +3258,10 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
       {
         QOMX_INDEXTIMESTAMPREORDER *reorder = (QOMX_INDEXTIMESTAMPREORDER *)paramData;
         if (drv_ctx.picture_order == QOMX_VIDEO_DISPLAY_ORDER) {
-          if (reorder->bEnable == OMX_TRUE)
-            time_stamp_dts.set_timestamp_reorder_mode(true);
+          if (reorder->bEnable == OMX_TRUE) {
+              frm_int =0;
+              time_stamp_dts.set_timestamp_reorder_mode(true);
+          }
           else
             time_stamp_dts.set_timestamp_reorder_mode(false);
         } else {
@@ -3277,7 +3279,6 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
       eRet = OMX_ErrorUnsupportedIndex;
     }
   }
-
   return eRet;
 }
 
@@ -7302,7 +7303,8 @@ void omx_vdec::set_frame_rate(OMX_S64 act_timestamp)
 {
   OMX_U32 new_frame_interval = 0;
   struct vdec_ioctl_msg ioctl_msg = {NULL, NULL};
-  if (VALID_TS(act_timestamp) && VALID_TS(prev_ts) && act_timestamp != prev_ts)
+  if (VALID_TS(act_timestamp) && VALID_TS(prev_ts) && act_timestamp != prev_ts
+     && (((act_timestamp > prev_ts )? act_timestamp - prev_ts: prev_ts-act_timestamp)>2000))
   {
     new_frame_interval = (act_timestamp > prev_ts)?
                           act_timestamp - prev_ts :
@@ -7339,7 +7341,7 @@ void omx_vdec::adjust_timestamp(OMX_S64 &act_timestamp)
   else if (VALID_TS(prev_ts))
   {
     bool codec_cond = (drv_ctx.timestamp_adjust)?
-                      (!VALID_TS(act_timestamp) || act_timestamp <= prev_ts) :
+                      (!VALID_TS(act_timestamp) || act_timestamp <= (prev_ts+2000)) :
                       (!VALID_TS(act_timestamp) || act_timestamp == prev_ts);
     if(frm_int > 0 && codec_cond)
     {
