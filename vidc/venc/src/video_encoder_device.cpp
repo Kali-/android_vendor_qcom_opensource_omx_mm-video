@@ -160,6 +160,7 @@ void* async_venc_message_thread (void *input)
   struct venc_ioctl_msg ioctl_msg ={NULL,NULL};
   struct venc_timeout timeout;
   struct venc_msg venc_msg;
+  int error_code = 0;
   omx_venc *omx = reinterpret_cast<omx_venc*>(input);
 
   timeout.millisec = VEN_TIMEOUT_INFINITE;
@@ -169,19 +170,20 @@ void* async_venc_message_thread (void *input)
     ioctl_msg.out = (void*)&venc_msg;
 
     /*Wait for a message from the video decoder driver*/
-    if(ioctl(omx->handle->m_nDriver_fd,VEN_IOCTL_CMD_READ_NEXT_MSG,(void *)&ioctl_msg) < 0)
+    error_code = ioctl(omx->handle->m_nDriver_fd,VEN_IOCTL_CMD_READ_NEXT_MSG,(void *)&ioctl_msg);
+    if (error_code == -512)  // ERESTARTSYS
     {
-      DEBUG_PRINT_ERROR("\nioctl VEN_IOCTL_CMD_READ_NEXT_MSG failed/stopped");
-      break;
+        DEBUG_PRINT_ERROR("\n ERESTARTSYS received in ioctl read next msg!");
     }
-    else
+    else if (error_code <0)
     {
-      /*Call Instance specific process function*/
-      if(omx->async_message_process(input,&venc_msg) < 0)
-      {
+        DEBUG_PRINT_ERROR("\nioctl VEN_IOCTL_CMD_READ_NEXT_MSG failed");
+        break;
+    }
+    else if(omx->async_message_process(input,&venc_msg) < 0)
+    {
         DEBUG_PRINT_ERROR("\nERROR: Wrong ioctl message");
         break;
-      }
     }
   }
   DEBUG_PRINT_HIGH("omx_venc: Async Thread exit\n");
