@@ -5151,7 +5151,10 @@ OMX_ERRORTYPE  omx_vdec::empty_this_buffer_proxy(OMX_IN OMX_HANDLETYPE         h
 #endif
 
   if(buffer->nFlags & QOMX_VIDEO_BUFFERFLAG_EOSEQ)
+  {
     frameinfo.flags |= QOMX_VIDEO_BUFFERFLAG_EOSEQ;
+    buffer->nFlags &= ~QOMX_VIDEO_BUFFERFLAG_EOSEQ;
+  }
 
   if (temp_buffer->buffer_len == 0 || (buffer->nFlags & OMX_BUFFERFLAG_EOS))
   {
