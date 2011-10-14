@@ -90,25 +90,25 @@ OMX_ERRORTYPE omx_venc::component_init(OMX_STRING role)
 
   DEBUG_PRINT_HIGH("\n omx_venc(): Inside component_init()");
   // Copy the role information which provides the decoder m_nkind
-  strncpy((char *)m_nkind,role,OMX_MAX_STRINGNAME_SIZE);
+  strlcpy((char *)m_nkind,role,OMX_MAX_STRINGNAME_SIZE);
 
   if(!strncmp((char *)m_nkind,"OMX.qcom.video.encoder.mpeg4",\
               OMX_MAX_STRINGNAME_SIZE))
   {
-    strncpy((char *)m_cRole, "video_encoder.mpeg4",\
+    strlcpy((char *)m_cRole, "video_encoder.mpeg4",\
             OMX_MAX_STRINGNAME_SIZE);
     codec_type = OMX_VIDEO_CodingMPEG4;
   }
   else if(!strncmp((char *)m_nkind, "OMX.qcom.video.encoder.h263",\
                    OMX_MAX_STRINGNAME_SIZE))
   {
-    strncpy((char *)m_cRole, "video_encoder.h263",OMX_MAX_STRINGNAME_SIZE);
+    strlcpy((char *)m_cRole, "video_encoder.h263",OMX_MAX_STRINGNAME_SIZE);
     codec_type = OMX_VIDEO_CodingH263;
   }
   else if(!strncmp((char *)m_nkind, "OMX.qcom.video.encoder.avc",\
                    OMX_MAX_STRINGNAME_SIZE))
   {
-    strncpy((char *)m_cRole, "video_encoder.avc",OMX_MAX_STRINGNAME_SIZE);
+    strlcpy((char *)m_cRole, "video_encoder.avc",OMX_MAX_STRINGNAME_SIZE);
     codec_type = OMX_VIDEO_CodingAVC;
   }
   else
@@ -736,7 +736,7 @@ OMX_ERRORTYPE  omx_venc::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
       {
         if(!strncmp((char*)comp_role->cRole,"video_encoder.avc",OMX_MAX_STRINGNAME_SIZE))
         {
-          strncpy((char*)m_cRole,"video_encoder.avc",OMX_MAX_STRINGNAME_SIZE);
+          strlcpy((char*)m_cRole,"video_encoder.avc",OMX_MAX_STRINGNAME_SIZE);
         }
         else
         {
@@ -748,7 +748,7 @@ OMX_ERRORTYPE  omx_venc::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
       {
         if(!strncmp((const char*)comp_role->cRole,"video_encoder.mpeg4",OMX_MAX_STRINGNAME_SIZE))
         {
-          strncpy((char*)m_cRole,"video_encoder.mpeg4",OMX_MAX_STRINGNAME_SIZE);
+          strlcpy((char*)m_cRole,"video_encoder.mpeg4",OMX_MAX_STRINGNAME_SIZE);
         }
         else
         {
@@ -760,7 +760,7 @@ OMX_ERRORTYPE  omx_venc::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
       {
         if(!strncmp((const char*)comp_role->cRole,"video_encoder.h263",OMX_MAX_STRINGNAME_SIZE))
         {
-          strncpy((char*)m_cRole,"video_encoder.h263",OMX_MAX_STRINGNAME_SIZE);
+          strlcpy((char*)m_cRole,"video_encoder.h263",OMX_MAX_STRINGNAME_SIZE);
         }
         else
         {

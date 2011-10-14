@@ -1088,7 +1088,7 @@ int main(int argc, char **argv)
       return -1;
     }
 
-    strncpy(in_filename, argv[1], strlen(argv[1])+1);
+    strlcpy(in_filename, argv[1], strlen(argv[1])+1);
     if(argc > 2)
     {
       codec_format_option = (codec_format)atoi(argv[2]);
@@ -1099,7 +1099,7 @@ int main(int argc, char **argv)
       {
         if (strlen(argv[next_arg]) > 2)
         {
-          strncpy(seq_file_name, argv[next_arg],strlen(argv[next_arg]) + 1);
+          strlcpy(seq_file_name, argv[next_arg],strlen(argv[next_arg]) + 1);
           next_arg = argc;
         }
         else
@@ -1615,36 +1615,36 @@ int Init_Decoder()
 
     if (codec_format_option == CODEC_FORMAT_H264)
     {
-      strncpy(vdecCompNames, "OMX.qcom.video.decoder.avc", 27);
+      strlcpy(vdecCompNames, "OMX.qcom.video.decoder.avc", 27);
     }
     else if (codec_format_option == CODEC_FORMAT_MP4)
     {
-      strncpy(vdecCompNames, "OMX.qcom.video.decoder.mpeg4", 29);
+      strlcpy(vdecCompNames, "OMX.qcom.video.decoder.mpeg4", 29);
     }
     else if (codec_format_option == CODEC_FORMAT_H263)
     {
-      strncpy(vdecCompNames, "OMX.qcom.video.decoder.h263", 28);
+      strlcpy(vdecCompNames, "OMX.qcom.video.decoder.h263", 28);
     }
     else if (codec_format_option == CODEC_FORMAT_VC1)
     {
-      strncpy(vdecCompNames, "OMX.qcom.video.decoder.vc1", 27);
+      strlcpy(vdecCompNames, "OMX.qcom.video.decoder.vc1", 27);
     }
     else if (codec_format_option == CODEC_FORMAT_MPEG2)
     {
-      strncpy(vdecCompNames, "OMX.qcom.video.decoder.mpeg2", 29);
+      strlcpy(vdecCompNames, "OMX.qcom.video.decoder.mpeg2", 29);
     }
     else if (file_type_option == FILE_TYPE_RCV)
     {
-      strncpy(vdecCompNames, "OMX.qcom.video.decoder.wmv", 27);
+      strlcpy(vdecCompNames, "OMX.qcom.video.decoder.wmv", 27);
     }
     else if (file_type_option == FILE_TYPE_DIVX_4_5_6)
     {
-      strncpy(vdecCompNames, "OMX.qcom.video.decoder.divx", 28);
+      strlcpy(vdecCompNames, "OMX.qcom.video.decoder.divx", 28);
     }
 #ifdef MAX_RES_1080P
     else if (file_type_option == FILE_TYPE_DIVX_311)
     {
-      strncpy(vdecCompNames, "OMX.qcom.video.decoder.divx311", 31);
+      strlcpy(vdecCompNames, "OMX.qcom.video.decoder.divx311", 31);
     }
 #endif
     else
@@ -3178,7 +3178,7 @@ static int open_video_file ()
     }
 
     if (takeYuvLog) {
-        strncpy(outputfilename, "yuvframes.yuv", 14);
+        strlcpy(outputfilename, "yuvframes.yuv", 14);
         outputBufferFile = fopen (outputfilename, "ab");
         if (outputBufferFile == NULL)
         {

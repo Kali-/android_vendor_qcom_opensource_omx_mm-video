@@ -1577,7 +1577,7 @@ OMX_ERRORTYPE  omx_video::get_parameter(OMX_IN OMX_HANDLETYPE     hComp,
       DEBUG_PRINT_LOW("Getparameter: OMX_IndexParamStandardComponentRole %d\n",paramIndex);
       if(NULL != comp_role->cRole)
       {
-        strncpy((char*)comp_role->cRole,(const char*)m_cRole,OMX_MAX_STRINGNAME_SIZE);
+        strlcpy((char*)comp_role->cRole,(const char*)m_cRole,OMX_MAX_STRINGNAME_SIZE);
       }
       else
       {
@@ -3135,7 +3135,7 @@ OMX_ERRORTYPE  omx_video::component_role_enum(OMX_IN OMX_HANDLETYPE hComp,
   {
     if((0 == index) && role)
     {
-      strncpy((char *)role, "video_decoder.mpeg4",OMX_MAX_STRINGNAME_SIZE);
+      strlcpy((char *)role, "video_decoder.mpeg4",OMX_MAX_STRINGNAME_SIZE);
       DEBUG_PRINT_LOW("component_role_enum: role %s\n",role);
     }
     else
@@ -3147,7 +3147,7 @@ OMX_ERRORTYPE  omx_video::component_role_enum(OMX_IN OMX_HANDLETYPE hComp,
   {
     if((0 == index) && role)
     {
-      strncpy((char *)role, "video_decoder.h263",OMX_MAX_STRINGNAME_SIZE);
+      strlcpy((char *)role, "video_decoder.h263",OMX_MAX_STRINGNAME_SIZE);
       DEBUG_PRINT_LOW("component_role_enum: role %s\n",role);
     }
     else
@@ -3160,7 +3160,7 @@ OMX_ERRORTYPE  omx_video::component_role_enum(OMX_IN OMX_HANDLETYPE hComp,
   {
     if((0 == index) && role)
     {
-      strncpy((char *)role, "video_decoder.avc",OMX_MAX_STRINGNAME_SIZE);
+      strlcpy((char *)role, "video_decoder.avc",OMX_MAX_STRINGNAME_SIZE);
       DEBUG_PRINT_LOW("component_role_enum: role %s\n",role);
     }
     else
@@ -3173,7 +3173,7 @@ OMX_ERRORTYPE  omx_video::component_role_enum(OMX_IN OMX_HANDLETYPE hComp,
   {
     if((0 == index) && role)
     {
-      strncpy((char *)role, "video_decoder.vc1",OMX_MAX_STRINGNAME_SIZE);
+      strlcpy((char *)role, "video_decoder.vc1",OMX_MAX_STRINGNAME_SIZE);
       DEBUG_PRINT_LOW("component_role_enum: role %s\n",role);
     }
     else
@@ -3186,7 +3186,7 @@ OMX_ERRORTYPE  omx_video::component_role_enum(OMX_IN OMX_HANDLETYPE hComp,
   {
     if((0 == index) && role)
     {
-      strncpy((char *)role, "video_encoder.mpeg4",OMX_MAX_STRINGNAME_SIZE);
+      strlcpy((char *)role, "video_encoder.mpeg4",OMX_MAX_STRINGNAME_SIZE);
       DEBUG_PRINT_LOW("component_role_enum: role %s\n",role);
     }
     else
@@ -3198,7 +3198,7 @@ OMX_ERRORTYPE  omx_video::component_role_enum(OMX_IN OMX_HANDLETYPE hComp,
   {
     if((0 == index) && role)
     {
-      strncpy((char *)role, "video_encoder.h263",OMX_MAX_STRINGNAME_SIZE);
+      strlcpy((char *)role, "video_encoder.h263",OMX_MAX_STRINGNAME_SIZE);
       DEBUG_PRINT_LOW("component_role_enum: role %s\n",role);
     }
     else
@@ -3211,7 +3211,7 @@ OMX_ERRORTYPE  omx_video::component_role_enum(OMX_IN OMX_HANDLETYPE hComp,
   {
     if((0 == index) && role)
     {
-      strncpy((char *)role, "video_encoder.avc",OMX_MAX_STRINGNAME_SIZE);
+      strlcpy((char *)role, "video_encoder.avc",OMX_MAX_STRINGNAME_SIZE);
       DEBUG_PRINT_LOW("component_role_enum: role %s\n",role);
     }
     else

@@ -1104,11 +1104,11 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
 #endif
 
   // Copy the role information which provides the decoder kind
-  strncpy(drv_ctx.kind,role,128);
+  strlcpy(drv_ctx.kind,role,128);
   if(!strncmp(drv_ctx.kind,"OMX.qcom.video.decoder.mpeg4",\
       OMX_MAX_STRINGNAME_SIZE))
   {
-     strncpy((char *)m_cRole, "video_decoder.mpeg4",\
+     strlcpy((char *)m_cRole, "video_decoder.mpeg4",\
      OMX_MAX_STRINGNAME_SIZE);
      drv_ctx.timestamp_adjust = true;
      drv_ctx.decoder_format = VDEC_CODECTYPE_MPEG4;
@@ -1123,7 +1123,7 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
   else if(!strncmp(drv_ctx.kind,"OMX.qcom.video.decoder.mpeg2",\
         OMX_MAX_STRINGNAME_SIZE))
   {
-    strncpy((char *)m_cRole, "video_decoder.mpeg2",\
+    strlcpy((char *)m_cRole, "video_decoder.mpeg2",\
         OMX_MAX_STRINGNAME_SIZE);
     drv_ctx.decoder_format = VDEC_CODECTYPE_MPEG2;
     eCompressionFormat = OMX_VIDEO_CodingMPEG2;
@@ -1137,7 +1137,7 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
   else if(!strncmp(drv_ctx.kind, "OMX.qcom.video.decoder.h263",\
          OMX_MAX_STRINGNAME_SIZE))
   {
-     strncpy((char *)m_cRole, "video_decoder.h263",OMX_MAX_STRINGNAME_SIZE);
+     strlcpy((char *)m_cRole, "video_decoder.h263",OMX_MAX_STRINGNAME_SIZE);
      DEBUG_PRINT_LOW("\n H263 Decoder selected");
      drv_ctx.decoder_format = VDEC_CODECTYPE_H263;
      eCompressionFormat = OMX_VIDEO_CodingH263;
@@ -1151,7 +1151,7 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
   else if(!strncmp(drv_ctx.kind, "OMX.qcom.video.decoder.divx311",\
          OMX_MAX_STRINGNAME_SIZE))
   {
-     strncpy((char *)m_cRole, "video_decoder.divx",OMX_MAX_STRINGNAME_SIZE);
+     strlcpy((char *)m_cRole, "video_decoder.divx",OMX_MAX_STRINGNAME_SIZE);
      DEBUG_PRINT_LOW ("\n DIVX 311 Decoder selected");
      drv_ctx.decoder_format = VDEC_CODECTYPE_DIVX_3;
      eCompressionFormat = (OMX_VIDEO_CODINGTYPE)QOMX_VIDEO_CodingDivx;
@@ -1162,7 +1162,7 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
   else if(!strncmp(drv_ctx.kind, "OMX.qcom.video.decoder.divx4",\
          OMX_MAX_STRINGNAME_SIZE))
   {
-     strncpy((char *)m_cRole, "video_decoder.divx",OMX_MAX_STRINGNAME_SIZE);
+     strlcpy((char *)m_cRole, "video_decoder.divx",OMX_MAX_STRINGNAME_SIZE);
      DEBUG_PRINT_ERROR ("\n DIVX 4 Decoder selected");
      drv_ctx.decoder_format = VDEC_CODECTYPE_DIVX_4;
      eCompressionFormat = (OMX_VIDEO_CODINGTYPE)QOMX_VIDEO_CodingDivx;
@@ -1173,7 +1173,7 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
   else if(!strncmp(drv_ctx.kind, "OMX.qcom.video.decoder.divx",\
          OMX_MAX_STRINGNAME_SIZE))
   {
-     strncpy((char *)m_cRole, "video_decoder.divx",OMX_MAX_STRINGNAME_SIZE);
+     strlcpy((char *)m_cRole, "video_decoder.divx",OMX_MAX_STRINGNAME_SIZE);
      DEBUG_PRINT_ERROR ("\n DIVX 5/6 Decoder selected");
      drv_ctx.decoder_format = VDEC_CODECTYPE_DIVX_6;
      eCompressionFormat = (OMX_VIDEO_CODINGTYPE)QOMX_VIDEO_CodingDivx;
@@ -1186,7 +1186,7 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
          OMX_MAX_STRINGNAME_SIZE)) || (!strncmp(drv_ctx.kind, \
          "OMX.qcom.video.decoder.divx", OMX_MAX_STRINGNAME_SIZE)))
   {
-     strncpy((char *)m_cRole, "video_decoder.divx",OMX_MAX_STRINGNAME_SIZE);
+     strlcpy((char *)m_cRole, "video_decoder.divx",OMX_MAX_STRINGNAME_SIZE);
      DEBUG_PRINT_ERROR ("\n DIVX Decoder selected");
      drv_ctx.decoder_format = VDEC_CODECTYPE_DIVX_5;
      eCompressionFormat = (OMX_VIDEO_CODINGTYPE)QOMX_VIDEO_CodingDivx;
@@ -1198,7 +1198,7 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
   else if(!strncmp(drv_ctx.kind, "OMX.qcom.video.decoder.avc",\
          OMX_MAX_STRINGNAME_SIZE))
   {
-    strncpy((char *)m_cRole, "video_decoder.avc",OMX_MAX_STRINGNAME_SIZE);
+    strlcpy((char *)m_cRole, "video_decoder.avc",OMX_MAX_STRINGNAME_SIZE);
     drv_ctx.decoder_format = VDEC_CODECTYPE_H264;
     eCompressionFormat = OMX_VIDEO_CodingAVC;
     codec_type_parse = CODEC_TYPE_H264;
@@ -1211,7 +1211,7 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
   else if(!strncmp(drv_ctx.kind, "OMX.qcom.video.decoder.vc1",\
          OMX_MAX_STRINGNAME_SIZE))
   {
-    strncpy((char *)m_cRole, "video_decoder.vc1",OMX_MAX_STRINGNAME_SIZE);
+    strlcpy((char *)m_cRole, "video_decoder.vc1",OMX_MAX_STRINGNAME_SIZE);
     drv_ctx.decoder_format = VDEC_CODECTYPE_VC1;
     eCompressionFormat = OMX_VIDEO_CodingWMV;
     codec_type_parse = CODEC_TYPE_VC1;
@@ -1223,7 +1223,7 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
   else if(!strncmp(drv_ctx.kind, "OMX.qcom.video.decoder.wmv",\
          OMX_MAX_STRINGNAME_SIZE))
   {
-    strncpy((char *)m_cRole, "video_decoder.vc1",OMX_MAX_STRINGNAME_SIZE);
+    strlcpy((char *)m_cRole, "video_decoder.vc1",OMX_MAX_STRINGNAME_SIZE);
     drv_ctx.decoder_format = VDEC_CODECTYPE_VC1_RCV;
     eCompressionFormat = OMX_VIDEO_CodingWMV;
     codec_type_parse = CODEC_TYPE_VC1;
@@ -1319,14 +1319,15 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
     {
       if (m_frame_parser.mutils == NULL)
       {
-         m_frame_parser.mutils = new H264_Utils();
+        m_frame_parser.mutils = new H264_Utils();
 
-         if (m_frame_parser.mutils == NULL)
-         {
-            DEBUG_PRINT_ERROR("\n parser utils Allocation failed ");
-            eRet = OMX_ErrorInsufficientResources;
-         }
-
+        if (m_frame_parser.mutils == NULL)
+        {
+           DEBUG_PRINT_ERROR("\n parser utils Allocation failed ");
+           eRet = OMX_ErrorInsufficientResources;
+        }
+        else
+        {
          h264_scratch.nAllocLen = drv_ctx.ip_buf.buffer_size;
          h264_scratch.pBuffer = (OMX_U8 *)malloc (drv_ctx.ip_buf.buffer_size);
          h264_scratch.nFilledLen = 0;
@@ -1339,7 +1340,9 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
          }
          m_frame_parser.mutils->initialize_frame_checking_environment();
          m_frame_parser.mutils->allocate_rbsp_buffer (drv_ctx.ip_buf.buffer_size);
+       }
       }
+
       h264_parser = new h264_stream_parser();
       if (!h264_parser)
       {
@@ -1347,6 +1350,7 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
         eRet = OMX_ErrorInsufficientResources;
       }
     }
+
     if(pipe(fds))
     {
       DEBUG_PRINT_ERROR("pipe creation failed\n");
@@ -2587,7 +2591,7 @@ OMX_ERRORTYPE  omx_vdec::get_parameter(OMX_IN OMX_HANDLETYPE     hComp,
 
         DEBUG_PRINT_LOW("Getparameter: OMX_IndexParamStandardComponentRole %d\n",
                     paramIndex);
-        strncpy((char*)comp_role->cRole,(const char*)m_cRole,
+        strlcpy((char*)comp_role->cRole,(const char*)m_cRole,
                     OMX_MAX_STRINGNAME_SIZE);
         break;
     }
@@ -2985,7 +2989,7 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
           {
               if(!strncmp((char*)comp_role->cRole,"video_decoder.avc",OMX_MAX_STRINGNAME_SIZE))
               {
-                  strncpy((char*)m_cRole,"video_decoder.avc",OMX_MAX_STRINGNAME_SIZE);
+                  strlcpy((char*)m_cRole,"video_decoder.avc",OMX_MAX_STRINGNAME_SIZE);
               }
               else
               {
@@ -2997,7 +3001,7 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
           {
               if(!strncmp((const char*)comp_role->cRole,"video_decoder.mpeg4",OMX_MAX_STRINGNAME_SIZE))
               {
-                  strncpy((char*)m_cRole,"video_decoder.mpeg4",OMX_MAX_STRINGNAME_SIZE);
+                  strlcpy((char*)m_cRole,"video_decoder.mpeg4",OMX_MAX_STRINGNAME_SIZE);
               }
               else
               {
@@ -3009,7 +3013,7 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
           {
               if(!strncmp((const char*)comp_role->cRole,"video_decoder.h263",OMX_MAX_STRINGNAME_SIZE))
               {
-                  strncpy((char*)m_cRole,"video_decoder.h263",OMX_MAX_STRINGNAME_SIZE);
+                  strlcpy((char*)m_cRole,"video_decoder.h263",OMX_MAX_STRINGNAME_SIZE);
               }
               else
               {
@@ -3021,7 +3025,7 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
           {
             if(!strncmp((const char*)comp_role->cRole,"video_decoder.mpeg2",OMX_MAX_STRINGNAME_SIZE))
             {
-              strncpy((char*)m_cRole,"video_decoder.mpeg2",OMX_MAX_STRINGNAME_SIZE);
+              strlcpy((char*)m_cRole,"video_decoder.mpeg2",OMX_MAX_STRINGNAME_SIZE);
             }
             else
             {
@@ -3039,7 +3043,7 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
           {
               if(!strncmp((const char*)comp_role->cRole,"video_decoder.divx",OMX_MAX_STRINGNAME_SIZE))
               {
-                  strncpy((char*)m_cRole,"video_decoder.divx",OMX_MAX_STRINGNAME_SIZE);
+                  strlcpy((char*)m_cRole,"video_decoder.divx",OMX_MAX_STRINGNAME_SIZE);
               }
               else
               {
@@ -3053,7 +3057,7 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
           {
               if(!strncmp((const char*)comp_role->cRole,"video_decoder.vc1",OMX_MAX_STRINGNAME_SIZE))
               {
-                  strncpy((char*)m_cRole,"video_decoder.vc1",OMX_MAX_STRINGNAME_SIZE);
+                  strlcpy((char*)m_cRole,"video_decoder.vc1",OMX_MAX_STRINGNAME_SIZE);
               }
               else
               {
@@ -5089,6 +5093,9 @@ OMX_ERRORTYPE  omx_vdec::empty_this_buffer_proxy(OMX_IN OMX_HANDLETYPE         h
     if (first_frame == 0)
     {
        first_buffer = (unsigned char *)malloc (drv_ctx.ip_buf.buffer_size);
+	if(first_buffer == NULL){
+		return OMX_ErrorInsufficientResources;
+	}
        DEBUG_PRINT_LOW("\n Copied the first buffer data size %d ",
                     temp_buffer->buffer_len);
 #ifdef MAX_RES_1080P
@@ -5559,7 +5566,7 @@ OMX_ERRORTYPE  omx_vdec::component_role_enum(OMX_IN OMX_HANDLETYPE hComp,
   {
     if((0 == index) && role)
     {
-      strncpy((char *)role, "video_decoder.mpeg4",OMX_MAX_STRINGNAME_SIZE);
+      strlcpy((char *)role, "video_decoder.mpeg4",OMX_MAX_STRINGNAME_SIZE);
       DEBUG_PRINT_LOW("component_role_enum: role %s\n",role);
     }
     else
@@ -5571,7 +5578,7 @@ OMX_ERRORTYPE  omx_vdec::component_role_enum(OMX_IN OMX_HANDLETYPE hComp,
   {
     if((0 == index) && role)
     {
-      strncpy((char *)role, "video_decoder.mpeg2",OMX_MAX_STRINGNAME_SIZE);
+      strlcpy((char *)role, "video_decoder.mpeg2",OMX_MAX_STRINGNAME_SIZE);
       DEBUG_PRINT_LOW("component_role_enum: role %s\n",role);
     }
     else
@@ -5583,7 +5590,7 @@ OMX_ERRORTYPE  omx_vdec::component_role_enum(OMX_IN OMX_HANDLETYPE hComp,
   {
     if((0 == index) && role)
     {
-      strncpy((char *)role, "video_decoder.h263",OMX_MAX_STRINGNAME_SIZE);
+      strlcpy((char *)role, "video_decoder.h263",OMX_MAX_STRINGNAME_SIZE);
       DEBUG_PRINT_LOW("component_role_enum: role %s\n",role);
     }
     else
@@ -5602,7 +5609,7 @@ OMX_ERRORTYPE  omx_vdec::component_role_enum(OMX_IN OMX_HANDLETYPE hComp,
   {
     if((0 == index) && role)
     {
-      strncpy((char *)role, "video_decoder.divx",OMX_MAX_STRINGNAME_SIZE);
+      strlcpy((char *)role, "video_decoder.divx",OMX_MAX_STRINGNAME_SIZE);
       DEBUG_PRINT_LOW("component_role_enum: role %s\n",role);
     }
     else
@@ -5615,7 +5622,7 @@ OMX_ERRORTYPE  omx_vdec::component_role_enum(OMX_IN OMX_HANDLETYPE hComp,
   {
     if((0 == index) && role)
     {
-      strncpy((char *)role, "video_decoder.avc",OMX_MAX_STRINGNAME_SIZE);
+      strlcpy((char *)role, "video_decoder.avc",OMX_MAX_STRINGNAME_SIZE);
       DEBUG_PRINT_LOW("component_role_enum: role %s\n",role);
     }
     else
@@ -5630,7 +5637,7 @@ OMX_ERRORTYPE  omx_vdec::component_role_enum(OMX_IN OMX_HANDLETYPE hComp,
   {
     if((0 == index) && role)
     {
-      strncpy((char *)role, "video_decoder.vc1",OMX_MAX_STRINGNAME_SIZE);
+      strlcpy((char *)role, "video_decoder.vc1",OMX_MAX_STRINGNAME_SIZE);
       DEBUG_PRINT_LOW("component_role_enum: role %s\n",role);
     }
     else
