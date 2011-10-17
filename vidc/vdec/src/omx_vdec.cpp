@@ -7476,7 +7476,8 @@ void omx_vdec::handle_extradata(OMX_BUFFERHEADERTYPE *p_buf_hdr)
   {
     p_buf_hdr->nFlags |= OMX_BUFFERFLAG_EXTRADATA;
     /* vui extra data (frame_rate) information */
-    h264_parser->get_frame_rate(&frame_rate);
+    if (p_vui)
+        h264_parser->get_frame_rate(&frame_rate);
     append_frame_info_extradata(p_extra, num_conceal_MB,
         ((struct vdec_output_frameinfo *)p_buf_hdr->pOutputPortPrivate)->pic_type,
         p_buf_hdr->nTimeStamp, frame_rate);
