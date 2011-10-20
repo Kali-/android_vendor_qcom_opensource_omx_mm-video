@@ -270,6 +270,11 @@ public:
   //int *output_pmem_fd;
   struct pmem *m_pInput_pmem;
   struct pmem *m_pOutput_pmem;
+#ifdef USE_ION
+  struct venc_ion *m_pInput_ion;
+  struct venc_ion *m_pOutput_ion;
+#endif
+
 
 
 public:
@@ -501,6 +506,13 @@ public:
   bool m_event_port_settings_sent;
   OMX_U8                m_cRole[OMX_MAX_STRINGNAME_SIZE];
   extra_data_handler extra_data_handle;
+
+private:
+#ifdef USE_ION
+  int alloc_map_ion_memory(int size,struct ion_allocation_data *alloc_data,
+                                    struct ion_fd_data *fd_data);
+  void free_ion_memory(struct venc_ion *buf_ion_info);
+#endif
 };
 
 #endif // __OMX_VIDEO_BASE_H__

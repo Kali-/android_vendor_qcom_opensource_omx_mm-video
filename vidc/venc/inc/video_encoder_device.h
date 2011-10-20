@@ -74,6 +74,11 @@ public:
 	  int size;
 	  int alignment;
 	  int offset;
+#ifdef USE_ION
+          int ion_device_fd;
+          struct ion_allocation_data alloc_data;
+          struct ion_fd_data ion_alloc_fd;
+#endif
 	  };
 
   recon_buffer recon_buff[MAX_RECON_BUFFERS];

@@ -32,6 +32,9 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "video_encoder_device.h"
 #include "omx_video_encoder.h"
 #include <linux/android_pmem.h>
+#ifdef USE_ION
+#include <linux/ion.h>
+#endif
 
 #define MPEG4_SP_START 0
 #define MPEG4_ASP_START (MPEG4_SP_START + 8)
@@ -41,10 +44,12 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define H264_HP_START (H264_BP_START + 13)
 #define H264_MP_START (H264_BP_START + 26)
 
-#ifdef MAX_RES_1080P_EBI
-#define PMEM_DEVICE "/dev/pmem_adsp"
+#ifdef USE_ION
+#define MEM_DEVICE "/dev/ion"
+#elif MAX_RES_1080P_EBI
+#define MEM_DEVICE "/dev/pmem_adsp"
 #elif MAX_RES_1080P
-#define PMEM_DEVICE "/dev/pmem_smipool"
+#define MEM_DEVICE "/dev/pmem_smipool"
 #endif
 
 /* MPEG4 profile and level table*/
@@ -970,7 +975,7 @@ bool venc_dev::venc_set_config(void *configData, OMX_INDEXTYPE index)
 unsigned venc_dev::venc_stop( void)
 {
 #ifdef MAX_RES_1080P
-  pmem_free();
+    pmem_free();
 #endif
   return ioctl(m_nDriver_fd,VEN_IOCTL_CMD_STOP,NULL);
 }
@@ -1059,7 +1064,6 @@ OMX_U32 venc_dev::venc_allocate_recon_buffers()
   }
   return 0;
 }
-
 OMX_U32 venc_dev::pmem_allocate(OMX_U32 size, OMX_U32 alignment, OMX_U32 count)
 {
   OMX_U32 pmem_fd = -1;
@@ -1068,8 +1072,40 @@ OMX_U32 venc_dev::pmem_allocate(OMX_U32 size, OMX_U32 alignment, OMX_U32 count)
   struct venc_ioctl_msg ioctl_msg;
   struct pmem_allocation allocation;
   struct venc_recon_addr recon_addr;
+  int rc = 0;
 
-  pmem_fd = open(PMEM_DEVICE, O_RDWR);
+#ifdef USE_ION
+  recon_buff[count].ion_device_fd = open (MEM_DEVICE,O_RDWR|O_DSYNC);
+  if(recon_buff[count].ion_device_fd < 0)
+  {
+      DEBUG_PRINT_ERROR("\nERROR: ION Device open() Failed");
+      return -1;
+  }
+
+  recon_buff[count].alloc_data.len = size;
+  recon_buff[count].alloc_data.flags = 0x1 << ION_HEAP_EBI_ID;
+  recon_buff[count].alloc_data.align = clip2(alignment);
+  if (recon_buff[count].alloc_data.align != 8192)
+    recon_buff[count].alloc_data.align = 8192;
+
+  rc = ioctl(recon_buff[count].ion_device_fd,ION_IOC_ALLOC,&recon_buff[count].alloc_data);
+  if(rc || !recon_buff[count].alloc_data.handle) {
+         DEBUG_PRINT_ERROR("\n ION ALLOC memory failed ");
+         recon_buff[count].alloc_data.handle=NULL;
+         return -1;
+  }
+
+  recon_buff[count].ion_alloc_fd.handle = recon_buff[count].alloc_data.handle;
+  rc = ioctl(recon_buff[count].ion_device_fd,ION_IOC_MAP,&recon_buff[count].ion_alloc_fd);
+  if(rc) {
+        DEBUG_PRINT_ERROR("\n ION MAP failed ");
+        recon_buff[count].ion_alloc_fd.fd =-1;
+        recon_buff[count].ion_alloc_fd.fd =-1;
+        return -1;
+  }
+  pmem_fd = recon_buff[count].ion_alloc_fd.fd;
+#else
+  pmem_fd = open(MEM_DEVICE, O_RDWR);
 
   if ((int)(pmem_fd) < 0)
   {
@@ -1089,7 +1125,7 @@ OMX_U32 venc_dev::pmem_allocate(OMX_U32 size, OMX_U32 alignment, OMX_U32 count)
       allocation.align, allocation.size);
     return -1;
   }
-
+#endif
   buf_addr = mmap(NULL, size,
                PROT_READ | PROT_WRITE,
                MAP_SHARED, pmem_fd, 0);
@@ -1099,6 +1135,15 @@ OMX_U32 venc_dev::pmem_allocate(OMX_U32 size, OMX_U32 alignment, OMX_U32 count)
     close(pmem_fd);
     pmem_fd = -1;
     DEBUG_PRINT_ERROR("Error returned in allocating recon buffers buf_addr: %p\n",buf_addr);
+#ifdef USE_ION
+    if(ioctl(recon_buff[count].ion_device_fd,ION_IOC_FREE,&recon_buff[count].alloc_data)) {
+      DEBUG_PRINT_ERROR("ion recon buffer free failed");
+    }
+    recon_buff[count].alloc_data.handle = NULL;
+    recon_buff[count].ion_alloc_fd.fd =-1;
+    close(recon_buff[count].ion_device_fd);
+    recon_buff[count].ion_device_fd =-1;
+#endif
     return -1;
   }
 
@@ -1147,6 +1192,15 @@ OMX_U32 venc_dev::pmem_free()
         DEBUG_PRINT_ERROR("VEN_IOCTL_FREE_RECON_BUFFER failed");
       munmap(recon_buff[cnt].virtual_address, recon_buff[cnt].size);
       close(recon_buff[cnt].pmem_fd);
+#ifdef USE_ION
+      if(ioctl(recon_buff[cnt].ion_device_fd,ION_IOC_FREE,&recon_buff[cnt].alloc_data)) {
+        DEBUG_PRINT_ERROR("ion recon buffer free failed");
+      }
+      recon_buff[cnt].alloc_data.handle = NULL;
+      recon_buff[cnt].ion_alloc_fd.fd =-1;
+      close(recon_buff[cnt].ion_device_fd);
+      recon_buff[cnt].ion_device_fd =-1;
+#endif
       DEBUG_PRINT_LOW("\n cleaning Index %d of size %d \n",cnt,recon_buff[cnt].size);
       recon_buff[cnt].pmem_fd = -1;
       recon_buff[cnt].virtual_address = NULL;

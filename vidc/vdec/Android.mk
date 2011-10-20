@@ -41,6 +41,11 @@ endif
 ifeq ($(call is-android-codename,HONEYCOMB),true)
 libOmxVdec-def += -D_ANDROID_HONEYCOMB_
 endif
+
+ifeq ($(TARGET_USES_ION),true)
+libOmxVdec-def += -DUSE_ION
+endif
+
 # ---------------------------------------------------------------------------------
 # 			Make the Shared library (libOmxVdec)
 # ---------------------------------------------------------------------------------

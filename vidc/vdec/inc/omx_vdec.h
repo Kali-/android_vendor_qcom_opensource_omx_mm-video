@@ -46,7 +46,12 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <inttypes.h>
 
 #ifdef _ANDROID_
+#ifdef USE_ION
+#include <linux/ion.h>
+#include <binder/MemoryHeapIon.h>
+#else
 #include <binder/MemoryHeapBase.h>
+#endif
 #include <ui/android_native_buffer.h>
 extern "C"{
 #include<utils/Log.h>
@@ -106,6 +111,14 @@ extern "C" {
 
 #ifdef _ANDROID_
     using namespace android;
+#ifdef USE_ION
+    class VideoHeap : public MemoryHeapIon
+    {
+    public:
+        VideoHeap(int devicefd, size_t size, void* base,struct ion_handle *handle,int mapfd);
+        virtual ~VideoHeap() {}
+    };
+#else
     // local pmem heap object
     class VideoHeap : public MemoryHeapBase
     {
@@ -113,6 +126,7 @@ extern "C" {
         VideoHeap(int fd, size_t size, void* base);
         virtual ~VideoHeap() {}
     };
+#endif
 #endif // _ANDROID_
 //////////////////////////////////////////////////////////////////////////////
 //                       Module specific globals
@@ -185,6 +199,14 @@ enum port_indexes
     OMX_CORE_INPUT_PORT_INDEX        =0,
     OMX_CORE_OUTPUT_PORT_INDEX       =1
 };
+#ifdef USE_ION
+struct vdec_ion
+{
+    int ion_device_fd;
+    struct ion_fd_data fd_ion_data;
+    struct ion_allocation_data ion_alloc_data;
+};
+#endif
 
 struct video_driver_context
 {
@@ -199,6 +221,11 @@ struct video_driver_context
     struct vdec_bufferpayload *ptr_inputbuffer;
     struct vdec_bufferpayload *ptr_outputbuffer;
     struct vdec_output_frameinfo *ptr_respbuffer;
+#ifdef USE_ION
+    struct vdec_ion *ip_buf_ion_info;
+    struct vdec_ion *op_buf_ion_info;
+    struct vdec_ion h264_mv;
+#endif
     struct vdec_framerate frame_rate;
     unsigned extradata;
     bool timestamp_adjust;
@@ -547,6 +574,13 @@ private:
 
     bool align_pmem_buffers(int pmem_fd, OMX_U32 buffer_size,
                             OMX_U32 alignment);
+#ifdef USE_ION
+    int alloc_map_ion_memory(OMX_U32 buffer_size,
+              OMX_U32 alignment, struct ion_allocation_data *alloc_data,
+              struct ion_fd_data *fd_data);
+    void free_ion_memory(struct vdec_ion *buf_ion_info);
+#endif
+
 
     OMX_ERRORTYPE send_command_proxy(OMX_HANDLETYPE  hComp,
                                      OMX_COMMANDTYPE cmd,
