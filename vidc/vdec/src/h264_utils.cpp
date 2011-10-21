@@ -1215,7 +1215,7 @@ void h264_stream_parser::parse_nal(OMX_U8* data_ptr, OMX_U32 data_len, OMX_U32 n
       parse_sei();
     break;
     case NALU_TYPE_VUI:
-      parse_vui(false);
+      parse_vui(true);
     break;
     default:
       DEBUG_PRINT_LOW("nal_unit_type received : %lu", nal_type);
