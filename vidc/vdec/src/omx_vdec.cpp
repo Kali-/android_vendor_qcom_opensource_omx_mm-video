@@ -74,8 +74,10 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #endif
 
 #ifdef INPUT_BUFFER_LOG
+#define INPUT_BUFFER_FILE_NAME "/data/input-bitstream.\0\0\0\0"
+#define INPUT_BUFFER_FILE_NAME_LEN 30
 FILE *inputBufferFile1;
-char inputfilename [] = "/data/input-bitstream.\0\0\0\0";
+char inputfilename [INPUT_BUFFER_FILE_NAME_LEN] = "\0";
 #endif
 #ifdef OUTPUT_BUFFER_LOG
 FILE *outputBufferFile1;
@@ -1110,6 +1112,9 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
   drv_ctx.frame_rate.fps_numerator = DEFAULT_FPS;
   drv_ctx.frame_rate.fps_denominator = 1;
 
+#ifdef INPUT_BUFFER_LOG
+    strcpy(inputfilename, INPUT_BUFFER_FILE_NAME);
+#endif
 #ifdef OUTPUT_BUFFER_LOG
   outputBufferFile1 = fopen (outputfilename, "ab");
 #endif
