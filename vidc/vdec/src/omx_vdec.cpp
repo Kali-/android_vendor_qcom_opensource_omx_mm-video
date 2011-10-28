@@ -5409,11 +5409,13 @@ OMX_ERRORTYPE  omx_vdec::component_deinit(OMX_IN OMX_HANDLETYPE hComp)
         free(h264_scratch.pBuffer);
         h264_scratch.pBuffer = NULL;
     }
+
     if (h264_parser)
     {
-	    free(h264_parser);
-	    h264_parser = NULL;
+        delete h264_parser;
+	h264_parser = NULL;
     }
+
     if(m_platform_list)
     {
         free(m_platform_list);
@@ -6856,6 +6858,13 @@ void omx_vdec::free_output_buffer_header()
     free (m_out_mem_ptr);
     m_out_mem_ptr = NULL;
   }
+
+  if(m_platform_list)
+  {
+    free(m_platform_list);
+    m_platform_list = NULL;
+  }
+
   if (drv_ctx.ptr_respbuffer)
   {
     free (drv_ctx.ptr_respbuffer);
