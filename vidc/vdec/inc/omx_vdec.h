@@ -234,6 +234,7 @@ struct video_driver_context
     unsigned extradata;
     bool timestamp_adjust;
     char kind[128];
+    bool idr_only_decoding;
 };
 
 #ifdef _ANDROID_

@@ -1330,6 +1330,7 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
     drv_ctx.interlace = VDEC_InterlaceFrameProgressive;
     drv_ctx.extradata = 0;
     drv_ctx.picture_order = VDEC_ORDER_DISPLAY;
+    drv_ctx.idr_only_decoding = 0;
 
     if (eRet == OMX_ErrorNone)
         eRet = get_buffer_req(&drv_ctx.ip_buf);
@@ -3173,6 +3174,16 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
               }
               else
                   eRet = OMX_ErrorBadParameter;
+#ifdef MAX_RES_720P
+              if (drv_ctx.idr_only_decoding)
+              {
+                  if (pictureOrder->eOutputPictureOrder != QOMX_VIDEO_DECODE_ORDER)
+                  {
+                      DEBUG_PRINT_HIGH("only decode order is supported for thumbnail mode");
+                      eRet = OMX_ErrorBadParameter;
+                  }
+              }
+#endif
               if (eRet == OMX_ErrorNone && pic_order != drv_ctx.picture_order)
               {
                   drv_ctx.picture_order = pic_order;
@@ -3240,17 +3251,35 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
 
       }
       break;
-#ifdef MAX_RES_1080P
     case OMX_QcomIndexParamVideoSyncFrameDecodingMode:
       {
+          DEBUG_PRINT_HIGH("set_parameter: OMX_QcomIndexParamVideoSyncFrameDecodingMode");
+          DEBUG_PRINT_HIGH("set idr only decoding for thumbnail mode");
+          drv_ctx.idr_only_decoding = 1;
           int rc = ioctl(drv_ctx.video_driver_fd,
                       VDEC_IOCTL_SET_IDR_ONLY_DECODING);
           if(rc < 0) {
               DEBUG_PRINT_ERROR("Failed to set IDR only decoding on driver.");
               eRet = OMX_ErrorHardware;
           }
+#ifdef MAX_RES_720P
+          if (eRet == OMX_ErrorNone)
+          {
+              DEBUG_PRINT_HIGH("set decode order for thumbnail mode");
+              drv_ctx.picture_order = VDEC_ORDER_DECODE;
+              ioctl_msg.in = &drv_ctx.picture_order;
+              ioctl_msg.out = NULL;
+              if (ioctl(drv_ctx.video_driver_fd, VDEC_IOCTL_SET_PICTURE_ORDER,
+                  (void*)&ioctl_msg) < 0)
+              {
+                  DEBUG_PRINT_ERROR("\n Set picture order failed");
+                  eRet = OMX_ErrorUnsupportedSetting;
+              }
+          }
+#endif
       }
       break;
+#ifdef MAX_RES_1080P
     case OMX_QcomIndexParamIndexExtraDataType:
       {
         QOMX_INDEXEXTRADATATYPE *extradataIndexType = (QOMX_INDEXEXTRADATATYPE *) paramData;
@@ -3606,15 +3635,14 @@ OMX_ERRORTYPE  omx_vdec::get_extension_index(OMX_IN OMX_HANDLETYPE      hComp,
         DEBUG_PRINT_ERROR("Get Extension Index in Invalid State\n");
         return OMX_ErrorInvalidState;
     }
-#ifdef MAX_RES_1080P
-	else if (!strncmp(paramName, "OMX.QCOM.index.param.video.SyncFrameDecodingMode",sizeof("OMX.QCOM.index.param.video.SyncFrameDecodingMode") - 1)) {
+    else if (!strncmp(paramName, "OMX.QCOM.index.param.video.SyncFrameDecodingMode",sizeof("OMX.QCOM.index.param.video.SyncFrameDecodingMode") - 1)) {
         *indexType = (OMX_INDEXTYPE)OMX_QcomIndexParamVideoSyncFrameDecodingMode;
     }
- else if (!strncmp(paramName, "OMX.QCOM.index.param.IndexExtraData",sizeof("OMX.QCOM.index.param.IndexExtraData") - 1))
-   {
-      *indexType = (OMX_INDEXTYPE)OMX_QcomIndexParamIndexExtraDataType;
-   }
-
+#ifdef MAX_RES_1080P
+    else if (!strncmp(paramName, "OMX.QCOM.index.param.IndexExtraData",sizeof("OMX.QCOM.index.param.IndexExtraData") - 1))
+    {
+        *indexType = (OMX_INDEXTYPE)OMX_QcomIndexParamIndexExtraDataType;
+    }
 #endif
 #if defined (_ANDROID_HONEYCOMB_) || defined (_ANDROID_ICS_)
     else if(!strncmp(paramName,"OMX.google.android.index.enableAndroidNativeBuffers", sizeof("OMX.google.android.index.enableAndroidNativeBuffers") - 1)) {
@@ -4443,7 +4471,9 @@ OMX_ERRORTYPE  omx_vdec::allocate_output_buffer(
 
   if(!m_out_mem_ptr)
   {
-    DEBUG_PRINT_HIGH("\n Allocate o/p buffer case - Header List allocation");
+    DEBUG_PRINT_HIGH("\n Allocate o/p buffer Header: Cnt(%d) Sz(%d)",
+      drv_ctx.op_buf.actualcount,
+      drv_ctx.op_buf.buffer_size);
     int nBufHdrSize        = 0;
     int nPlatformEntrySize = 0;
     int nPlatformListSize  = 0;
