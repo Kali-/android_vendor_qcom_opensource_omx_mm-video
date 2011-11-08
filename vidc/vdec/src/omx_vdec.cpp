@@ -2678,11 +2678,10 @@ OMX_ERRORTYPE  omx_vdec::get_parameter(OMX_IN OMX_HANDLETYPE     hComp,
             DEBUG_PRINT_LOW("get_parameter: OMX_GoogleAndroidIndexGetAndroidNativeBufferUsage\n");
             GetAndroidNativeBufferUsageParams* nativeBuffersUsage = (GetAndroidNativeBufferUsageParams *) paramData;
             if(nativeBuffersUsage->nPortIndex == OMX_CORE_OUTPUT_PORT_INDEX) {
-#if defined (MAX_RES_720P) || defined (MAX_RES_1080P_EBI)
-                nativeBuffersUsage->nUsage = GRALLOC_USAGE_PRIVATE_PMEM_ADSP;
-#endif
-#ifdef MAX_RES_1080P
-                nativeBuffersUsage->nUsage = GRALLOC_USAGE_PRIVATE_PMEM_SMIPOOL;
+#if defined (MAX_RES_720P) ||  defined (MAX_RES_1080P_EBI)
+                nativeBuffersUsage->nUsage = GRALLOC_USAGE_PRIVATE_ADSP_HEAP;
+#elif MAX_RES_1080P
+                nativeBuffersUsage->nUsage = GRALLOC_USAGE_PRIVATE_SMI_HEAP;
 #endif
             } else {
                 DEBUG_PRINT_HIGH("get_parameter: OMX_GoogleAndroidIndexGetAndroidNativeBufferUsage failed!\n");
