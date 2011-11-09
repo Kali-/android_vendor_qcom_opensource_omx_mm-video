@@ -44,14 +44,6 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define H264_HP_START (H264_BP_START + 13)
 #define H264_MP_START (H264_BP_START + 26)
 
-#ifdef USE_ION
-#define MEM_DEVICE "/dev/ion"
-#elif MAX_RES_1080P_EBI
-#define MEM_DEVICE "/dev/pmem_adsp"
-#elif MAX_RES_1080P
-#define MEM_DEVICE "/dev/pmem_smipool"
-#endif
-
 /* MPEG4 profile and level table*/
 static const unsigned int mpeg4_profile_level_table[][5]=
 {
@@ -1083,7 +1075,7 @@ OMX_U32 venc_dev::pmem_allocate(OMX_U32 size, OMX_U32 alignment, OMX_U32 count)
   }
 
   recon_buff[count].alloc_data.len = size;
-  recon_buff[count].alloc_data.flags = 0x1 << ION_HEAP_EBI_ID;
+  recon_buff[count].alloc_data.flags = 0x1 << MEM_HEAP_ID;
   recon_buff[count].alloc_data.align = clip2(alignment);
   if (recon_buff[count].alloc_data.align != 8192)
     recon_buff[count].alloc_data.align = 8192;
@@ -1136,7 +1128,8 @@ OMX_U32 venc_dev::pmem_allocate(OMX_U32 size, OMX_U32 alignment, OMX_U32 count)
     pmem_fd = -1;
     DEBUG_PRINT_ERROR("Error returned in allocating recon buffers buf_addr: %p\n",buf_addr);
 #ifdef USE_ION
-    if(ioctl(recon_buff[count].ion_device_fd,ION_IOC_FREE,&recon_buff[count].alloc_data)) {
+    if(ioctl(recon_buff[count].ion_device_fd,ION_IOC_FREE,
+       &recon_buff[count].alloc_data.handle)) {
       DEBUG_PRINT_ERROR("ion recon buffer free failed");
     }
     recon_buff[count].alloc_data.handle = NULL;
@@ -1193,7 +1186,8 @@ OMX_U32 venc_dev::pmem_free()
       munmap(recon_buff[cnt].virtual_address, recon_buff[cnt].size);
       close(recon_buff[cnt].pmem_fd);
 #ifdef USE_ION
-      if(ioctl(recon_buff[cnt].ion_device_fd,ION_IOC_FREE,&recon_buff[cnt].alloc_data)) {
+      if(ioctl(recon_buff[cnt].ion_device_fd,ION_IOC_FREE,
+         &recon_buff[cnt].alloc_data.handle)) {
         DEBUG_PRINT_ERROR("ion recon buffer free failed");
       }
       recon_buff[cnt].alloc_data.handle = NULL;

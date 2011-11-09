@@ -90,6 +90,23 @@ public:
 #define DEBUG_PRINT_ERROR
 #endif // _ANDROID_
 
+#ifdef USE_ION
+    static const char* MEM_DEVICE = "/dev/ion";
+    #ifdef MAX_RES_1080P_EBI
+               #define MEM_HEAP_ID ION_HEAP_ADSP_ID
+    #elif MAX_RES_1080P
+               #define MEM_HEAP_ID ION_HEAP_SMI_ID
+    #endif
+#elif MAX_RES_720P
+static const char* MEM_DEVICE = "/dev/pmem_adsp";
+#elif MAX_RES_1080P_EBI
+static const char* MEM_DEVICE  = "/dev/pmem_adsp";
+#elif MAX_RES_1080P
+static const char* MEM_DEVICE = "/dev/pmem_smipool";
+#else
+#error MEM_DEVICE cannot be determined.
+#endif
+
 //////////////////////////////////////////////////////////////////////////////
 //                       Module specific globals
 //////////////////////////////////////////////////////////////////////////////

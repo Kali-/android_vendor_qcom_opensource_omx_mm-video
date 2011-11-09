@@ -106,7 +106,12 @@ char ouputextradatafilename [] = "/data/extradata";
 #define VC1_SEQ_LAYER_SIZE          36
 
 #ifdef USE_ION
-#define MEM_DEVICE "/dev/ion"
+    #define MEM_DEVICE "/dev/ion"
+    #ifdef MAX_RES_1080P_EBI
+               #define MEM_HEAP_ID ION_HEAP_ADSP_ID
+    #elif MAX_RES_1080P
+               #define MEM_HEAP_ID ION_HEAP_SMI_ID
+    #endif
 #elif MAX_RES_720P
 #define MEM_DEVICE "/dev/pmem_adsp"
 #elif MAX_RES_1080P_EBI
@@ -6970,7 +6975,7 @@ int omx_vdec::alloc_map_ion_memory(OMX_U32 buffer_size,
   {
     alloc_data->align = 4096;
   }
-  alloc_data->flags = 0x1 << ION_HEAP_ADSP_ID;
+  alloc_data->flags = 0x1 << MEM_HEAP_ID;
   rc = ioctl(fd,ION_IOC_ALLOC,alloc_data);
   if (rc || !alloc_data->handle) {
     DEBUG_PRINT_ERROR("\n ION ALLOC memory failed ");
@@ -7002,7 +7007,7 @@ void omx_vdec::free_ion_memory(struct vdec_ion *buf_ion_info) {
        return;
      }
      if(ioctl(buf_ion_info->ion_device_fd,ION_IOC_FREE,
-             &buf_ion_info->ion_alloc_data)) {
+             &buf_ion_info->ion_alloc_data.handle)) {
        DEBUG_PRINT_ERROR("\n ION: free failed" );
      }
      close(buf_ion_info->ion_device_fd);
