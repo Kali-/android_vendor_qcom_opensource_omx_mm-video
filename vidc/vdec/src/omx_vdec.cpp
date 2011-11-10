@@ -7852,12 +7852,16 @@ void omx_vdec::print_debug_extradata(OMX_OTHER_EXTRADATATYPE *extra)
       "           Interlace Type: %u \n"
       " Pan Scan Total Frame Num: %u \n"
       "   Concealed Macro Blocks: %u \n"
-      "               frame rate: %u \n",
+      "               frame rate: %u \n"
+      "           Aspect Ratio X: %u \n"
+      "           Aspect Ratio Y: %u \n",
       fminfo->ePicType,
       fminfo->interlaceType,
       fminfo->panScan.numWindows,
       fminfo->nConcealedMacroblocks,
-      fminfo->nFrameRate);
+      fminfo->nFrameRate,
+      fminfo->aspectRatio.aspectRatioX,
+      fminfo->aspectRatio.aspectRatioY);
 
     for (int i = 0; i < fminfo->panScan.numWindows; i++)
     {
@@ -7945,8 +7949,12 @@ void omx_vdec::append_frame_info_extradata(OMX_OTHER_EXTRADATATYPE *extra,
   else
     frame_info->interlaceType = OMX_QCOM_InterlaceFrameProgressive;
   memset(&frame_info->panScan,0,sizeof(frame_info->panScan));
+  memset(&frame_info->aspectRatio, 0, sizeof(frame_info->aspectRatio));
   if (drv_ctx.decoder_format == VDEC_CODECTYPE_H264)
+  {
     h264_parser->fill_pan_scan_data(&frame_info->panScan, timestamp);
+    h264_parser->fill_aspect_ratio_info(&frame_info->aspectRatio);
+  }
   frame_info->nConcealedMacroblocks = num_conceal_mb;
   frame_info->nFrameRate = frame_rate;
   print_debug_extradata(extra);

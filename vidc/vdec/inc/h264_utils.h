@@ -278,6 +278,15 @@ typedef struct
 
 typedef struct
 {
+  OMX_U32  aspect_ratio_idc;
+  OMX_U32  aspect_ratio_x;
+  OMX_U32  aspect_ratio_y;
+} h264_aspect_ratio_info;
+
+typedef struct
+{
+  OMX_U8   aspect_ratio_info_present_flag;
+  h264_aspect_ratio_info aspect_ratio_info;
   OMX_U8   timing_info_present_flag;
   OMX_U32  num_units_in_tick;
   OMX_U32  time_scale;
@@ -409,6 +418,7 @@ class h264_stream_parser
     ~h264_stream_parser();
     void reset();
     void fill_pan_scan_data(OMX_QCOM_PANSCAN *dest_pan_scan, OMX_S64 timestamp);
+    void fill_aspect_ratio_info(OMX_QCOM_ASPECT_RATIO *dest_aspect_ratio);
     void parse_nal(OMX_U8* data_ptr, OMX_U32 data_len,
                    OMX_U32 nal_type = NALU_TYPE_UNSPECIFIED,
                    bool enable_emu_sc = true);
@@ -429,6 +439,7 @@ class h264_stream_parser
     OMX_S32 iv(OMX_U32 n_bits);
     void parse_sps();
     void parse_vui(bool vui_in_extradata = true);
+    void aspect_ratio_info();
     void hrd_parameters(h264_hrd_param *hrd_param);
     void parse_sei();
     void sei_buffering_period();

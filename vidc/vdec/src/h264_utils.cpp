@@ -573,12 +573,14 @@ void h264_stream_parser::parse_vui(bool vui_in_extradata)
     while (!extract_bits(1) && more_bits()); // Discard VUI enable flag
   if (!more_bits())
     return;
-  if (extract_bits(1)) //aspect_ratio_info_present_flag
-    if (extract_bits(8) == 0xFF) //aspect_ratio_idc
-    {
-      extract_bits(16); //sar_width
-      extract_bits(16); //sar_width
-    }
+
+  vui_param.aspect_ratio_info_present_flag = extract_bits(1); //aspect_ratio_info_present_flag
+  if (vui_param.aspect_ratio_info_present_flag)
+  {
+      DEBUG_PRINT_LOW("Aspect Ratio Info present!");
+      aspect_ratio_info();
+  }
+
   if (extract_bits(1)) //overscan_info_present_flag
     extract_bits(1); //overscan_appropriate_flag
   if (extract_bits(1)) //video_signal_type_present_flag
@@ -636,6 +638,96 @@ void h264_stream_parser::parse_vui(bool vui_in_extradata)
     uev(); //max_dec_frame_buffering
   }
   DEBUG_PRINT_LOW("parse_vui: OUT");
+}
+
+void h264_stream_parser::aspect_ratio_info()
+{
+  DEBUG_PRINT_LOW("aspect_ratio_info: IN");
+  OMX_U32  aspect_ratio_idc = 0;
+  OMX_U32  aspect_ratio_x = 0;
+  OMX_U32  aspect_ratio_y = 0;
+  aspect_ratio_idc = extract_bits(8); //aspect_ratio_idc
+  switch (aspect_ratio_idc)
+  {
+    case 1:
+      aspect_ratio_x = 1;
+      aspect_ratio_y = 1;
+      break;
+    case 2:
+      aspect_ratio_x = 12;
+      aspect_ratio_y = 11;
+      break;
+    case 3:
+      aspect_ratio_x = 10;
+      aspect_ratio_y = 11;
+      break;
+    case 4:
+      aspect_ratio_x = 16;
+      aspect_ratio_y = 11;
+      break;
+    case 5:
+      aspect_ratio_x = 40;
+      aspect_ratio_y = 33;
+      break;
+    case 6:
+      aspect_ratio_x = 24;
+      aspect_ratio_y = 11;
+      break;
+    case 7:
+      aspect_ratio_x = 20;
+      aspect_ratio_y = 11;
+      break;
+    case 8:
+      aspect_ratio_x = 32;
+      aspect_ratio_y = 11;
+      break;
+    case 9:
+      aspect_ratio_x = 80;
+      aspect_ratio_y = 33;
+      break;
+    case 10:
+      aspect_ratio_x = 18;
+      aspect_ratio_y = 11;
+      break;
+    case 11:
+      aspect_ratio_x = 15;
+      aspect_ratio_y = 11;
+      break;
+    case 12:
+      aspect_ratio_x = 64;
+      aspect_ratio_y = 33;
+      break;
+    case 13:
+      aspect_ratio_x = 160;
+      aspect_ratio_y = 99;
+      break;
+    case 14:
+      aspect_ratio_x = 4;
+      aspect_ratio_y = 3;
+      break;
+    case 15:
+      aspect_ratio_x = 3;
+      aspect_ratio_y = 2;
+      break;
+    case 16:
+      aspect_ratio_x = 2;
+      aspect_ratio_y = 1;
+      break;
+    case 255:
+      aspect_ratio_x = extract_bits(16); //sar_width
+      aspect_ratio_y = extract_bits(16); //sar_height
+      break;
+    default:
+      DEBUG_PRINT_LOW("-->aspect_ratio_idc: Reserved Value ");
+      break;
+  }
+  DEBUG_PRINT_LOW("-->aspect_ratio_idc        : %u", aspect_ratio_idc);
+  DEBUG_PRINT_LOW("-->aspect_ratio_x          : %u", aspect_ratio_x);
+  DEBUG_PRINT_LOW("-->aspect_ratio_y          : %u", aspect_ratio_y);
+  vui_param.aspect_ratio_info.aspect_ratio_idc = aspect_ratio_idc;
+  vui_param.aspect_ratio_info.aspect_ratio_x = aspect_ratio_x;
+  vui_param.aspect_ratio_info.aspect_ratio_y = aspect_ratio_y;
+  DEBUG_PRINT_LOW("aspect_ratio_info: OUT");
 }
 
 void h264_stream_parser::hrd_parameters(h264_hrd_param *hrd_param)
@@ -1229,6 +1321,15 @@ void h264_stream_parser::update_panscan_data(OMX_S64 timestamp)
   panscan_hdl->update_last(timestamp);
 }
 #endif
+
+void h264_stream_parser::fill_aspect_ratio_info(OMX_QCOM_ASPECT_RATIO *dest_aspect_ratio)
+{
+  if(dest_aspect_ratio && vui_param.aspect_ratio_info_present_flag)
+  {
+    dest_aspect_ratio->aspectRatioX = vui_param.aspect_ratio_info.aspect_ratio_x;
+    dest_aspect_ratio->aspectRatioY = vui_param.aspect_ratio_info.aspect_ratio_y;
+  }
+}
 
 void h264_stream_parser::fill_pan_scan_data(OMX_QCOM_PANSCAN *dest_pan_scan, OMX_S64 timestamp)
 {

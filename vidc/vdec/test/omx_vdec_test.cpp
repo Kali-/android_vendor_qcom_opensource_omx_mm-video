@@ -752,6 +752,9 @@ void* fbd_thread(void* pArg)
               DEBUG_PRINT("OMX_ExtraDataFrameInfo: Buf(%p) TSmp(%lld) PicType(%u) IntT(%u) ConMB(%u)",
                 pBuffer->pBuffer, pBuffer->nTimeStamp, frame_info->ePicType,
                 frame_info->interlaceType, frame_info->nConcealedMacroblocks);
+              DEBUG_PRINT(" FrmRate(%u), AspRatioX(%u), AspRatioY(%u) ",
+                frame_info->nFrameRate, frame_info->aspectRatio.aspectRatioX,
+                frame_info->aspectRatio.aspectRatioY);
               DEBUG_PRINT("PANSCAN numWindows(%d)", frame_info->panScan.numWindows);
               for (int i = 0; i < frame_info->panScan.numWindows; i++)
               {
