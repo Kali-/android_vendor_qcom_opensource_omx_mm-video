@@ -44,6 +44,7 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <sys/prctl.h>
 
 #define H264_SUPPORTED_WIDTH (480)
 #define H264_SUPPORTED_HEIGHT (368)
@@ -94,6 +95,7 @@ void* message_thread(void *input)
   int n;
 
   DEBUG_PRINT_LOW("omx_venc: message thread start\n");
+  prctl(PR_SET_NAME, (unsigned long)"VideoEncMsgThread", 0, 0, 0);
   while(1)
   {
     n = read(omx->m_pipe_in, &id, 1);

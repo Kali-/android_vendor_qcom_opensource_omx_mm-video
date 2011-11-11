@@ -41,6 +41,7 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <string.h>
 #include <pthread.h>
+#include <sys/prctl.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
@@ -143,6 +144,7 @@ void* async_message_thread (void *input)
   omx_vdec *omx = reinterpret_cast<omx_vdec*>(input);
   int error_code = 0;
   DEBUG_PRINT_HIGH("omx_vdec: Async thread start\n");
+  prctl(PR_SET_NAME, (unsigned long)"VideoDecCallBackThread", 0, 0, 0);
   while (1)
   {
     ioctl_msg.in = NULL;
@@ -175,6 +177,7 @@ void* message_thread(void *input)
   int n;
 
   DEBUG_PRINT_HIGH("omx_vdec: message thread start\n");
+  prctl(PR_SET_NAME, (unsigned long)"VideoDecMsgThread", 0, 0, 0);
   while (1)
   {
 

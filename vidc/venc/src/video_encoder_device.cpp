@@ -27,6 +27,7 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --------------------------------------------------------------------------*/
 #include<string.h>
 #include <sys/ioctl.h>
+#include <sys/prctl.h>
 #include<unistd.h>
 #include <fcntl.h>
 #include "video_encoder_device.h"
@@ -160,6 +161,7 @@ void* async_venc_message_thread (void *input)
   int error_code = 0;
   omx_venc *omx = reinterpret_cast<omx_venc*>(input);
 
+  prctl(PR_SET_NAME, (unsigned long)"VideoEncCallBackThread", 0, 0, 0);
   timeout.millisec = VEN_TIMEOUT_INFINITE;
   while(1)
   {
