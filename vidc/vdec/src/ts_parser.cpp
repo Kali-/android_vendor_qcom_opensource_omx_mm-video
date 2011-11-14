@@ -135,6 +135,9 @@ bool omx_time_stamp_reorder::insert_timestamp(OMX_BUFFERHEADERTYPE *header)
 		handle_error();
 		return false;
 	}
+	if (header->nFlags & OMX_BUFFERFLAG_CODECCONFIG) {
+		return true;
+	}
 	if ((header->nFlags & OMX_BUFFERFLAG_EOS) && !header->nFilledLen)
 	{
 		DEBUG("\n EOS with zero length recieved");
