@@ -58,7 +58,7 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #undef USE_EGL_IMAGE_GPU
 #endif
 
-#ifdef _ANDROID_HONEYCOMB_
+#if  defined (_ANDROID_HONEYCOMB_) || defined (_ANDROID_ICS_)
 #include <gralloc_priv.h>
 #endif
 
@@ -2677,7 +2677,7 @@ OMX_ERRORTYPE  omx_vdec::get_parameter(OMX_IN OMX_HANDLETYPE     hComp,
 #endif
           break;
         }
-#ifdef _ANDROID_HONEYCOMB_
+#if defined (_ANDROID_HONEYCOMB_) || defined (_ANDROID_ICS_)
     case OMX_GoogleAndroidIndexGetAndroidNativeBufferUsage:
         {
             DEBUG_PRINT_LOW("get_parameter: OMX_GoogleAndroidIndexGetAndroidNativeBufferUsage\n");
@@ -2713,7 +2713,7 @@ OMX_ERRORTYPE  omx_vdec::get_parameter(OMX_IN OMX_HANDLETYPE     hComp,
   return eRet;
 }
 
-#ifdef _ANDROID_HONEYCOMB_
+#if defined (_ANDROID_HONEYCOMB_) || defined (_ANDROID_ICS_)
 OMX_ERRORTYPE omx_vdec::use_android_native_buffer(OMX_IN OMX_HANDLETYPE hComp, OMX_PTR data)
 {
     DEBUG_PRINT_LOW("Inside use_android_native_buffer");
@@ -3258,7 +3258,7 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
       }
       break;
 #endif
-#ifdef _ANDROID_HONEYCOMB_
+#if defined (_ANDROID_HONEYCOMB_) || defined (_ANDROID_ICS_)
       /* Need to allow following two set_parameters even in Idle
        * state. This is ANDROID architecture which is not in sync
        * with openmax standard. */
@@ -3603,11 +3603,16 @@ OMX_ERRORTYPE  omx_vdec::get_extension_index(OMX_IN OMX_HANDLETYPE      hComp,
    }
 
 #endif
-#ifdef _ANDROID_HONEYCOMB_
+#if defined (_ANDROID_HONEYCOMB_) || defined (_ANDROID_ICS_)
     else if(!strncmp(paramName,"OMX.google.android.index.enableAndroidNativeBuffers", sizeof("OMX.google.android.index.enableAndroidNativeBuffers") - 1)) {
         *indexType = (OMX_INDEXTYPE)OMX_GoogleAndroidIndexEnableAndroidNativeBuffers;
     }
-    else if(!strncmp(paramName,"OMX.google.android.index.useAndroidNativeBuffer", sizeof("OMX.google.android.index.useAndroidNativeBuffer") - 1)) {
+    else if(!strncmp(paramName,"OMX.google.android.index.useAndroidNativeBuffer2", sizeof("OMX.google.android.index.enableAndroidNativeBuffer2") - 1)) {
+        DEBUG_PRINT_ERROR("Extension: %s is not supported\n", paramName);
+        return OMX_ErrorNotImplemented;
+    }
+    else if(!strncmp(paramName,"OMX.google.android.index.useAndroidNativeBuffer", sizeof("OMX.google.android.index.enableAndroidNativeBuffer") - 1)) {
+        DEBUG_PRINT_ERROR("Extension: %s is supported\n", paramName);
         *indexType = (OMX_INDEXTYPE)OMX_GoogleAndroidIndexUseAndroidNativeBuffer;
     }
     else if(!strncmp(paramName,"OMX.google.android.index.getAndroidNativeBufferUsage", sizeof("OMX.google.android.index.getAndroidNativeBufferUsage") - 1)) {
@@ -3726,7 +3731,7 @@ OMX_ERRORTYPE  omx_vdec::use_output_buffer(
   }
 
   if (eRet == OMX_ErrorNone) {
-#ifdef _ANDROID_HONEYCOMB_
+#if defined(_ANDROID_HONEYCOMB_) || defined(_ANDROID_ICS_)
     if(m_enable_android_native_buffers) {
         UseAndroidNativeBufferParams *params = (UseAndroidNativeBufferParams *)appData;
         sp<android_native_buffer_t> nBuf = params->nativeBuffer;

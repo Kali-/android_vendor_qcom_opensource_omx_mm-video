@@ -85,7 +85,7 @@ extern "C"{
 #define DEBUG_PRINT_ERROR printf
 #endif // _ANDROID_
 
-#ifdef _ANDROID_HONEYCOMB_
+#if defined (_ANDROID_HONEYCOMB_) || defined (_ANDROID_ICS_)
 #include <media/stagefright/HardwareAPI.h>
 #endif
 
@@ -619,7 +619,7 @@ private:
 #ifdef _ANDROID_
     OMX_ERRORTYPE createDivxDrmContext( OMX_PTR drmHandle );
 #endif //_ANDROID_
-#ifdef _ANDROID_HONEYCOMB_
+#if defined (_ANDROID_HONEYCOMB_) || defined (_ANDROID_ICS_)
     OMX_ERRORTYPE use_android_native_buffer(OMX_IN OMX_HANDLETYPE hComp, OMX_PTR data);
 #endif
 

@@ -42,6 +42,10 @@ ifeq ($(call is-android-codename,HONEYCOMB),true)
 libOmxVdec-def += -D_ANDROID_HONEYCOMB_
 endif
 
+ifeq ($(call is-android-codename,ICECREAM_SANDWICH),true)
+libOmxVdec-def += -D_ANDROID_ICS_
+endif
+
 ifeq ($(TARGET_USES_ION),true)
 libOmxVdec-def += -DUSE_ION
 endif
@@ -60,7 +64,12 @@ libmm-vdec-inc          += $(TARGET_OUT_HEADERS)/mm-core/omxcore
 libmm-vdec-inc          += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
 #DRM include - Interface which loads the DRM library
 libmm-vdec-inc	        += $(OMX_VIDEO_PATH)/DivxDrmDecrypt/inc
+
+ifeq ($(call is-android-codename,ICECREAM_SANDWICH),true)
+libmm-vdec-inc          += $(TOP)/hardware/qcom/display/libgralloc/
+else
 libmm-vdec-inc          += $(TOP)/hardware/msm7k/libgralloc-qsd8k
+endif
 
 LOCAL_MODULE                    := libOmxVdec
 LOCAL_MODULE_TAGS               := optional
