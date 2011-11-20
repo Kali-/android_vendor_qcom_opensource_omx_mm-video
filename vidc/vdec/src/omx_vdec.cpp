@@ -62,6 +62,10 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <gralloc_priv.h>
 #endif
 
+#if defined (_ANDROID_ICS_)
+#include <genlock.h>
+#endif
+
 #ifdef _ANDROID_
 #include "DivXDrmDecrypt.h"
 #endif //_ANDROID_
@@ -493,6 +497,9 @@ omx_vdec::omx_vdec(): m_state(OMX_StateInvalid),
   memset (&h264_scratch,0,sizeof (OMX_BUFFERHEADERTYPE));
   memset (m_hwdevice_name,0,sizeof(m_hwdevice_name));
   memset(&op_buf_rcnfg, 0 ,sizeof(vdec_allocatorproperty));
+#ifdef _ANDROID_ICS_
+  memset(&native_buffer, 0 ,(sizeof(struct nativebuffer) * MAX_NUM_INPUT_OUTPUT_BUFFERS));
+#endif
   drv_ctx.timestamp_adjust = false;
   drv_ctx.video_driver_fd = -1;
   m_vendor_config.pData = NULL;
@@ -2137,6 +2144,7 @@ bool omx_vdec::execute_output_flush()
   }
   pthread_mutex_unlock(&m_lock);
   output_flush_progress = false;
+
   if (arbitrary_bytes)
   {
     prev_ts = LLONG_MAX;
@@ -3741,6 +3749,9 @@ OMX_ERRORTYPE  omx_vdec::use_output_buffer(
         UseAndroidNativeBufferParams *params = (UseAndroidNativeBufferParams *)appData;
         sp<android_native_buffer_t> nBuf = params->nativeBuffer;
         private_handle_t *handle = (private_handle_t *)nBuf->handle;
+#if defined(_ANDROID_ICS_)
+        native_buffer[i].nativehandle = handle;
+#endif
         privateAppData = params->pAppPrivate;
         if(!handle) {
             DEBUG_PRINT_ERROR("Native Buffer handle is NULL");
@@ -4948,6 +4959,14 @@ OMX_ERRORTYPE  omx_vdec::free_buffer(OMX_IN OMX_HANDLETYPE         hComp,
 
                 DEBUG_PRINT_LOW("MOVING TO DISABLED STATE \n");
                 BITMASK_CLEAR((&m_flags),OMX_COMPONENT_OUTPUT_DISABLE_PENDING);
+#ifdef _ANDROID_ICS_
+                if (m_enable_android_native_buffers)
+                {
+                    DEBUG_PRINT_LOW("FreeBuffer - outport disabled: reset native buffers");
+                    memset(&native_buffer, 0 ,(sizeof(struct nativebuffer) * MAX_NUM_INPUT_OUTPUT_BUFFERS));
+                }
+#endif
+
                 post_event(OMX_CommandPortDisable,
                            OMX_CORE_OUTPUT_PORT_INDEX,
                            OMX_COMPONENT_GENERATE_EVENT);
@@ -5420,12 +5439,38 @@ OMX_ERRORTYPE  omx_vdec::fill_this_buffer_proxy(
           sizeof(struct vdec_bufferpayload));
   fillbuffer.client_data = bufferAdd;
 
+#ifdef _ANDROID_ICS_
+    if (m_enable_android_native_buffers)
+    {
+        // Acquire a write lock on this buffer.
+        if (GENLOCK_NO_ERROR != genlock_lock_buffer(native_buffer[buffer - m_out_mem_ptr].nativehandle,
+                                                  GENLOCK_WRITE_LOCK, GENLOCK_MAX_TIMEOUT)) {
+            DEBUG_PRINT_ERROR("Failed to acquire genlock");
+            return OMX_ErrorInsufficientResources;
+        } else {
+            native_buffer[buffer - m_out_mem_ptr].inuse = true;
+      }
+    }
+#endif
+
   ioctl_msg.in = &fillbuffer;
   ioctl_msg.out = NULL;
   if (ioctl (drv_ctx.video_driver_fd,
          VDEC_IOCTL_FILL_OUTPUT_BUFFER,&ioctl_msg) < 0)
   {
     DEBUG_PRINT_ERROR("\n Decoder frame failed");
+#ifdef _ANDROID_ICS_
+    if (m_enable_android_native_buffers)
+    {
+        // Unlock the buffer
+        if (GENLOCK_NO_ERROR != genlock_unlock_buffer(native_buffer[buffer - m_out_mem_ptr].nativehandle)) {
+            DEBUG_PRINT_ERROR("Releasing genlock failed");
+            return OMX_ErrorInsufficientResources;
+        } else {
+            native_buffer[buffer - m_out_mem_ptr].inuse = false;
+        }
+    }
+#endif
     m_cb.FillBufferDone (hComp,m_app_data,buffer);
     pending_output_buffers--;
     return OMX_ErrorBadParameter;
@@ -5503,7 +5548,22 @@ OMX_ERRORTYPE  omx_vdec::component_deinit(OMX_IN OMX_HANDLETYPE hComp)
         for (i=0; i < drv_ctx.op_buf.actualcount; i++ )
         {
           free_output_buffer (&m_out_mem_ptr[i]);
+#ifdef _ANDROID_ICS_
+        if (m_enable_android_native_buffers)
+        {
+          if (native_buffer[i].inuse)
+          {
+            if (GENLOCK_NO_ERROR != genlock_unlock_buffer(native_buffer[i].nativehandle)) {
+                DEBUG_PRINT_ERROR("Unlocking genlock failed");
+            }
+            native_buffer[i].inuse = false;
+          }
         }
+#endif
+        }
+#ifdef _ANDROID_ICS_
+        memset(&native_buffer, 0, (sizeof(native_buffer) * MAX_NUM_INPUT_OUTPUT_BUFFERS));
+#endif
     }
 
     /*Check if the input buffers have to be cleaned up*/
@@ -6131,6 +6191,20 @@ OMX_ERRORTYPE omx_vdec::fill_buffer_done(OMX_HANDLETYPE hComp,
                 ((OMX_QCOM_PLATFORM_PRIVATE_LIST *)
                 buffer->pPlatformPrivate)->entryList->entry;
     DEBUG_PRINT_LOW("\n Before FBD callback Accessed Pmeminfo %d",pPMEMInfo->pmem_fd);
+#ifdef _ANDROID_ICS_
+    if (m_enable_android_native_buffers)
+    {
+     if (native_buffer[buffer - m_out_mem_ptr].inuse) {
+      if (GENLOCK_NO_ERROR != genlock_unlock_buffer(native_buffer[buffer - m_out_mem_ptr].nativehandle)) {
+        DEBUG_PRINT_ERROR("Unlocking genlock failed");
+        return OMX_ErrorInsufficientResources;
+      }
+      else {
+        native_buffer[buffer - m_out_mem_ptr].inuse = false;
+      }
+     }
+    }
+#endif
     m_cb.FillBufferDone (hComp,m_app_data,buffer);
     DEBUG_PRINT_LOW("\n After Fill Buffer Done callback %d",pPMEMInfo->pmem_fd);
   }

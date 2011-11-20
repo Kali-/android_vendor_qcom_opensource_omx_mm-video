@@ -66,7 +66,8 @@ libmm-vdec-inc          += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
 libmm-vdec-inc	        += $(OMX_VIDEO_PATH)/DivxDrmDecrypt/inc
 
 ifeq ($(call is-android-codename,ICECREAM_SANDWICH),true)
-libmm-vdec-inc          += $(TOP)/hardware/qcom/display/libgralloc/
+libmm-vdec-inc          += $(TOP)/hardware/qcom/display/libgralloc \
+                        += $(TOP)/hardware/qcom/display/libgenlock
 else
 libmm-vdec-inc          += $(TOP)/hardware/msm7k/libgralloc-qsd8k
 endif
@@ -79,6 +80,10 @@ LOCAL_ADDITIONAL_DEPENDENCIES   := $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
 
 LOCAL_PRELINK_MODULE    := false
 LOCAL_SHARED_LIBRARIES  := liblog libutils libbinder libcutils
+
+ifeq ($(call is-android-codename,ICECREAM_SANDWICH),true)
+LOCAL_SHARED_LIBRARIES += libgenlock
+endif
 LOCAL_SHARED_LIBRARIES  += libdivxdrmdecrypt
 
 LOCAL_SRC_FILES         := src/frameparser.cpp

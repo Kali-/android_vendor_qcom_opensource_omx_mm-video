@@ -89,6 +89,10 @@ extern "C"{
 #include <media/stagefright/HardwareAPI.h>
 #endif
 
+#if defined (_ANDROID_ICS_)
+#include <gralloc_priv.h>
+#endif
+
 #include <pthread.h>
 #ifndef PC_DEBUG
 #include <semaphore.h>
@@ -621,6 +625,13 @@ private:
 #endif //_ANDROID_
 #if defined (_ANDROID_HONEYCOMB_) || defined (_ANDROID_ICS_)
     OMX_ERRORTYPE use_android_native_buffer(OMX_IN OMX_HANDLETYPE hComp, OMX_PTR data);
+#endif
+#if defined (_ANDROID_ICS_)
+    struct nativebuffer{
+        native_handle_t *nativehandle;
+        int inuse;
+    };
+    nativebuffer native_buffer[MAX_NUM_INPUT_OUTPUT_BUFFERS];
 #endif
 
 
