@@ -7078,7 +7078,7 @@ int omx_vdec::alloc_map_ion_memory(OMX_U32 buffer_size,
      DEBUG_PRINT_ERROR("Invalid arguments to alloc_map_ion_memory\n");
      return -EINVAL;
   }
-  fd = open (MEM_DEVICE, O_RDWR | O_DSYNC);
+  fd = open (MEM_DEVICE, O_RDONLY | O_DSYNC);
   if (fd < 0) {
     DEBUG_PRINT_ERROR("opening ion device failed with fd = %d\n", fd);
     return fd;
