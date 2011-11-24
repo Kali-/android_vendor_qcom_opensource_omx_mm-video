@@ -7637,7 +7637,7 @@ void omx_vdec::handle_extradata(OMX_BUFFERHEADERTYPE *p_buf_hdr)
       {
         p_sei = p_extra;
 #ifdef MAX_RES_1080P
-        h264_parser->parse_nal((OMX_U8*)p_sei->data, p_sei->nSize, NALU_TYPE_SEI);
+        h264_parser->parse_nal((OMX_U8*)p_sei->data, p_sei->nDataSize, NALU_TYPE_SEI);
 #endif
         p_extra->eType = OMX_ExtraDataMax; // Invalid type to avoid expose this extradata to OMX client
       }
@@ -7645,7 +7645,7 @@ void omx_vdec::handle_extradata(OMX_BUFFERHEADERTYPE *p_buf_hdr)
       {
         p_vui = p_extra;
 #ifdef MAX_RES_1080P
-        h264_parser->parse_nal((OMX_U8*)p_vui->data, p_vui->nSize, NALU_TYPE_VUI);
+        h264_parser->parse_nal((OMX_U8*)p_vui->data, p_vui->nDataSize, NALU_TYPE_VUI);
 #endif
         p_extra->eType = OMX_ExtraDataMax; // Invalid type to avoid expose this extradata to OMX client
       }
@@ -7672,16 +7672,16 @@ void omx_vdec::handle_extradata(OMX_BUFFERHEADERTYPE *p_buf_hdr)
     if (client_extradata & OMX_TIMEINFO_EXTRADATA)
     {
       if (p_vui)
-        h264_parser->parse_nal((OMX_U8*)p_vui->data, p_vui->nSize, NALU_TYPE_VUI);
+        h264_parser->parse_nal((OMX_U8*)p_vui->data, p_vui->nDataSize, NALU_TYPE_VUI);
       if (p_sei)
-        h264_parser->parse_nal((OMX_U8*)p_sei->data, p_sei->nSize, NALU_TYPE_SEI);
+        h264_parser->parse_nal((OMX_U8*)p_sei->data, p_sei->nDataSize, NALU_TYPE_SEI);
       ts_in_sei = h264_parser->process_ts_with_sei_vui(p_buf_hdr->nTimeStamp);
       if (!VALID_TS(p_buf_hdr->nTimeStamp))
         p_buf_hdr->nTimeStamp = ts_in_sei;
     }
     else if ((client_extradata & OMX_FRAMEINFO_EXTRADATA) && p_sei)
       // If timeinfo is present frame info from SEI is already processed
-      h264_parser->parse_nal((OMX_U8*)p_sei->data, p_sei->nSize, NALU_TYPE_SEI);
+      h264_parser->parse_nal((OMX_U8*)p_sei->data, p_sei->nDataSize, NALU_TYPE_SEI);
   }
 #endif
    if ((client_extradata & OMX_INTERLACE_EXTRADATA) && p_extra &&
