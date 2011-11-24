@@ -387,6 +387,13 @@ bool venc_dev::venc_get_buf_req(unsigned long *min_buff_count,
     }
     *min_buff_count = m_sInput_buff_property.mincount;
     *actual_buff_count = m_sInput_buff_property.actualcount;
+#ifdef USE_ION
+    // For ION memory allocations of the allocated buffer size
+    // must be 4k aligned, hence aligning the input buffer
+    // size to 4k.
+    m_sInput_buff_property.datasize = (m_sInput_buff_property.datasize + 4095)
+                                       & (~4095);
+#endif
     *buff_size = m_sInput_buff_property.datasize;
   }
   else
