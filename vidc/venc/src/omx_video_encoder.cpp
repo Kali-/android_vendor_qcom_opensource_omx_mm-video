@@ -229,6 +229,8 @@ OMX_ERRORTYPE omx_venc::component_init(OMX_STRING role)
   m_sInPortDef.format.video.cMIMEType = "YUV420";
   m_sInPortDef.format.video.nFrameWidth = OMX_CORE_QCIF_WIDTH;
   m_sInPortDef.format.video.nFrameHeight = OMX_CORE_QCIF_HEIGHT;
+  m_sInPortDef.format.video.nStride = OMX_CORE_QCIF_WIDTH;
+  m_sInPortDef.format.video.nSliceHeight = OMX_CORE_QCIF_HEIGHT;
   m_sInPortDef.format.video.nBitrate = 64000;
   m_sInPortDef.format.video.xFramerate = 15 << 16;
   m_sInPortDef.format.video.eColorFormat =  OMX_COLOR_FormatYUV420SemiPlanar;
