@@ -34,6 +34,9 @@ endif
 ifeq ($(TARGET_USES_ION),true)
 libmm-venc-def += -DUSE_ION
 endif
+ifeq ($(call is-android-codename,ICECREAM_SANDWICH),true)
+libmm-venc-def += -D_ANDROID_ICS_
+endif
 # ---------------------------------------------------------------------------------
 # 			Make the Shared library (libOmxVenc)
 # ---------------------------------------------------------------------------------
@@ -44,7 +47,10 @@ libmm-venc-inc      := $(LOCAL_PATH)/inc
 libmm-venc-inc      += $(OMX_VIDEO_PATH)/vidc/common/inc
 libmm-venc-inc      += $(TARGET_OUT_HEADERS)/mm-core/omxcore
 libmm-venc-inc      += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
-
+ifeq ($(call is-android-codename,ICECREAM_SANDWICH),true)
+libmm-venc-inc      += $(TOP)/hardware/qcom/media/libstagefrighthw
+libmm-venc-inc      += $(TOP)/hardware/qcom/display/libgralloc
+endif
 
 LOCAL_MODULE                    := libOmxVenc
 LOCAL_MODULE_TAGS               := optional

@@ -46,6 +46,9 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <sys/mman.h>
 #ifdef _ANDROID_
   #include <binder/MemoryHeapBase.h>
+#ifdef _ANDROID_ICS_
+  #include "QComOMXMetadata.h"
+#endif
 #endif // _ANDROID_
 #include <pthread.h>
 #include <semaphore.h>
@@ -140,12 +143,19 @@ static const char* MEM_DEVICE = "/dev/pmem_smipool";
         & BITMASK_FLAG(mIndex))
 #define BITMASK_ABSENT(mArray,mIndex) (((mArray)[BITMASK_OFFSET(mIndex)] \
         & BITMASK_FLAG(mIndex)) == 0x0)
-
+#ifdef _ANDROID_ICS_
+#define MAX_NUM_INPUT_BUFFERS 32
+#endif
 void* message_thread(void *);
 // OMX video class
 class omx_video: public qc_omx_component
 {
-
+protected:
+#ifdef _ANDROID_ICS_
+  bool meta_mode_enable;
+  encoder_media_buffer_type meta_buffers[MAX_NUM_INPUT_BUFFERS];
+  OMX_BUFFERHEADERTYPE meta_buffer_hdr[MAX_NUM_INPUT_BUFFERS];
+#endif
 public:
   omx_video();  // constructor
   virtual ~omx_video();  // destructor
@@ -176,8 +186,9 @@ public:
   virtual bool dev_empty_buf(void *, void *) = 0;
   virtual bool dev_fill_buf(void *buffer, void *) = 0;
   virtual bool dev_get_buf_req(OMX_U32 *,OMX_U32 *,OMX_U32 *,OMX_U32) = 0;
-
-
+#ifdef _ANDROID_ICS_
+  void omx_release_meta_buffer(OMX_BUFFERHEADERTYPE *buffer);
+#endif
   OMX_ERRORTYPE component_role_enum(
                                    OMX_HANDLETYPE hComp,
                                    OMX_U8 *role,
@@ -388,7 +399,11 @@ public:
                                       OMX_U32              port,
                                       OMX_PTR              appData,
                                       OMX_U32              bytes);
-
+#ifdef _ANDROID_ICS_
+  OMX_ERRORTYPE allocate_input_meta_buffer(OMX_BUFFERHEADERTYPE **bufferHdr,
+                                      OMX_PTR              appData,
+                                      OMX_U32              bytes);
+#endif
   OMX_ERRORTYPE allocate_output_buffer(OMX_HANDLETYPE       hComp,
                                        OMX_BUFFERHEADERTYPE **bufferHdr,
                                        OMX_U32 port,OMX_PTR appData,

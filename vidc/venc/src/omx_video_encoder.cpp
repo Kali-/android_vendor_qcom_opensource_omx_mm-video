@@ -29,6 +29,9 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <string.h>
 #include "video_encoder_device.h"
 #include <stdio.h>
+#ifdef _ANDROID_ICS_
+#include <media/stagefright/HardwareAPI.h>
+#endif
 
 /*----------------------------------------------------------------------------
 * Preprocessor Definitions and Constants
@@ -52,7 +55,11 @@ void *get_omx_component_factory_fn(void)
 
 omx_venc::omx_venc()
 {
-  //nothing to do
+#ifdef _ANDROID_ICS_
+  meta_mode_enable = false;
+  memset(meta_buffer_hdr,0,sizeof(meta_buffer_hdr));
+  memset(meta_buffers,0,sizeof(meta_buffers));
+#endif
 }
 
 omx_venc::~omx_venc()
@@ -899,6 +906,42 @@ OMX_ERRORTYPE  omx_venc::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
       memcpy(&m_sIntraRefresh, pParam, sizeof(m_sIntraRefresh));
       break;
     }
+#ifdef _ANDROID_ICS_
+  case OMX_QcomIndexParamVideoEncodeMetaBufferMode:
+    {
+      StoreMetaDataInBuffersParams *pParam =
+        (StoreMetaDataInBuffersParams*)paramData;
+      if(pParam->nPortIndex == PORT_INDEX_IN)
+      {
+        if(pParam->bStoreMetaData != meta_mode_enable)
+        {
+          if(!handle->venc_set_meta_mode(pParam->bStoreMetaData))
+          {
+            DEBUG_PRINT_ERROR("\nERROR: set Metabuffer mode %d fail",
+                         pParam->bStoreMetaData);
+            return OMX_ErrorUnsupportedSetting;
+          }
+          meta_mode_enable = pParam->bStoreMetaData;
+          if(meta_mode_enable) {
+            m_sInPortDef.nBufferCountActual = 32;
+            m_sInPortDef.nBufferCountMin = 32;
+            if(handle->venc_set_param(&m_sInPortDef,OMX_IndexParamPortDefinition) != true)
+            {
+              DEBUG_PRINT_ERROR("\nERROR: venc_set_param input failed");
+              return OMX_ErrorUnsupportedSetting;
+            }
+          } else {
+            /*TODO: reset encoder driver Meta mode*/
+            dev_get_buf_req   (&m_sOutPortDef.nBufferCountMin,
+                               &m_sOutPortDef.nBufferCountActual,
+                               &m_sOutPortDef.nBufferSize,
+                               m_sOutPortDef.nPortIndex);
+          }
+        }
+      }
+      break;
+    }
+#endif
   case OMX_IndexParamVideoSliceFMO:
   default:
     {
@@ -1215,7 +1258,11 @@ OMX_ERRORTYPE  omx_venc::component_deinit(OMX_IN OMX_HANDLETYPE hComp)
   }
 
   /*Check if the input buffers have to be cleaned up*/
-  if(m_inp_mem_ptr)
+  if(m_inp_mem_ptr
+#ifdef _ANDROID_ICS_
+     && !meta_mode_enable
+#endif
+     )
   {
     DEBUG_PRINT_LOW("Freeing the Input Memory\n");
     for(i=0; i<m_sInPortDef.nBufferCountActual; i++ )
@@ -1388,7 +1435,9 @@ int omx_venc::async_message_process (void *context, void* message)
       omxhdr = NULL;
       m_sVenc_msg->statuscode = VEN_S_EFAIL;
     }
-
+#ifdef _ANDROID_ICS_
+    omx->omx_release_meta_buffer(omxhdr);
+#endif
     omx->post_event ((unsigned int)omxhdr,m_sVenc_msg->statuscode,
                      OMX_COMPONENT_GENERATE_EBD);
     break;

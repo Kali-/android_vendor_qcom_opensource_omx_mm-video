@@ -2588,3 +2588,17 @@ bool venc_dev::venc_validate_profile_level(OMX_U32 *eProfile, OMX_U32 *eLevel)
 
   return true;
 }
+#ifdef _ANDROID_ICS_
+bool venc_dev::venc_set_meta_mode(bool mode)
+{
+  venc_ioctl_msg ioctl_msg = {NULL,NULL};
+  ioctl_msg.in = &mode;
+
+  if(ioctl(m_nDriver_fd,VEN_IOCTL_SET_METABUFFER_MODE,&ioctl_msg) < 0)
+  {
+    DEBUG_PRINT_ERROR(" Set meta buffer mode failed");
+    return false;
+  }
+  return true;
+}
+#endif
