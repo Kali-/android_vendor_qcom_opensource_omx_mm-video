@@ -1628,6 +1628,7 @@ int Init_Decoder()
     if (codec_format_option == CODEC_FORMAT_H264)
     {
       strlcpy(vdecCompNames, "OMX.qcom.video.decoder.avc", 27);
+      //strlcpy(vdecCompNames, "OMX.SEC.qcom.video.decoder.avc", 31);
     }
     else if (codec_format_option == CODEC_FORMAT_MP4)
     {

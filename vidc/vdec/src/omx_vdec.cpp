@@ -123,7 +123,6 @@ char ouputextradatafilename [] = "/data/extradata";
 #define MEM_DEVICE "/dev/pmem_smipool"
 #endif
 
-
 #ifdef _ANDROID_
     extern "C"{
         #include<utils/Log.h>
@@ -463,7 +462,8 @@ omx_vdec::omx_vdec(): m_state(OMX_StateInvalid),
                       in_reconfig(false),
                       m_use_output_pmem(OMX_FALSE),
                       m_out_mem_region_smi(OMX_FALSE),
-                      m_out_pvt_entry_pmem(OMX_FALSE)
+                      m_out_pvt_entry_pmem(OMX_FALSE),
+                      secure_mode(false)
 #ifdef _ANDROID_
                     ,iDivXDrmDecrypt(NULL)
 #endif
@@ -1137,17 +1137,23 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
   unsigned int   alignment = 0,buffer_size = 0;
   int fds[2];
   int r;
+  OMX_STRING device_name = "/dev/msm_vidc_dec";
 
-  DEBUG_PRINT_HIGH("\n omx_vdec::component_init(): Start of New Playback");
-  drv_ctx.video_driver_fd = open ("/dev/msm_vidc_dec",\
-                      O_RDWR|O_NONBLOCK);
+  if(!strncmp(role, "OMX.qcom.video.decoder.avc.secure",OMX_MAX_STRINGNAME_SIZE)){
+      secure_mode = true;
+      role = "OMX.qcom.video.decoder.avc";
+      device_name =  "/dev/msm_vidc_dec_sec";
+  }
+
+  DEBUG_PRINT_HIGH("\n omx_vdec::component_init(): Start of New Playback : role  = %s : DEVICE = %s", role, device_name);
+
+  drv_ctx.video_driver_fd = open(device_name, O_RDWR | O_NONBLOCK);
 
   DEBUG_PRINT_HIGH("\n omx_vdec::component_init(): Open returned fd %d, errno %d",
                    drv_ctx.video_driver_fd, errno);
 
   if(drv_ctx.video_driver_fd == 0){
-    drv_ctx.video_driver_fd = open ("/dev/msm_vidc_dec",\
-                      O_RDWR|O_NONBLOCK);
+    drv_ctx.video_driver_fd = open(device_name, O_RDWR | O_NONBLOCK);
   }
 
   if(drv_ctx.video_driver_fd < 0)
@@ -1157,6 +1163,7 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
   }
   drv_ctx.frame_rate.fps_numerator = DEFAULT_FPS;
   drv_ctx.frame_rate.fps_denominator = 1;
+
 
 #ifdef INPUT_BUFFER_LOG
     strcpy(inputfilename, INPUT_BUFFER_FILE_NAME);

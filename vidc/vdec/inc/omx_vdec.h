@@ -785,6 +785,7 @@ private:
     OMX_PARAM_PORTDEFINITIONTYPE m_port_def;
     omx_time_stamp_reorder time_stamp_dts;
     desc_buffer_hdr *m_desc_buffer_ptr;
+    bool secure_mode;
 };
 
 #endif // __OMX_VDEC_H__
