@@ -439,7 +439,7 @@ void SetState(OMX_STATETYPE eState)
 OMX_ERRORTYPE ConfigureEncoder()
 {
    OMX_ERRORTYPE result = OMX_ErrorNone;
-   unsigned const int *profile_tbl = NULL;
+   unsigned const int *profile_tbl = (unsigned int const *)mpeg4_profile_level_table;
    OMX_U32 mb_per_sec, mb_per_frame;
    bool profile_level_found = false;
    OMX_U32 eProfile,eLevel;
@@ -700,8 +700,8 @@ result = OMX_SetParameter(m_hHandle,
 #if 1
 ///////////////////E R R O R C O R R E C T I O N ///////////////////
 
-      ResyncMarkerType eResyncMarkerType;
-      unsigned long int nResyncMarkerSpacing;
+      ResyncMarkerType eResyncMarkerType = RESYNC_MARKER_NONE;
+      unsigned long int nResyncMarkerSpacing = 0;
       OMX_BOOL enableHEC = OMX_FALSE;
 
 //For Testing ONLY
@@ -1510,15 +1510,15 @@ bool parseWxH(char *str, OMX_U32 *width, OMX_U32 *height)
 {
    bool parseOK = false;
    const char delimiters[] = " x*,";
-   char *token, *dupstr;
+   char *token, *dupstr, *temp;
    OMX_U32 w, h;
 
    dupstr = strdup(str);
-   token = strtok(dupstr, delimiters);
+   token = strtok_r(dupstr, delimiters, &temp);
    if (token)
    {
        w = strtoul(token, NULL, 10);
-       token = strtok(NULL, delimiters);
+       token = strtok_r(NULL, delimiters, &temp);
        if (token)
        {
            h = strtoul(token, NULL, 10);
@@ -1544,6 +1544,7 @@ bool parseWxH(char *str, OMX_U32 *width, OMX_U32 *height)
               }
            }
        }
+   free(dupstr);
    return parseOK;
 }
 

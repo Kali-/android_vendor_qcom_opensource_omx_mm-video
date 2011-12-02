@@ -826,6 +826,10 @@ void omx_vdec::process_event_cb(void *ctxt, unsigned char id)
                 }
               }
             }
+            else
+            {
+              DEBUG_PRINT_ERROR("ERROR: %s()::EventHandler is NULL", __func__);
+            }
           }
           break;
 
@@ -889,6 +893,10 @@ void omx_vdec::process_event_cb(void *ctxt, unsigned char id)
                   }
                 }
               }
+            }
+            else
+            {
+              DEBUG_PRINT_ERROR("ERROR: %s()::EventHandler is NULL", __func__);
             }
           }
           break;
@@ -958,6 +966,10 @@ void omx_vdec::process_event_cb(void *ctxt, unsigned char id)
               }
             }
           }
+          else
+          {
+            DEBUG_PRINT_ERROR("ERROR: %s()::EventHandler is NULL", __func__);
+          }
 
           break;
 
@@ -983,6 +995,10 @@ void omx_vdec::process_event_cb(void *ctxt, unsigned char id)
                                        OMX_StateExecuting,NULL);
               }
             }
+          }
+          else
+          {
+            DEBUG_PRINT_ERROR("ERROR: %s()::EventHandler is NULL", __func__);
           }
 
           break;
@@ -1012,6 +1028,10 @@ void omx_vdec::process_event_cb(void *ctxt, unsigned char id)
               }
             }
           }
+          else
+          {
+            DEBUG_PRINT_ERROR("ERROR: %s()::EventHandler is NULL", __func__);
+          }
 
           break;
 
@@ -1022,8 +1042,14 @@ void omx_vdec::process_event_cb(void *ctxt, unsigned char id)
           else
           {
             if (pThis->in_reconfig)
-              pThis->m_cb.EventHandler(&pThis->m_cmp, pThis->m_app_data,
-                OMX_EventPortSettingsChanged, OMX_CORE_OUTPUT_PORT_INDEX, 0, NULL );
+            {
+              if (pThis->m_cb.EventHandler) {
+                pThis->m_cb.EventHandler(&pThis->m_cmp, pThis->m_app_data,
+                    OMX_EventPortSettingsChanged, OMX_CORE_OUTPUT_PORT_INDEX, 0, NULL );
+              } else {
+                DEBUG_PRINT_ERROR("ERROR: %s()::EventHandler is NULL", __func__);
+              }
+            }
             if (pThis->drv_ctx.interlace != VDEC_InterlaceFrameProgressive)
             {
               OMX_INTERLACETYPE format = (OMX_INTERLACETYPE)-1;
@@ -1034,17 +1060,24 @@ void omx_vdec::process_event_cb(void *ctxt, unsigned char id)
                   format = OMX_InterlaceInterleaveFrameBottomFieldFirst;
               else //unsupported interlace format; raise a error
                   event = OMX_EventError;
-
-              pThis->m_cb.EventHandler(&pThis->m_cmp, pThis->m_app_data,
-                  event, format, 0, NULL );
+              if (pThis->m_cb.EventHandler) {
+                pThis->m_cb.EventHandler(&pThis->m_cmp, pThis->m_app_data,
+                    event, format, 0, NULL );
+              } else {
+                DEBUG_PRINT_ERROR("ERROR: %s()::EventHandler is NULL", __func__);
+              }
             }
           }
         break;
 
         case OMX_COMPONENT_GENERATE_EOS_DONE:
           DEBUG_PRINT_HIGH("\n Rxd OMX_COMPONENT_GENERATE_EOS_DONE");
-          pThis->m_cb.EventHandler(&pThis->m_cmp, pThis->m_app_data, OMX_EventBufferFlag,
+          if (pThis->m_cb.EventHandler) {
+            pThis->m_cb.EventHandler(&pThis->m_cmp, pThis->m_app_data, OMX_EventBufferFlag,
                             OMX_CORE_OUTPUT_PORT_INDEX, OMX_BUFFERFLAG_EOS, NULL );
+          } else {
+            DEBUG_PRINT_ERROR("ERROR: %s()::EventHandler is NULL", __func__);
+          }
           pThis->prev_ts = LLONG_MAX;
           pThis->rst_prev_ts = true;
           break;
@@ -1056,8 +1089,12 @@ void omx_vdec::process_event_cb(void *ctxt, unsigned char id)
         case OMX_COMPONENT_GENERATE_INFO_PORT_RECONFIG:
         {
           DEBUG_PRINT_HIGH("\n Rxd OMX_COMPONENT_GENERATE_INFO_PORT_RECONFIG");
-          pThis->m_cb.EventHandler(&pThis->m_cmp, pThis->m_app_data,
+          if (pThis->m_cb.EventHandler) {
+            pThis->m_cb.EventHandler(&pThis->m_cmp, pThis->m_app_data,
                 (OMX_EVENTTYPE)OMX_EventIndexsettingChanged, OMX_CORE_OUTPUT_PORT_INDEX, 0, NULL );
+          } else {
+            DEBUG_PRINT_ERROR("ERROR: %s()::EventHandler is NULL", __func__);
+          }
         }
         default:
           break;
@@ -5728,11 +5765,14 @@ OMX_ERRORTYPE  omx_vdec::use_EGL_image(OMX_IN OMX_HANDLETYPE                hCom
         int pmem_fd;
         int offset;
     };
-    struct temp_egl *temp_egl_id;
+    struct temp_egl *temp_egl_id = NULL;
     void * pmemPtr = (void *) eglImage;
     temp_egl_id = (struct temp_egl *)eglImage;
-    fd = temp_egl_id->pmem_fd;
-    offset = temp_egl_id->offset;
+    if (temp_egl_id != NULL)
+    {
+        fd = temp_egl_id->pmem_fd;
+        offset = temp_egl_id->offset;
+    }
 #endif
     if (fd < 0) {
         DEBUG_PRINT_ERROR("Improper pmem fd by EGL client %d  \n",fd);

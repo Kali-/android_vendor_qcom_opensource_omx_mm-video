@@ -1524,6 +1524,7 @@ int run_tests()
         {
             DEBUG_PRINT_ERROR("Error - Seq file %s could NOT be opened\n",
                               seq_file_name);
+            return -1;
         }
         else
         {
@@ -1600,9 +1601,17 @@ int Init_Decoder()
     {
         /* Allocate memory for pointers to component name */
         OMX_U8** vidCompNames = (OMX_U8**)malloc((sizeof(OMX_U8*))*total);
+        if (vidCompNames == NULL) {
+            DEBUG_PRINT_ERROR("\nFailed to allocate vidCompNames\n");
+            return -1;
+        }
 
         for (i = 0; i < total; ++i) {
             vidCompNames[i] = (OMX_U8*)malloc(sizeof(OMX_U8)*OMX_MAX_STRINGNAME_SIZE);
+            if (vidCompNames[i] == NULL) {
+                DEBUG_PRINT_ERROR("\nFailed to allocate vidCompNames[%d]\n", i);
+                return -1;
+            }
         }
         OMX_GetComponentsOfRole(role, &total, vidCompNames);
         DEBUG_PRINT("\nComponents of Role:%s\n", role);
@@ -2043,9 +2052,18 @@ int Play_Decoder()
       do_freeHandle_and_clean_up(true);
       return -1;
     }
-
+    if (pOutYUVBufHdrs == NULL)
+    {
+        DEBUG_PRINT_ERROR("Error - pOutYUVBufHdrs is NULL\n");
+        return -1;
+    }
     for(bufCnt=0; bufCnt < portFmt.nBufferCountActual; ++bufCnt) {
         DEBUG_PRINT("OMX_FillThisBuffer on output buf no.%d\n",bufCnt);
+        if (pOutYUVBufHdrs[bufCnt] == NULL)
+        {
+            DEBUG_PRINT_ERROR("Error - pOutYUVBufHdrs[%d] is NULL\n", bufCnt);
+            return -1;
+        }
         pOutYUVBufHdrs[bufCnt]->nOutputPortIndex = 1;
         pOutYUVBufHdrs[bufCnt]->nFlags &= ~OMX_BUFFERFLAG_EOS;
         ret = OMX_FillThisBuffer(dec_handle, pOutYUVBufHdrs[bufCnt]);
@@ -2531,7 +2549,7 @@ static int Read_Buffer_From_DAT_File(OMX_BUFFERHEADERTYPE  *pBufHdr)
     int i=0;
     unsigned char *read_buffer=NULL;
     char c = '1'; //initialize to anything except '\0'(0)
-    char inputFrameSize[10];
+    char inputFrameSize[12];
     int count =0; char cnt =0;
     memset(temp_buffer, 0, sizeof(temp_buffer));
 
@@ -3627,8 +3645,18 @@ int enable_output_port()
       do_freeHandle_and_clean_up(true);
       return -1;
     }
+    if (pOutYUVBufHdrs == NULL)
+    {
+        DEBUG_PRINT_ERROR("Error - pOutYUVBufHdrs is NULL\n");
+        return -1;
+    }
     for(bufCnt=0; bufCnt < portFmt.nBufferCountActual; ++bufCnt) {
         DEBUG_PRINT("OMX_FillThisBuffer on output buf no.%d\n",bufCnt);
+        if (pOutYUVBufHdrs[bufCnt] == NULL)
+        {
+            DEBUG_PRINT_ERROR("Error - pOutYUVBufHdrs[%d] is NULL\n", bufCnt);
+            return -1;
+        }
         pOutYUVBufHdrs[bufCnt]->nOutputPortIndex = 1;
         pOutYUVBufHdrs[bufCnt]->nFlags &= ~OMX_BUFFERFLAG_EOS;
         ret = OMX_FillThisBuffer(dec_handle, pOutYUVBufHdrs[bufCnt]);
