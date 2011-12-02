@@ -173,6 +173,8 @@ extern "C" {
 #define OMX_CORE_WVGA_HEIGHT         480
 #define OMX_CORE_WVGA_WIDTH          800
 
+#define DESC_BUFFER_SIZE (8192 * 16)
+
 #ifdef _ANDROID_
 #define MAX_NUM_INPUT_OUTPUT_BUFFERS 32
 #endif
@@ -235,6 +237,7 @@ struct video_driver_context
     bool timestamp_adjust;
     char kind[128];
     bool idr_only_decoding;
+    unsigned disable_dmx;
 };
 
 #ifdef _ANDROID_
@@ -487,6 +490,11 @@ private:
     };
 #endif
 
+    struct desc_buffer_hdr
+    {
+        OMX_U8 *buf_addr;
+        OMX_U32 desc_data_size;
+    };
     bool allocate_done(void);
     bool allocate_input_done(void);
     bool allocate_output_done(void);
@@ -529,6 +537,7 @@ private:
     OMX_ERRORTYPE get_supported_profile_level_for_1080p(OMX_VIDEO_PARAM_PROFILELEVELTYPE *profileLevelType);
 #endif
 
+    OMX_ERRORTYPE allocate_desc_buffer(OMX_U32 index);
     OMX_ERRORTYPE allocate_output_headers();
     bool execute_omx_flush(OMX_U32);
     bool execute_output_flush();
@@ -575,6 +584,9 @@ private:
     void append_terminator_extradata(OMX_OTHER_EXTRADATATYPE *extra);
     OMX_ERRORTYPE update_portdef(OMX_PARAM_PORTDEFINITIONTYPE *portDefn);
     void append_portdef_extradata(OMX_OTHER_EXTRADATATYPE *extra);
+    void insert_demux_addr_offset(OMX_U32 address_offset);
+    void extract_demux_addr_offsets(OMX_BUFFERHEADERTYPE *buf_hdr);
+    OMX_ERRORTYPE handle_demux_data(OMX_BUFFERHEADERTYPE *buf_hdr);
     OMX_U32 count_MB_in_extradata(OMX_OTHER_EXTRADATATYPE *extra);
 
     bool align_pmem_buffers(int pmem_fd, OMX_U32 buffer_size,
@@ -731,6 +743,8 @@ private:
     enum vc1_profile_type m_vc1_profile;
     OMX_S64 h264_last_au_ts;
     OMX_U32 h264_last_au_flags;
+    OMX_U32 m_demux_offsets[8192];
+    OMX_U32 m_demux_entries;
 
     OMX_S64 prev_ts;
     bool rst_prev_ts;
@@ -769,6 +783,7 @@ private:
 #endif //_ANDROID_
     OMX_PARAM_PORTDEFINITIONTYPE m_port_def;
     omx_time_stamp_reorder time_stamp_dts;
+    desc_buffer_hdr *m_desc_buffer_ptr;
 };
 
 #endif // __OMX_VDEC_H__

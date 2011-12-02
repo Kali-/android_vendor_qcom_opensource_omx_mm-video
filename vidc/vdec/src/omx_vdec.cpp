@@ -504,6 +504,8 @@ omx_vdec::omx_vdec(): m_state(OMX_StateInvalid),
   memset (&h264_scratch,0,sizeof (OMX_BUFFERHEADERTYPE));
   memset (m_hwdevice_name,0,sizeof(m_hwdevice_name));
   memset(&op_buf_rcnfg, 0 ,sizeof(vdec_allocatorproperty));
+  memset(m_demux_offsets, 0, ( sizeof(OMX_U32) * 8192) );
+  m_demux_entries = 0;
 #ifdef _ANDROID_ICS_
   memset(&native_buffer, 0 ,(sizeof(struct nativebuffer) * MAX_NUM_INPUT_OUTPUT_BUFFERS));
 #endif
@@ -1380,7 +1382,34 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
     if (eRet == OMX_ErrorNone)
       eRet = enable_extradata(DEFAULT_EXTRADATA);
 #endif
+    if ( (codec_type_parse == CODEC_TYPE_VC1) ||
+        (codec_type_parse == CODEC_TYPE_H264)) //add CP check here
+    {
+      //Check if dmx can be disabled
+      struct vdec_ioctl_msg ioctl_msg = {NULL, NULL};
+      OMX_ERRORTYPE eRet = OMX_ErrorNone;
+      ioctl_msg.out = &drv_ctx.disable_dmx;
+      if (ioctl(drv_ctx.video_driver_fd, VDEC_IOCTL_GET_DISABLE_DMX_SUPPORT, &ioctl_msg))
+      {
+        DEBUG_PRINT_ERROR("Error VDEC_IOCTL_GET_DISABLE_DMX_SUPPORT");
+        eRet = OMX_ErrorHardware;
+      }
+      else
+      {
+        if (drv_ctx.disable_dmx)
+        {
+          DEBUG_PRINT_HIGH("DMX disable is supported");
 
+          int rc = ioctl(drv_ctx.video_driver_fd,
+                      VDEC_IOCTL_SET_DISABLE_DMX);
+          if(rc < 0) {
+              DEBUG_PRINT_ERROR("Failed to disable dmx on driver.");
+              drv_ctx.disable_dmx = false;
+              eRet = OMX_ErrorHardware;
+          }
+        }
+      }
+    }
     if (drv_ctx.decoder_format == VDEC_CODECTYPE_H264)
     {
       if (m_frame_parser.mutils == NULL)
@@ -2252,6 +2281,8 @@ bool omx_vdec::execute_input_flush()
     frame_count = 0;
     h264_last_au_ts = LLONG_MAX;
     h264_last_au_flags = 0;
+    memset(m_demux_offsets, 0, ( sizeof(OMX_U32) * 8192) );
+    m_demux_entries = 0;
     DEBUG_PRINT_LOW("\n Initialize parser");
     if (m_frame_parser.mutils)
     {
@@ -4131,6 +4162,12 @@ OMX_ERRORTYPE omx_vdec::free_input_buffer(OMX_BUFFERHEADERTYPE *bufferHdr)
                drv_ctx.ptr_inputbuffer[index].mmaped_size);
        close (drv_ctx.ptr_inputbuffer[index].pmem_fd);
        drv_ctx.ptr_inputbuffer[index].pmem_fd = -1;
+       if (m_desc_buffer_ptr && m_desc_buffer_ptr[index].buf_addr)
+       {
+         free(m_desc_buffer_ptr[index].buf_addr);
+         m_desc_buffer_ptr[index].buf_addr = NULL;
+         m_desc_buffer_ptr[index].desc_data_size = 0;
+       }
 #ifdef USE_ION
        free_ion_memory(&drv_ctx.ip_buf_ion_info[index]);
 #endif
@@ -4466,6 +4503,11 @@ OMX_ERRORTYPE  omx_vdec::allocate_input_buffer(
     input->pAppPrivate       = appData;
     input->nInputPortIndex   = OMX_CORE_INPUT_PORT_INDEX;
     input->pInputPortPrivate = (void *)&drv_ctx.ptr_inputbuffer [i];
+
+    if (drv_ctx.disable_dmx)
+    {
+      eRet = allocate_desc_buffer(i);
+    }
   }
   else
   {
@@ -5340,6 +5382,24 @@ OMX_ERRORTYPE  omx_vdec::empty_this_buffer_proxy(OMX_IN OMX_HANDLETYPE         h
   frameinfo.pmem_fd = temp_buffer->pmem_fd;
   frameinfo.pmem_offset = temp_buffer->offset;
   frameinfo.timestamp = buffer->nTimeStamp;
+  if (drv_ctx.disable_dmx && m_desc_buffer_ptr && m_desc_buffer_ptr[nPortIndex].buf_addr)
+  {
+    DEBUG_PRINT_LOW("ETB: dmx enabled");
+    if (m_demux_entries == 0)
+    {
+      extract_demux_addr_offsets(buffer);
+    }
+
+    DEBUG_PRINT_LOW("ETB: handle_demux_data - entries=%d",m_demux_entries);
+    handle_demux_data(buffer);
+    frameinfo.desc_addr = (OMX_U8 *)m_desc_buffer_ptr[nPortIndex].buf_addr;
+    frameinfo.desc_size = m_desc_buffer_ptr[nPortIndex].desc_data_size;
+  }
+  else
+  {
+    frameinfo.desc_addr = NULL;
+    frameinfo.desc_size = 0;
+  }
   if(!arbitrary_bytes)
   {
       frameinfo.flags |= buffer->nFlags;
@@ -5380,6 +5440,8 @@ OMX_ERRORTYPE  omx_vdec::empty_this_buffer_proxy(OMX_IN OMX_HANDLETYPE         h
     m_frame_parser.flush();
     h264_last_au_ts = LLONG_MAX;
     h264_last_au_flags = 0;
+    memset(m_demux_offsets, 0, ( sizeof(OMX_U32) * 8192) );
+    m_demux_entries = 0;
   }
 
   DEBUG_PRINT_LOW("[ETBP] pBuf(%p) nTS(%lld) Sz(%d)",
@@ -8136,6 +8198,169 @@ void omx_vdec::append_terminator_extradata(OMX_OTHER_EXTRADATATYPE *extra)
   extra->data[0] = 0;
 
   print_debug_extradata(extra);
+}
+
+OMX_ERRORTYPE  omx_vdec::allocate_desc_buffer(OMX_U32 index)
+{
+  OMX_ERRORTYPE eRet = OMX_ErrorNone;
+  if (index >= drv_ctx.ip_buf.actualcount)
+  {
+    DEBUG_PRINT_ERROR("\nERROR:Desc Buffer Index not found");
+    return OMX_ErrorInsufficientResources;
+  }
+  if (m_desc_buffer_ptr == NULL)
+  {
+    m_desc_buffer_ptr = (desc_buffer_hdr*) \
+                     calloc( (sizeof(desc_buffer_hdr)),
+                     drv_ctx.ip_buf.actualcount);
+    if (m_desc_buffer_ptr == NULL)
+    {
+      DEBUG_PRINT_ERROR("\n m_desc_buffer_ptr Allocation failed ");
+      return OMX_ErrorInsufficientResources;
+    }
+  }
+
+  m_desc_buffer_ptr[index].buf_addr = (unsigned char *)malloc (DESC_BUFFER_SIZE * sizeof(OMX_U8));
+  if (m_desc_buffer_ptr[index].buf_addr == NULL)
+  {
+    DEBUG_PRINT_ERROR("\ndesc buffer Allocation failed ");
+    return OMX_ErrorInsufficientResources;
+  }
+
+  return eRet;
+}
+
+void omx_vdec::insert_demux_addr_offset(OMX_U32 address_offset)
+{
+  DEBUG_PRINT_LOW("Inserting address offset (%d) at idx (%d)", address_offset,m_demux_entries);
+  if (m_demux_entries < 8192)
+  {
+    m_demux_offsets[m_demux_entries++] = address_offset;
+  }
+  return;
+}
+
+void omx_vdec::extract_demux_addr_offsets(OMX_BUFFERHEADERTYPE *buf_hdr)
+{
+  OMX_U32 bytes_to_parse = buf_hdr->nFilledLen;
+  OMX_U8 *buf = buf_hdr->pBuffer + buf_hdr->nOffset;
+  OMX_U32 index = 0;
+
+  m_demux_entries = 0;
+
+  while (index < bytes_to_parse)
+  {
+    if ( ((buf[index] == 0x00) && (buf[index+1] == 0x00) &&
+          (buf[index+2] == 0x00) && (buf[index+3] == 0x01)) ||
+         ((buf[index] == 0x00) && (buf[index+1] == 0x00) &&
+          (buf[index+2] == 0x01)) )
+    {
+      //Found start code, insert address offset
+      insert_demux_addr_offset(index);
+      if (buf[index+2] == 0x01) // 3 byte start code
+        index += 3;
+      else                      //4 byte start code
+        index += 4;
+    }
+    else
+      index++;
+  }
+  DEBUG_PRINT_LOW("Extracted (%d) demux entry offsets",m_demux_entries);
+  return;
+}
+
+OMX_ERRORTYPE omx_vdec::handle_demux_data(OMX_BUFFERHEADERTYPE *p_buf_hdr)
+{
+  //fix this, handle 3 byte start code, vc1 terminator entry
+  OMX_U8 *p_demux_data = NULL;
+  OMX_U32 desc_data = 0;
+  OMX_U32 start_addr = 0;
+  OMX_U32 nal_size = 0;
+  OMX_U32 suffix_byte = 0;
+  OMX_U32 demux_index = 0;
+  OMX_U32 buffer_index = 0;
+
+  if (m_desc_buffer_ptr == NULL)
+  {
+    DEBUG_PRINT_ERROR("m_desc_buffer_ptr is NULL. Cannot append demux entries.");
+    return OMX_ErrorBadParameter;
+  }
+
+  buffer_index = p_buf_hdr - ((OMX_BUFFERHEADERTYPE *)m_inp_mem_ptr);
+  if (buffer_index > drv_ctx.ip_buf.actualcount)
+  {
+    DEBUG_PRINT_ERROR("handle_demux_data:Buffer index is incorrect (%d)", buffer_index);
+    return OMX_ErrorBadParameter;
+  }
+
+  p_demux_data = (OMX_U8 *) m_desc_buffer_ptr[buffer_index].buf_addr;
+
+  if ( ((OMX_U8*)p_demux_data == NULL) ||
+      ((m_demux_entries * 16) + 1) > DESC_BUFFER_SIZE)
+  {
+    DEBUG_PRINT_ERROR("Insufficient buffer. Cannot append demux entries.");
+    return OMX_ErrorBadParameter;
+  }
+  else
+  {
+    for (; demux_index < m_demux_entries; demux_index++)
+    {
+      desc_data = 0;
+      start_addr = m_demux_offsets[demux_index];
+      if (p_buf_hdr->pBuffer[m_demux_offsets[demux_index] + 2] == 0x01)
+      {
+        suffix_byte = p_buf_hdr->pBuffer[m_demux_offsets[demux_index] + 3];
+      }
+      else
+      {
+        suffix_byte = p_buf_hdr->pBuffer[m_demux_offsets[demux_index] + 4];
+      }
+      if (demux_index < (m_demux_entries - 1))
+      {
+        nal_size = m_demux_offsets[demux_index + 1] - m_demux_offsets[demux_index] - 2;
+      }
+      else
+      {
+        nal_size = p_buf_hdr->nFilledLen - m_demux_offsets[demux_index] - 2;
+      }
+      DEBUG_PRINT_LOW("Start_addr(%p), suffix_byte(0x%x),nal_size(%d),demux_index(%d)",
+                        start_addr,
+                        suffix_byte,
+                        nal_size,
+                        demux_index);
+      desc_data = (start_addr >> 3) << 1;
+      desc_data |= (start_addr & 7) << 21;
+      desc_data |= suffix_byte << 24;
+
+      memcpy(p_demux_data, &desc_data, sizeof(OMX_U32));
+      memcpy(p_demux_data + 4, &nal_size, sizeof(OMX_U32));
+      memset(p_demux_data + 8, 0, sizeof(OMX_U32));
+      memset(p_demux_data + 12, 0, sizeof(OMX_U32));
+
+      p_demux_data += 16;
+    }
+    if (codec_type_parse == CODEC_TYPE_VC1)
+    {
+      DEBUG_PRINT_LOW("VC1 terminator entry");
+      desc_data = 0;
+      desc_data = 0x82 << 24;
+      memcpy(p_demux_data, &desc_data, sizeof(OMX_U32));
+      memset(p_demux_data + 4, 0, sizeof(OMX_U32));
+      memset(p_demux_data + 8, 0, sizeof(OMX_U32));
+      memset(p_demux_data + 12, 0, sizeof(OMX_U32));
+      p_demux_data += 16;
+      m_demux_entries++;
+    }
+    //Add zero word to indicate end of descriptors
+    memset(p_demux_data, 0, sizeof(OMX_U32));
+
+    m_desc_buffer_ptr[buffer_index].desc_data_size = (m_demux_entries * 16) + sizeof(OMX_U32);
+    DEBUG_PRINT_LOW("desc table data size=%d", m_desc_buffer_ptr[buffer_index].desc_data_size);
+  }
+  memset(m_demux_offsets, 0, ( sizeof(OMX_U32) * 8192) );
+  m_demux_entries = 0;
+  DEBUG_PRINT_LOW("Demux table complete!");
+  return OMX_ErrorNone;
 }
 
 #ifdef MAX_RES_1080P
