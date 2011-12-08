@@ -61,7 +61,7 @@ extern "C"{
                          // timestamps adjustments for divx.
 
 //#define TEST_TS_FROM_SEI // Define this macro to calculate the timestamps
-                           // from the SEI and VUI data for H264 
+                           // from the SEI and VUI data for H264
 
 #else
 #define DEBUG_PRINT printf
@@ -820,7 +820,7 @@ void* fbd_thread(void* pArg)
     /********************************************************************/
     if (pBuffer->nFlags & OMX_BUFFERFLAG_EOS )
     {
-      OMX_QCOM_FRAME_PACK_ARRANGEMENT framePackingArrangement; 
+      OMX_QCOM_FRAME_PACK_ARRANGEMENT framePackingArrangement;
       OMX_GetConfig(dec_handle,
                    (OMX_INDEXTYPE)OMX_QcomIndexConfigVideoFramePackingArrangement,
                     &framePackingArrangement);
@@ -2374,7 +2374,7 @@ static OMX_ERRORTYPE use_output_buffer_multiple_fd ( OMX_COMPONENTTYPE *dec_hand
           return OMX_ErrorInsufficientResources;
       }
       align_pmem_buffers(pPMEMInfo[bufCnt].pmem_fd, bufSize,
-                                  8192); 
+                                  8192);
       DEBUG_PRINT("\n allocation size %d pmem fd 0x%x",bufSize,pPMEMInfo[bufCnt].pmem_fd);
       pvirt = (unsigned char *)mmap(NULL,bufSize,PROT_READ|PROT_WRITE,
                       MAP_SHARED,pPMEMInfo[bufCnt].pmem_fd,0);
@@ -3281,8 +3281,10 @@ void overlay_set()
 
     if(height >= vinfo.yres)
     {
+        overlayp->dst_rect.h = (overlayp->dst_rect.w * height)/width;
         overlayp->dst_rect.y = 0;
-        overlayp->dst_rect.h = vinfo.yres;
+        if (overlayp->dst_rect.h < vinfo.yres)
+            overlayp->dst_rect.y = (vinfo.yres - overlayp->dst_rect.h)/2;
     }
     else
     {
