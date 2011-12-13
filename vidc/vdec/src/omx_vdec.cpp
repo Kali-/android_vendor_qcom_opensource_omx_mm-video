@@ -487,6 +487,10 @@ omx_vdec::omx_vdec(): m_state(OMX_StateInvalid),
   property_get("vidc.dec.debug.ts", property_value, "0");
   m_debug_timestamp = atoi(property_value);
   DEBUG_PRINT_HIGH("vidc.dec.debug.ts value is %d",m_debug_timestamp);
+  if (m_debug_timestamp)
+  {
+    time_stamp_dts.set_timestamp_reorder_mode(true);
+  }
 
   property_value[0] = NULL;
   property_get("vidc.dec.debug.concealedmb", property_value, "0");
@@ -509,11 +513,6 @@ omx_vdec::omx_vdec(): m_state(OMX_StateInvalid),
   pthread_mutex_init(&m_lock, NULL);
   sem_init(&m_cmd_lock,0,0);
 #ifdef _ANDROID_
-  char timestamp_value[PROPERTY_VALUE_MAX] = {0};
-  property_get("vidc.dec.debug.ts", timestamp_value, "0");
-  m_debug_timestamp = atoi(timestamp_value);
-  DEBUG_PRINT_HIGH("vidc.dec.debug.ts value is %d",m_debug_timestamp);
-
   char extradata_value[PROPERTY_VALUE_MAX] = {0};
   property_get("vidc.dec.debug.extradata", extradata_value, "0");
   m_debug_extradata = atoi(extradata_value);

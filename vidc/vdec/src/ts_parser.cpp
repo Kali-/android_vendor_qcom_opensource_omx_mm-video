@@ -27,7 +27,7 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --------------------------------------------------------------------------*/
 #include "ts_parser.h"
 
-#define DEBUG
+#define DEBUG LOGE
 void omx_time_stamp_reorder::set_timestamp_reorder_mode(bool mode)
 {
 	reorder_ts = mode;
