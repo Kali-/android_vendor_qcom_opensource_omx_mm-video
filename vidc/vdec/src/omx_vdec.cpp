@@ -6662,7 +6662,7 @@ OMX_ERRORTYPE omx_vdec::push_input_sc_codec(OMX_HANDLETYPE hComp)
 
     DEBUG_PRINT_LOW("\n TimeStamp updated %d",pdest_frame->nTimeStamp);
     /*First Parsed buffer will have only header Hence skip*/
-    if (frame_count == 0 && codec_type_parse != CODEC_TYPE_VC1)
+    if (frame_count == 0)
     {
       DEBUG_PRINT_LOW("\n H263/MPEG4 Codec First Frame ");
 #ifdef MAX_RES_1080P
