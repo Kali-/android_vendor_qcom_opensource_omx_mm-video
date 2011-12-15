@@ -5631,7 +5631,7 @@ OMX_ERRORTYPE  omx_vdec::component_deinit(OMX_IN OMX_HANDLETYPE hComp)
 #endif
         }
 #ifdef _ANDROID_ICS_
-        memset(&native_buffer, 0, (sizeof(native_buffer) * MAX_NUM_INPUT_OUTPUT_BUFFERS));
+        memset(&native_buffer, 0, (sizeof(nativebuffer) * MAX_NUM_INPUT_OUTPUT_BUFFERS));
 #endif
     }
 
