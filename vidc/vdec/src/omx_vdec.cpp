@@ -1,5 +1,5 @@
 /*--------------------------------------------------------------------------
-Copyright (c) 2010-2011, Code Aurora Forum. All rights reserved.
+Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -1141,11 +1141,12 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
 
   if(!strncmp(role, "OMX.qcom.video.decoder.avc.secure",OMX_MAX_STRINGNAME_SIZE)){
       secure_mode = true;
+      arbitrary_bytes = false;
       role = "OMX.qcom.video.decoder.avc";
       device_name =  "/dev/msm_vidc_dec_sec";
   }
-
-  DEBUG_PRINT_HIGH("\n omx_vdec::component_init(): Start of New Playback : role  = %s : DEVICE = %s", role, device_name);
+  DEBUG_PRINT_HIGH("\n omx_vdec::component_init(): Start of New Playback : role  = %s : DEVICE = %s",
+        role, device_name);
 
   drv_ctx.video_driver_fd = open(device_name, O_RDWR | O_NONBLOCK);
 
@@ -1384,7 +1385,7 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
         eRet = get_buffer_req(&drv_ctx.op_buf);
     m_state = OMX_StateLoaded;
 #ifdef DEFAULT_EXTRADATA
-    if (eRet == OMX_ErrorNone)
+    if (eRet == OMX_ErrorNone && !secure_mode)
       eRet = enable_extradata(DEFAULT_EXTRADATA);
 #endif
     if ( (codec_type_parse == CODEC_TYPE_VC1) ||
@@ -2773,7 +2774,12 @@ OMX_ERRORTYPE  omx_vdec::get_parameter(OMX_IN OMX_HANDLETYPE     hComp,
             GetAndroidNativeBufferUsageParams* nativeBuffersUsage = (GetAndroidNativeBufferUsageParams *) paramData;
             if(nativeBuffersUsage->nPortIndex == OMX_CORE_OUTPUT_PORT_INDEX) {
 #ifdef USE_ION
-                nativeBuffersUsage->nUsage = (GRALLOC_USAGE_PRIVATE_MM_HEAP | GRALLOC_USAGE_PRIVATE_UNCACHED);
+                if(secure_mode) {
+                        nativeBuffersUsage->nUsage = (GRALLOC_USAGE_PRIVATE_MM_HEAP | GRALLOC_USAGE_PROTECTED |
+                                                      GRALLOC_USAGE_PRIVATE_UNCACHED);
+                } else {
+                        nativeBuffersUsage->nUsage = (GRALLOC_USAGE_PRIVATE_MM_HEAP | GRALLOC_USAGE_PRIVATE_UNCACHED);
+                }
 #else
 #if defined (MAX_RES_720P) ||  defined (MAX_RES_1080P_EBI)
                 nativeBuffersUsage->nUsage = (GRALLOC_USAGE_PRIVATE_ADSP_HEAP | GRALLOC_USAGE_PRIVATE_UNCACHED);
@@ -2822,11 +2828,14 @@ OMX_ERRORTYPE omx_vdec::use_android_native_buffer(OMX_IN OMX_HANDLETYPE hComp, O
     sp<android_native_buffer_t> nBuf = params->nativeBuffer;
     private_handle_t *handle = (private_handle_t *)nBuf->handle;
     if(OMX_CORE_OUTPUT_PORT_INDEX == params->nPortIndex) {  //android native buffers can be used only on Output port
-        OMX_U8 *buffer = (OMX_U8*)mmap(0, handle->size,
-                PROT_READ|PROT_WRITE, MAP_SHARED, handle->fd, 0);
-        if(buffer == MAP_FAILED) {
-            DEBUG_PRINT_ERROR("Failed to mmap pmem with fd = %d, size = %d", handle->fd, handle->size);
-            return OMX_ErrorInsufficientResources;
+        OMX_U8 *buffer = NULL;
+        if(!secure_mode) {
+                buffer = (OMX_U8*)mmap(0, handle->size,
+                    PROT_READ|PROT_WRITE, MAP_SHARED, handle->fd, 0);
+                if(buffer == MAP_FAILED) {
+                    DEBUG_PRINT_ERROR("Failed to mmap pmem with fd = %d, size = %d", handle->fd, handle->size);
+                    return OMX_ErrorInsufficientResources;
+            }
         }
         eRet = use_buffer(hComp,params->bufferHeader,params->nPortIndex,data,handle->size,buffer);
     } else {
@@ -3041,7 +3050,13 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
         {
             if (portFmt->nFramePackingFormat == OMX_QCOM_FramePacking_Arbitrary)
             {
+              if(secure_mode) {
+                arbitrary_bytes = false;
+                DEBUG_PRINT_ERROR("setparameter: cannot set to arbitary bytes mode in secure session");
+                eRet = OMX_ErrorUnsupportedSetting;
+              } else {
                arbitrary_bytes = true;
+              }
             }
             else if (portFmt->nFramePackingFormat ==
                 OMX_QCOM_FramePacking_OnlyOneCompleteFrame)
@@ -3278,22 +3293,42 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
               break;
           }
     case OMX_QcomIndexParamConcealMBMapExtraData:
-      eRet = enable_extradata(VDEC_EXTRADATA_MB_ERROR_MAP,
-                              ((QOMX_ENABLETYPE *)paramData)->bEnable);
+      if(!secure_mode)
+          eRet = enable_extradata(VDEC_EXTRADATA_MB_ERROR_MAP,
+                                  ((QOMX_ENABLETYPE *)paramData)->bEnable);
+      else {
+          DEBUG_PRINT_ERROR("\n secure mode setting not supported");
+          eRet = OMX_ErrorUnsupportedSetting;
+      }
       break;
     case OMX_QcomIndexParamFrameInfoExtraData:
       {
-        eRet = enable_extradata(OMX_FRAMEINFO_EXTRADATA,
+        if(!secure_mode)
+            eRet = enable_extradata(OMX_FRAMEINFO_EXTRADATA,
                                 ((QOMX_ENABLETYPE *)paramData)->bEnable);
+        else {
+            DEBUG_PRINT_ERROR("\n secure mode setting not supported");
+            eRet = OMX_ErrorUnsupportedSetting;
+        }
        break;
       }
     case OMX_QcomIndexParamInterlaceExtraData:
-      eRet = enable_extradata(OMX_INTERLACE_EXTRADATA,
+      if(!secure_mode)
+          eRet = enable_extradata(OMX_INTERLACE_EXTRADATA,
                               ((QOMX_ENABLETYPE *)paramData)->bEnable);
+      else {
+          DEBUG_PRINT_ERROR("\n secure mode setting not supported");
+          eRet = OMX_ErrorUnsupportedSetting;
+      }
       break;
     case OMX_QcomIndexParamH264TimeInfo:
-      eRet = enable_extradata(OMX_TIMEINFO_EXTRADATA,
+      if(!secure_mode)
+          eRet = enable_extradata(OMX_TIMEINFO_EXTRADATA,
                               ((QOMX_ENABLETYPE *)paramData)->bEnable);
+      else {
+          DEBUG_PRINT_ERROR("\n secure mode setting not supported");
+          eRet = OMX_ErrorUnsupportedSetting;
+      }
       break;
     case OMX_QcomIndexParamVideoDivx:
       {
@@ -3361,22 +3396,24 @@ OMX_ERRORTYPE  omx_vdec::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
 #ifdef MAX_RES_1080P
     case OMX_QcomIndexParamIndexExtraDataType:
       {
-        QOMX_INDEXEXTRADATATYPE *extradataIndexType = (QOMX_INDEXEXTRADATATYPE *) paramData;
-        if ((extradataIndexType->nIndex == OMX_IndexParamPortDefinition) &&
-               (extradataIndexType->bEnabled == OMX_TRUE) &&
-               (extradataIndexType->nPortIndex == 1))
-        {
-          DEBUG_PRINT_HIGH("set_parameter:  OMX_QcomIndexParamIndexExtraDataType SmoothStreaming\n");
-          eRet = enable_extradata(OMX_PORTDEF_EXTRADATA, extradataIndexType->bEnabled);
-          // Set smooth streaming parameter
-          int rc = ioctl(drv_ctx.video_driver_fd,
-                        VDEC_IOCTL_SET_CONT_ON_RECONFIG);
-          if(rc < 0) {
-              DEBUG_PRINT_ERROR("Failed to enable Smooth Streaming on driver.");
-              eRet = OMX_ErrorHardware;
-          }
-        }
-      }
+        if(!secure_mode) {
+            QOMX_INDEXEXTRADATATYPE *extradataIndexType = (QOMX_INDEXEXTRADATATYPE *) paramData;
+            if ((extradataIndexType->nIndex == OMX_IndexParamPortDefinition) &&
+                   (extradataIndexType->bEnabled == OMX_TRUE) &&
+                   (extradataIndexType->nPortIndex == 1))
+            {
+              DEBUG_PRINT_HIGH("set_parameter:  OMX_QcomIndexParamIndexExtraDataType SmoothStreaming\n");
+              eRet = enable_extradata(OMX_PORTDEF_EXTRADATA, extradataIndexType->bEnabled);
+              // Set smooth streaming parameter
+              int rc = ioctl(drv_ctx.video_driver_fd,
+                            VDEC_IOCTL_SET_CONT_ON_RECONFIG);
+              if(rc < 0) {
+                  DEBUG_PRINT_ERROR("Failed to enable Smooth Streaming on driver.");
+                  eRet = OMX_ErrorHardware;
+              }
+            }
+         }
+       }
       break;
 #endif
 #if defined (_ANDROID_HONEYCOMB_) || defined (_ANDROID_ICS_)
@@ -3862,12 +3899,14 @@ OMX_ERRORTYPE  omx_vdec::use_output_buffer(
         }
         else {
            handle = (private_handle_t *)buff;
-	   buff =  (OMX_U8*)mmap(0, handle->size,
-                         PROT_READ|PROT_WRITE, MAP_SHARED, handle->fd, 0);
-           if (buff == MAP_FAILED) {
-               DEBUG_PRINT_ERROR("Failed to mmap pmem with fd = %d, size = %d", handle->fd, handle->size);
-               return OMX_ErrorInsufficientResources;
-           }
+           if(!secure_mode) {
+	       buff =  (OMX_U8*)mmap(0, handle->size,
+                             PROT_READ|PROT_WRITE, MAP_SHARED, handle->fd, 0);
+               if (buff == MAP_FAILED) {
+                   DEBUG_PRINT_ERROR("Failed to mmap pmem with fd = %d, size = %d", handle->fd, handle->size);
+                   return OMX_ErrorInsufficientResources;
+               }
+	    }
            privateAppData = appData;
         }
 #if defined(_ANDROID_ICS_)
@@ -3922,16 +3961,18 @@ OMX_ERRORTYPE  omx_vdec::use_output_buffer(
           return OMX_ErrorInsufficientResources;
         }
 #endif
-        drv_ctx.ptr_outputbuffer[i].bufferaddr =
-          (unsigned char *)mmap(NULL, drv_ctx.op_buf.buffer_size,
-          PROT_READ|PROT_WRITE, MAP_SHARED,
-          drv_ctx.ptr_outputbuffer[i].pmem_fd,0);
-        if (drv_ctx.ptr_outputbuffer[i].bufferaddr == MAP_FAILED) {
-            close(drv_ctx.ptr_outputbuffer[i].pmem_fd);
+        if(!secure_mode) {
+            drv_ctx.ptr_outputbuffer[i].bufferaddr =
+              (unsigned char *)mmap(NULL, drv_ctx.op_buf.buffer_size,
+              PROT_READ|PROT_WRITE, MAP_SHARED,
+              drv_ctx.ptr_outputbuffer[i].pmem_fd,0);
+            if (drv_ctx.ptr_outputbuffer[i].bufferaddr == MAP_FAILED) {
+                close(drv_ctx.ptr_outputbuffer[i].pmem_fd);
 #ifdef USE_ION
-            free_ion_memory(&drv_ctx.op_buf_ion_info[i]);
+                free_ion_memory(&drv_ctx.op_buf_ion_info[i]);
 #endif
-          return OMX_ErrorInsufficientResources;
+              return OMX_ErrorInsufficientResources;
+            }
         }
         drv_ctx.ptr_outputbuffer[i].offset = 0;
         privateAppData = appData;
@@ -3939,9 +3980,11 @@ OMX_ERRORTYPE  omx_vdec::use_output_buffer(
      else {
 
        DEBUG_PRINT_LOW("Use_op_buf: out_pmem=%d",m_use_output_pmem);
-        if (!appData || !bytes || !buff) {
-          DEBUG_PRINT_ERROR("\n Bad parameters for use buffer in EGL image case");
-          return OMX_ErrorBadParameter;
+        if (!appData || !bytes ) {
+          if(!secure_mode && !buffer) {
+              DEBUG_PRINT_ERROR("\n Bad parameters for use buffer in EGL image case");
+              return OMX_ErrorBadParameter;
+          }
         }
 
         OMX_QCOM_PLATFORM_PRIVATE_LIST *pmem_list;
@@ -3967,6 +4010,9 @@ OMX_ERRORTYPE  omx_vdec::use_output_buffer(
      m_pmem_info[i].offset = drv_ctx.ptr_outputbuffer[i].offset;
      m_pmem_info[i].pmem_fd = drv_ctx.ptr_outputbuffer[i].pmem_fd;
 
+     *bufferHdr = (m_out_mem_ptr + i );
+     if(secure_mode)
+          drv_ctx.ptr_outputbuffer[i].bufferaddr = *bufferHdr;
      setbuffers.buffer_type = VDEC_BUFFER_TYPE_OUTPUT;
      memcpy (&setbuffers.buffer,&drv_ctx.ptr_outputbuffer[i],
              sizeof (vdec_bufferpayload));
@@ -3983,7 +4029,6 @@ OMX_ERRORTYPE  omx_vdec::use_output_buffer(
        return OMX_ErrorInsufficientResources;
      }
      // found an empty buffer at i
-     *bufferHdr = (m_out_mem_ptr + i );
      (*bufferHdr)->nAllocLen = drv_ctx.op_buf.buffer_size;
      (*bufferHdr)->pBuffer = buff;
      (*bufferHdr)->pAppPrivate = privateAppData;
@@ -4082,10 +4127,12 @@ OMX_ERRORTYPE  omx_vdec::use_buffer(
   struct vdec_setbuffer_cmd setbuffers;
   struct vdec_ioctl_msg ioctl_msg = {NULL,NULL};
 
-  if (bufferHdr == NULL || bytes == 0 || buffer == NULL)
+  if (bufferHdr == NULL || bytes == 0)
   {
-      DEBUG_PRINT_ERROR("bad param 0x%p %ld 0x%p",bufferHdr, bytes, buffer);
-      return OMX_ErrorBadParameter;
+      if(!secure_mode && buffer == NULL) {
+          DEBUG_PRINT_ERROR("bad param 0x%p %ld 0x%p",bufferHdr, bytes, buffer);
+          return OMX_ErrorBadParameter;
+      }
   }
   if(m_state == OMX_StateInvalid)
   {
@@ -4479,22 +4526,26 @@ OMX_ERRORTYPE  omx_vdec::allocate_input_buffer(
       return OMX_ErrorInsufficientResources;
     }
 #endif
+    if (!secure_mode) {
+        buf_addr = (unsigned char *)mmap(NULL,
+          drv_ctx.ip_buf.buffer_size,
+          PROT_READ|PROT_WRITE, MAP_SHARED, pmem_fd, 0);
 
-    buf_addr = (unsigned char *)mmap(NULL,
-      drv_ctx.ip_buf.buffer_size,
-      PROT_READ|PROT_WRITE, MAP_SHARED, pmem_fd, 0);
-
-    if (buf_addr == MAP_FAILED)
-    {
-        close(pmem_fd);
+        if (buf_addr == MAP_FAILED)
+        {
+            close(pmem_fd);
 #ifdef USE_ION
-        free_ion_memory(&drv_ctx.ip_buf_ion_info[i]);
+            free_ion_memory(&drv_ctx.ip_buf_ion_info[i]);
 #endif
-      DEBUG_PRINT_ERROR("\n Map Failed to allocate input buffer");
-      return OMX_ErrorInsufficientResources;
+          DEBUG_PRINT_ERROR("\n Map Failed to allocate input buffer");
+          return OMX_ErrorInsufficientResources;
+        }
     }
-
-    drv_ctx.ptr_inputbuffer [i].bufferaddr = buf_addr;
+    *bufferHdr = (m_inp_mem_ptr + i);
+    if (secure_mode)
+        drv_ctx.ptr_inputbuffer [i].bufferaddr = *bufferHdr;
+    else
+        drv_ctx.ptr_inputbuffer [i].bufferaddr = buf_addr;
     drv_ctx.ptr_inputbuffer [i].pmem_fd = pmem_fd;
     drv_ctx.ptr_inputbuffer [i].buffer_len = drv_ctx.ip_buf.buffer_size;
     drv_ctx.ptr_inputbuffer [i].mmaped_size = drv_ctx.ip_buf.buffer_size;
@@ -4513,12 +4564,13 @@ OMX_ERRORTYPE  omx_vdec::allocate_input_buffer(
       return OMX_ErrorInsufficientResources;
     }
 
-    *bufferHdr = (m_inp_mem_ptr + i);
     input = *bufferHdr;
     BITMASK_SET(&m_inp_bm_count,i);
     DEBUG_PRINT_LOW("\n Buffer address %p of pmem",*bufferHdr);
-
-    input->pBuffer           = (OMX_U8 *)buf_addr;
+    if (secure_mode)
+         input->pBuffer = (OMX_U8 *)drv_ctx.ptr_inputbuffer [i].pmem_fd;
+    else
+         input->pBuffer           = (OMX_U8 *)buf_addr;
     input->nSize             = sizeof(OMX_BUFFERHEADERTYPE);
     input->nVersion.nVersion = OMX_SPEC_VERSION;
     input->nAllocLen         = drv_ctx.ip_buf.buffer_size;
@@ -4647,20 +4699,21 @@ OMX_ERRORTYPE  omx_vdec::allocate_output_buffer(
       return OMX_ErrorInsufficientResources;
     }
 #endif
-
-    pmem_baseaddress = (unsigned char *)mmap(NULL,
-                       (drv_ctx.op_buf.buffer_size *
-                        drv_ctx.op_buf.actualcount),
-                        PROT_READ|PROT_WRITE,MAP_SHARED,pmem_fd,0);
-    if (pmem_baseaddress == MAP_FAILED)
-    {
-      DEBUG_PRINT_ERROR("\n MMAP failed for Size %d",
-        drv_ctx.op_buf.buffer_size);
-        close(pmem_fd);
+   if (!secure_mode) {
+        pmem_baseaddress = (unsigned char *)mmap(NULL,
+                           (drv_ctx.op_buf.buffer_size *
+                            drv_ctx.op_buf.actualcount),
+                            PROT_READ|PROT_WRITE,MAP_SHARED,pmem_fd,0);
+        if (pmem_baseaddress == MAP_FAILED)
+        {
+          DEBUG_PRINT_ERROR("\n MMAP failed for Size %d",
+          drv_ctx.op_buf.buffer_size);
+          close(pmem_fd);
 #ifdef USE_ION
-        free_ion_memory(&drv_ctx.op_buf_ion_info[i]);
+          free_ion_memory(&drv_ctx.op_buf_ion_info[i]);
 #endif
-      return OMX_ErrorInsufficientResources;
+          return OMX_ErrorInsufficientResources;
+        }
     }
 #ifdef _ANDROID_
 #ifdef USE_ION
@@ -4835,6 +4888,11 @@ OMX_ERRORTYPE  omx_vdec::allocate_output_buffer(
 
       drv_ctx.ptr_outputbuffer[i].buffer_len =
         drv_ctx.op_buf.buffer_size;
+
+    *bufferHdr = (m_out_mem_ptr + i );
+    if (secure_mode) {
+       drv_ctx.ptr_outputbuffer[i].bufferaddr = *bufferHdr;
+    }
    //drv_ctx.ptr_outputbuffer[i].mmaped_size = drv_ctx.op_buf.buffer_size;
      setbuffers.buffer_type = VDEC_BUFFER_TYPE_OUTPUT;
      memcpy (&setbuffers.buffer,&drv_ctx.ptr_outputbuffer[i],
@@ -4852,7 +4910,6 @@ OMX_ERRORTYPE  omx_vdec::allocate_output_buffer(
      }
 
       // found an empty buffer at i
-      *bufferHdr = (m_out_mem_ptr + i );
       (*bufferHdr)->pBuffer = (OMX_U8*)drv_ctx.ptr_outputbuffer[i].bufferaddr;
       (*bufferHdr)->pAppPrivate = appData;
       BITMASK_SET(&m_out_bm_count,i);
@@ -7179,7 +7236,11 @@ int omx_vdec::alloc_map_ion_memory(OMX_U32 buffer_size,
   {
     alloc_data->align = 4096;
   }
-  alloc_data->flags = 0x1 << MEM_HEAP_ID;
+  if(secure_mode) {
+    alloc_data->flags = (ION_HEAP(MEM_HEAP_ID) | ION_SECURE);
+  } else {
+    alloc_data->flags = ION_HEAP(MEM_HEAP_ID);
+  }
   rc = ioctl(fd,ION_IOC_ALLOC,alloc_data);
   if (rc || !alloc_data->handle) {
     DEBUG_PRINT_ERROR("\n ION ALLOC memory failed ");
@@ -7406,7 +7467,12 @@ OMX_ERRORTYPE omx_vdec::start_port_reconfig()
       if (drv_ctx.interlace != VDEC_InterlaceFrameProgressive)
       {
         DEBUG_PRINT_HIGH("Interlace format detected (%x)!", drv_ctx.interlace);
-        client_extradata |= OMX_INTERLACE_EXTRADATA;
+        if(!secure_mode)
+            client_extradata |= OMX_INTERLACE_EXTRADATA;
+	else {
+            DEBUG_PRINT_ERROR("secure mode interlaced format not supported");
+            eRet = OMX_ErrorUnsupportedSetting;
+        }
       }
       in_reconfig = true;
       op_buf_rcnfg.buffer_type = VDEC_BUFFER_TYPE_OUTPUT;
@@ -8410,22 +8476,23 @@ OMX_ERRORTYPE omx_vdec::vdec_alloc_h264_mv()
     return OMX_ErrorInsufficientResources;
   }
 #endif
+  if(!secure_mode) {
+      buf_addr = mmap(NULL, size,
+                   PROT_READ | PROT_WRITE,
+                   MAP_SHARED, pmem_fd, 0);
 
-  buf_addr = mmap(NULL, size,
-               PROT_READ | PROT_WRITE,
-               MAP_SHARED, pmem_fd, 0);
-
-  if (buf_addr == (void*) MAP_FAILED)
-  {
-    close(pmem_fd);
+      if (buf_addr == (void*) MAP_FAILED)
+      {
+        close(pmem_fd);
 #ifdef USE_ION
-    free_ion_memory(&drv_ctx.h264_mv);
+        free_ion_memory(&drv_ctx.h264_mv);
 #endif
-    pmem_fd = -1;
-    DEBUG_PRINT_ERROR("Error returned in allocating recon buffers buf_addr: %p\n",buf_addr);
-    return OMX_ErrorInsufficientResources;
-  }
-
+        pmem_fd = -1;
+        DEBUG_PRINT_ERROR("Error returned in allocating recon buffers buf_addr: %p\n",buf_addr);
+        return OMX_ErrorInsufficientResources;
+      }
+   } else
+      buf_addr =(unsigned char *) (pmem_fd + 1234);
   DEBUG_PRINT_LOW("\n Allocated virt:%p, FD: %d of size %d count: %d \n", buf_addr,
                    pmem_fd, size, drv_ctx.op_buf.actualcount);
 
