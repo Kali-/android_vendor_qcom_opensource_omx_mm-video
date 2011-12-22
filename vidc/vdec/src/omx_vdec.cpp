@@ -5375,7 +5375,6 @@ OMX_ERRORTYPE  omx_vdec::empty_this_buffer_proxy(OMX_IN OMX_HANDLETYPE         h
     nal_count = 0;
     look_ahead_nal = false;
     frame_count = 0;
-    first_frame = 0;
     if (m_frame_parser.mutils)
       m_frame_parser.mutils->initialize_frame_checking_environment();
     m_frame_parser.flush();
