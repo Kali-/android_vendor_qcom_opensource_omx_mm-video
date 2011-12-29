@@ -5618,7 +5618,11 @@ OMX_ERRORTYPE  omx_vdec::fill_this_buffer_proxy(
 
   if (ptr_respbuffer == NULL || ptr_outputbuffer == NULL)
   {
-    return OMX_ErrorBadParameter;
+      DEBUG_PRINT_ERROR("resp buffer or outputbuffer is NULL");
+      buffer->nFilledLen = 0;
+      m_cb.FillBufferDone (hComp,m_app_data,buffer);
+      pending_output_buffers--;
+      return OMX_ErrorBadParameter;
   }
 
   memcpy (&fillbuffer.buffer,ptr_outputbuffer,\
@@ -5632,6 +5636,9 @@ OMX_ERRORTYPE  omx_vdec::fill_this_buffer_proxy(
         if (GENLOCK_NO_ERROR != genlock_lock_buffer(native_buffer[buffer - m_out_mem_ptr].nativehandle,
                                                   GENLOCK_WRITE_LOCK, GENLOCK_MAX_TIMEOUT)) {
             DEBUG_PRINT_ERROR("Failed to acquire genlock");
+            buffer->nFilledLen = 0;
+            m_cb.FillBufferDone (hComp,m_app_data,buffer);
+            pending_output_buffers--;
             return OMX_ErrorInsufficientResources;
         } else {
             native_buffer[buffer - m_out_mem_ptr].inuse = true;
