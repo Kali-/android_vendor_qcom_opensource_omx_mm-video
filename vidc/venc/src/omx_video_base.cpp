@@ -4079,7 +4079,7 @@ void omx_video::omx_release_meta_buffer(OMX_BUFFERHEADERTYPE *buffer)
         Input_pmem.buffer = media_ptr;
         Input_pmem.size = media_ptr->meta_handle->data[2];
         Input_pmem.offset = media_ptr->meta_handle->data[1];
-        DEBUG_PRINT_ERROR("EBD fd = %d, offset = %d, size = %d",Input_pmem.fd,
+        DEBUG_PRINT_LOW("EBD fd = %d, offset = %d, size = %d",Input_pmem.fd,
                           Input_pmem.offset,
                           Input_pmem.size);
       } else if(media_ptr->buffer_type == kMetadataBufferTypeGrallocSource) {
