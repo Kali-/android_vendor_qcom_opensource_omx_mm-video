@@ -762,6 +762,7 @@ private:
     perf_metrics fps_metrics;
     perf_metrics dec_time;
     bool m_enable_android_native_buffers;
+    bool m_use_android_native_buffers;
     bool m_debug_extradata;
     bool m_debug_concealedmb;
 #endif

@@ -458,6 +458,7 @@ omx_vdec::omx_vdec(): m_state(OMX_StateInvalid),
 #ifdef _ANDROID_
                       m_heap_ptr(NULL),
                       m_enable_android_native_buffers(OMX_FALSE),
+                      m_use_android_native_buffers(OMX_FALSE),
 #endif
                       in_reconfig(false),
                       m_use_output_pmem(OMX_FALSE),
@@ -2810,7 +2811,7 @@ OMX_ERRORTYPE omx_vdec::use_android_native_buffer(OMX_IN OMX_HANDLETYPE hComp, O
       (params->nativeBuffer->handle == NULL) ||
       !m_enable_android_native_buffers)
         return OMX_ErrorBadParameter;
-
+    m_use_android_native_buffers = OMX_TRUE;
     sp<android_native_buffer_t> nBuf = params->nativeBuffer;
     private_handle_t *handle = (private_handle_t *)nBuf->handle;
     if(OMX_CORE_OUTPUT_PORT_INDEX == params->nPortIndex) {  //android native buffers can be used only on Output port
@@ -3720,8 +3721,7 @@ OMX_ERRORTYPE  omx_vdec::get_extension_index(OMX_IN OMX_HANDLETYPE      hComp,
         *indexType = (OMX_INDEXTYPE)OMX_GoogleAndroidIndexEnableAndroidNativeBuffers;
     }
     else if(!strncmp(paramName,"OMX.google.android.index.useAndroidNativeBuffer2", sizeof("OMX.google.android.index.enableAndroidNativeBuffer2") - 1)) {
-        DEBUG_PRINT_ERROR("Extension: %s is not supported\n", paramName);
-        return OMX_ErrorNotImplemented;
+        *indexType = (OMX_INDEXTYPE)OMX_GoogleAndroidIndexUseAndroidNativeBuffer2;
     }
     else if(!strncmp(paramName,"OMX.google.android.index.useAndroidNativeBuffer", sizeof("OMX.google.android.index.enableAndroidNativeBuffer") - 1)) {
         DEBUG_PRINT_ERROR("Extension: %s is supported\n", paramName);
@@ -3811,6 +3811,8 @@ OMX_ERRORTYPE  omx_vdec::use_output_buffer(
   struct vdec_ioctl_msg ioctl_msg = {NULL,NULL};
   struct vdec_setbuffer_cmd setbuffers;
   OMX_PTR privateAppData = NULL;
+  private_handle_t *handle = NULL;
+  OMX_U8 *buff = buffer;
 
   if (!m_out_mem_ptr) {
     DEBUG_PRINT_HIGH("Use_op_buf:Allocating output headers");
@@ -3845,20 +3847,32 @@ OMX_ERRORTYPE  omx_vdec::use_output_buffer(
   if (eRet == OMX_ErrorNone) {
 #if defined(_ANDROID_HONEYCOMB_) || defined(_ANDROID_ICS_)
     if(m_enable_android_native_buffers) {
-        UseAndroidNativeBufferParams *params = (UseAndroidNativeBufferParams *)appData;
-        sp<android_native_buffer_t> nBuf = params->nativeBuffer;
-        private_handle_t *handle = (private_handle_t *)nBuf->handle;
+        if(m_use_android_native_buffers) {
+           UseAndroidNativeBufferParams *params = (UseAndroidNativeBufferParams *)appData;
+           sp<android_native_buffer_t> nBuf = params->nativeBuffer;
+           handle = (private_handle_t *)nBuf->handle;
+           privateAppData = params->pAppPrivate;
+        }
+        else {
+           handle = (private_handle_t *)buff;
+	   buff =  (OMX_U8*)mmap(0, handle->size,
+                         PROT_READ|PROT_WRITE, MAP_SHARED, handle->fd, 0);
+           if (buff == MAP_FAILED) {
+               DEBUG_PRINT_ERROR("Failed to mmap pmem with fd = %d, size = %d", handle->fd, handle->size);
+               return OMX_ErrorInsufficientResources;
+           }
+           privateAppData = appData;
+        }
 #if defined(_ANDROID_ICS_)
         native_buffer[i].nativehandle = handle;
 #endif
-        privateAppData = params->pAppPrivate;
         if(!handle) {
             DEBUG_PRINT_ERROR("Native Buffer handle is NULL");
             return OMX_ErrorBadParameter;
         }
         drv_ctx.ptr_outputbuffer[i].pmem_fd = handle->fd;
         drv_ctx.ptr_outputbuffer[i].offset = 0;
-        drv_ctx.ptr_outputbuffer[i].bufferaddr = buffer;
+        drv_ctx.ptr_outputbuffer[i].bufferaddr = buff;
         drv_ctx.ptr_outputbuffer[i].mmaped_size =
             drv_ctx.ptr_outputbuffer[i].buffer_len = drv_ctx.op_buf.buffer_size;
     } else
@@ -3918,7 +3932,7 @@ OMX_ERRORTYPE  omx_vdec::use_output_buffer(
      else {
 
        DEBUG_PRINT_LOW("Use_op_buf: out_pmem=%d",m_use_output_pmem);
-        if (!appData || !bytes || !buffer) {
+        if (!appData || !bytes || !buff) {
           DEBUG_PRINT_ERROR("\n Bad parameters for use buffer in EGL image case");
           return OMX_ErrorBadParameter;
         }
@@ -3938,7 +3952,7 @@ OMX_ERRORTYPE  omx_vdec::use_output_buffer(
                           pmem_info->pmem_fd);
         drv_ctx.ptr_outputbuffer[i].pmem_fd = pmem_info->pmem_fd;
         drv_ctx.ptr_outputbuffer[i].offset = pmem_info->offset;
-        drv_ctx.ptr_outputbuffer[i].bufferaddr = buffer;
+        drv_ctx.ptr_outputbuffer[i].bufferaddr = buff;
         drv_ctx.ptr_outputbuffer[i].mmaped_size =
         drv_ctx.ptr_outputbuffer[i].buffer_len = drv_ctx.op_buf.buffer_size;
         privateAppData = appData;
