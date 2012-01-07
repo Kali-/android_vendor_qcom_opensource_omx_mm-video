@@ -464,8 +464,9 @@ omx_vdec::omx_vdec(): m_state(OMX_StateInvalid),
                       m_out_mem_region_smi(OMX_FALSE),
                       m_out_pvt_entry_pmem(OMX_FALSE)
 #ifdef _ANDROID_
-                      ,iDivXDrmDecrypt(NULL)
+                    ,iDivXDrmDecrypt(NULL)
 #endif
+                    ,m_desc_buffer_ptr(NULL)
 {
   /* Assumption is that , to begin with , we have all the frames with decoder */
   DEBUG_PRINT_HIGH("In OMX vdec Constructor");
@@ -1140,8 +1141,8 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
   drv_ctx.video_driver_fd = open ("/dev/msm_vidc_dec",\
                       O_RDWR|O_NONBLOCK);
 
-  DEBUG_PRINT_HIGH("\n omx_vdec::component_init(): Open returned fd %d",
-                   drv_ctx.video_driver_fd);
+  DEBUG_PRINT_HIGH("\n omx_vdec::component_init(): Open returned fd %d, errno %d",
+                   drv_ctx.video_driver_fd, errno);
 
   if(drv_ctx.video_driver_fd == 0){
     drv_ctx.video_driver_fd = open ("/dev/msm_vidc_dec",\
@@ -1150,8 +1151,8 @@ OMX_ERRORTYPE omx_vdec::component_init(OMX_STRING role)
 
   if(drv_ctx.video_driver_fd < 0)
   {
-    DEBUG_PRINT_ERROR("Omx_vdec::Comp Init Returning failure\n");
-    return OMX_ErrorInsufficientResources;
+      DEBUG_PRINT_ERROR("Omx_vdec::Comp Init Returning failure, errno %d\n", errno);
+      return OMX_ErrorInsufficientResources;
   }
   drv_ctx.frame_rate.fps_numerator = DEFAULT_FPS;
   drv_ctx.frame_rate.fps_denominator = 1;
