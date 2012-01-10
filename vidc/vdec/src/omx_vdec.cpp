@@ -5409,8 +5409,16 @@ OMX_ERRORTYPE  omx_vdec::empty_this_buffer_proxy(OMX_IN OMX_HANDLETYPE         h
 #ifdef _ANDROID_
   if (m_debug_timestamp)
   {
-    DEBUG_PRINT_LOW("\n Inserting TIMESTAMP (%lld) into queue", buffer->nTimeStamp);
-    m_timestamp_list.insert_ts(buffer->nTimeStamp);
+    if(arbitrary_bytes)
+    {
+      DEBUG_PRINT_LOW("\n Inserting TIMESTAMP (%lld) into queue", buffer->nTimeStamp);
+      m_timestamp_list.insert_ts(buffer->nTimeStamp);
+    }
+    else if(!arbitrary_bytes && !(buffer->nFlags & OMX_BUFFERFLAG_CODECCONFIG))
+    {
+      DEBUG_PRINT_LOW("\n Inserting TIMESTAMP (%lld) into queue", buffer->nTimeStamp);
+      m_timestamp_list.insert_ts(buffer->nTimeStamp);
+    }
   }
 #endif
 
