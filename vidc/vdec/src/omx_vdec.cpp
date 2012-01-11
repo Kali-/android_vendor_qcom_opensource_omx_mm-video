@@ -5346,49 +5346,6 @@ OMX_ERRORTYPE  omx_vdec::empty_this_buffer_proxy(OMX_IN OMX_HANDLETYPE         h
 
   }
 
-  if (!arbitrary_bytes &&
-       first_frame < 2 &&
-       (codec_type_parse == CODEC_TYPE_MPEG4 || codec_type_parse == CODEC_TYPE_MPEG2))
-  {
-
-    if (first_frame == 0)
-    {
-       first_buffer = (unsigned char *)malloc (drv_ctx.ip_buf.buffer_size);
-	if(first_buffer == NULL){
-		return OMX_ErrorInsufficientResources;
-	}
-       DEBUG_PRINT_LOW("\n Copied the first buffer data size %d ",
-                    temp_buffer->buffer_len);
-#ifdef MAX_RES_1080P
-       if (codec_type_parse == CODEC_TYPE_MPEG4) {
-           mp4StreamType psBits;
-           psBits.data = (unsigned char *)temp_buffer->bufferaddr;
-           psBits.numBytes = temp_buffer->buffer_len;
-           mp4_headerparser.parseHeader(&psBits);
-       }
-#endif
-       first_frame = 1;
-       memcpy (first_buffer,temp_buffer->bufferaddr,temp_buffer->buffer_len);
-       first_frame_size = buffer->nFilledLen;
-       buffer->nFilledLen = 0;
-       post_event ((unsigned int)buffer,VDEC_S_SUCCESS,
-                   OMX_COMPONENT_GENERATE_EBD);
-       return OMX_ErrorNone;
-    }
-    else if (first_frame == 1)
-    {
-       first_frame = 2;
-       DEBUG_PRINT_LOW("\n Second buffer copy the header size %d frame size %d",
-                    first_frame_size,temp_buffer->buffer_len);
-       memcpy (&first_buffer [first_frame_size],temp_buffer->bufferaddr,
-               temp_buffer->buffer_len);
-       first_frame_size += temp_buffer->buffer_len;
-       memcpy (temp_buffer->bufferaddr,first_buffer,first_frame_size);
-       temp_buffer->buffer_len = first_frame_size;
-       free (first_buffer);
-    }
-  }
-
   frameinfo.bufferaddr = temp_buffer->bufferaddr;
   frameinfo.client_data = (void *) buffer;
   frameinfo.datalen = temp_buffer->buffer_len;
