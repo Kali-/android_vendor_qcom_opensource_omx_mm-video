@@ -5053,7 +5053,7 @@ OMX_ERRORTYPE  omx_vdec::free_buffer(OMX_IN OMX_HANDLETYPE         hComp,
                    OMX_ErrorPortUnpopulated,
                    OMX_COMPONENT_GENERATE_EVENT);
 
-        return eRet;
+        return OMX_ErrorIncorrectStateOperation;
     }
     else if (m_state != OMX_StateInvalid)
     {
