@@ -3978,7 +3978,7 @@ OMX_ERRORTYPE  omx_vdec::use_output_buffer(
      // found an empty buffer at i
      *bufferHdr = (m_out_mem_ptr + i );
      (*bufferHdr)->nAllocLen = drv_ctx.op_buf.buffer_size;
-     (*bufferHdr)->pBuffer = buffer;
+     (*bufferHdr)->pBuffer = buff;
      (*bufferHdr)->pAppPrivate = privateAppData;
      BITMASK_SET(&m_out_bm_count,i);
   }
