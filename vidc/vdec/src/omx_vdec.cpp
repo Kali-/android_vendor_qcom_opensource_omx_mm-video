@@ -94,6 +94,7 @@ char ouputextradatafilename [] = "/data/extradata";
 #endif
 
 #define DEFAULT_FPS 30
+#define MAX_INPUT_ERROR DEFAULT_FPS
 #define MAX_SUPPORTED_FPS 120
 
 #define VC1_SP_MP_START_CODE        0xC5000000
@@ -454,6 +455,7 @@ omx_vdec::omx_vdec(): m_state(OMX_StateInvalid),
                       client_extradata(0),
                       h264_last_au_ts(LLONG_MAX),
                       h264_last_au_flags(0),
+                      m_inp_err_count(0),
 #ifdef _ANDROID_
                       m_heap_ptr(NULL),
                       m_enable_android_native_buffers(OMX_FALSE),
@@ -742,15 +744,25 @@ void omx_vdec::process_event_cb(void *ctxt, unsigned char id)
           {
             if (p2 == VDEC_S_INPUT_BITSTREAM_ERR && p1)
             {
+              pThis->m_inp_err_count++;
               pThis->time_stamp_dts.remove_time_stamp(
               ((OMX_BUFFERHEADERTYPE *)p1)->nTimeStamp,
               (pThis->drv_ctx.interlace != VDEC_InterlaceFrameProgressive)
                 ?true:false);
             }
+            else
+            {
+              pThis->m_inp_err_count = 0;
+            }
             if ( pThis->empty_buffer_done(&pThis->m_cmp,
                  (OMX_BUFFERHEADERTYPE *)p1) != OMX_ErrorNone)
             {
                DEBUG_PRINT_ERROR("\n empty_buffer_done failure");
+               pThis->omx_report_error ();
+            }
+            if(pThis->m_inp_err_count >= MAX_INPUT_ERROR)
+            {
+               DEBUG_PRINT_ERROR("\n Input bitstream error for consecutive %d frames.", MAX_INPUT_ERROR);
                pThis->omx_report_error ();
             }
           }

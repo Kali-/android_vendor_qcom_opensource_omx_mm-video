@@ -674,6 +674,8 @@ private:
     OMX_BUFFERHEADERTYPE  *m_inp_mem_ptr;
     // Output memory pointer
     OMX_BUFFERHEADERTYPE  *m_out_mem_ptr;
+    // number of input bitstream error frame count
+    unsigned int m_inp_err_count;
 #ifdef _ANDROID_
     // Timestamp list
     ts_arr_list           m_timestamp_list;
