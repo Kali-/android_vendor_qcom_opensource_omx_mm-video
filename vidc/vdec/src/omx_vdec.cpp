@@ -7852,7 +7852,8 @@ void omx_vdec::adjust_timestamp(OMX_S64 &act_timestamp)
   else if (VALID_TS(prev_ts))
   {
     bool codec_cond = (drv_ctx.timestamp_adjust)?
-                      (!VALID_TS(act_timestamp) || act_timestamp <= (prev_ts+2000)) :
+                      (!VALID_TS(act_timestamp) || (((act_timestamp > prev_ts)?
+                      (act_timestamp - prev_ts):(prev_ts - act_timestamp)) <= 2000)):
                       (!VALID_TS(act_timestamp) || act_timestamp == prev_ts);
     if(frm_int > 0 && codec_cond)
     {
