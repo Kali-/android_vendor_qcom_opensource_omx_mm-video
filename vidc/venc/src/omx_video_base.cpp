@@ -1,5 +1,5 @@
 /*--------------------------------------------------------------------------
-Copyright (c) 2010-2011, Code Aurora Forum. All rights reserved.
+Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -3146,11 +3146,16 @@ OMX_ERRORTYPE  omx_video::empty_this_buffer_proxy(OMX_IN OMX_HANDLETYPE         
           media_buffer->buffer_type != kMetadataBufferTypeGrallocSource) {
           met_error = true;
       } else {
-        if(media_buffer->buffer_type == kMetadataBufferTypeCameraSource &&
-           (media_buffer->meta_handle->numFds != 1 &&
-            media_buffer->meta_handle->numInts != 2))
+        if(media_buffer->buffer_type == kMetadataBufferTypeCameraSource)
         {
-          met_error = true;
+          if(media_buffer->meta_handle == NULL) {
+            met_error = true;
+          }
+          else if((media_buffer->meta_handle->numFds != 1 &&
+                   media_buffer->meta_handle->numInts != 2))
+          {
+            met_error = true;
+          }
         }
       }
     } else {
