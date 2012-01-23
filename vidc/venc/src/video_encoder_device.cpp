@@ -1827,6 +1827,11 @@ bool venc_dev::venc_set_intra_period(OMX_U32 nPFrames, OMX_U32 nBFrames)
       DEBUG_PRINT_ERROR("B frames not supported");
       intraperiod_cfg.num_bframes = 0;
     }
+    else
+    {
+      DEBUG_PRINT_ERROR("B frames not supported");
+      intraperiod_cfg.num_bframes = 0;
+    }
 #endif
   }
   else
