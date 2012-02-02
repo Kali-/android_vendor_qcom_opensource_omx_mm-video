@@ -1,5 +1,5 @@
 /*--------------------------------------------------------------------------
-Copyright (c) 2010-2011, Code Aurora Forum. All rights reserved.
+Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -33,6 +33,11 @@ void omx_time_stamp_reorder::set_timestamp_reorder_mode(bool mode)
 	reorder_ts = mode;
 }
 
+void omx_time_stamp_reorder::enable_debug_print(bool flag)
+{
+        print_debug = flag;
+}
+
 omx_time_stamp_reorder::~omx_time_stamp_reorder()
 {
 	delete_list();
@@ -43,6 +48,7 @@ omx_time_stamp_reorder::omx_time_stamp_reorder()
 	reorder_ts = false;
 	phead = pcurrent = NULL;
 	error = false;
+        print_debug = false;
 }
 
 void omx_time_stamp_reorder::delete_list()
@@ -160,7 +166,8 @@ bool omx_time_stamp_reorder::insert_timestamp(OMX_BUFFERHEADERTYPE *header)
 		return false;
 	}
 	*table_entry = header->nTimeStamp;
-	DEBUG("Time stamp inserted %lld", header->nTimeStamp);
+        if (print_debug)
+	        DEBUG("Time stamp inserted %lld", header->nTimeStamp);
 	if (header->nFlags & OMX_BUFFERFLAG_EOS) {
 		if (!add_new_list()) {
 			handle_error();
@@ -183,7 +190,8 @@ bool omx_time_stamp_reorder::remove_time_stamp(OMX_TICKS ts, bool is_interlaced 
 				phead->input_timestamps[i].in_use = false;
 				phead->entries_filled--;
 				num_ent_remove--;
-				DEBUG("Removed TS %lld", ts);
+                                if (print_debug)
+		                       DEBUG("Removed TS %lld", ts);
 		}
 	}
 	if (!phead->entries_filled) {
@@ -227,7 +235,8 @@ bool omx_time_stamp_reorder::get_next_timestamp(OMX_BUFFERHEADERTYPE *header, bo
 	if (element) {
 		phead->entries_filled--;
 		header->nTimeStamp = element->timestamps;
-		DEBUG("Getnext Time stamp %lld", header->nTimeStamp);
+                if (print_debug)
+		     DEBUG("Getnext Time stamp %lld", header->nTimeStamp);
 		element->in_use = false;
 	}
 	if(is_interlaced && duplicate) {

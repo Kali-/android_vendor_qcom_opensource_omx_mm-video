@@ -490,6 +490,7 @@ omx_vdec::omx_vdec(): m_state(OMX_StateInvalid),
   if (m_debug_timestamp)
   {
     time_stamp_dts.set_timestamp_reorder_mode(true);
+    time_stamp_dts.enable_debug_print(true);
   }
 
   property_value[0] = NULL;

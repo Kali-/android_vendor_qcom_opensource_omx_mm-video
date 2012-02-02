@@ -1,5 +1,5 @@
 /*--------------------------------------------------------------------------
-Copyright (c) 2010-2011, Code Aurora Forum. All rights reserved.
+Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -48,6 +48,7 @@ public:
 	omx_time_stamp_reorder();
 	~omx_time_stamp_reorder();
 	void set_timestamp_reorder_mode(bool flag);
+        void enable_debug_print(bool flag);
 	bool insert_timestamp(OMX_BUFFERHEADERTYPE *header);
 	bool get_next_timestamp(OMX_BUFFERHEADERTYPE *header, bool is_interlaced);
 	bool remove_time_stamp(OMX_TICKS ts, bool is_interlaced);
@@ -80,5 +81,6 @@ private:
 		delete_list();
 	}
 	bool reorder_ts;
+        bool print_debug;
 };
 #endif
