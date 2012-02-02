@@ -1,5 +1,5 @@
 /*--------------------------------------------------------------------------
-Copyright (c) 2010-2011, Code Aurora Forum. All rights reserved.
+Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -740,6 +740,11 @@ void h264_stream_parser::hrd_parameters(h264_hrd_param *hrd_param)
   DEBUG_PRINT_LOW("-->cpb_cnt        : %u", hrd_param->cpb_cnt);
   DEBUG_PRINT_LOW("-->bit_rate_scale : %u", hrd_param->bit_rate_scale);
   DEBUG_PRINT_LOW("-->cpb_size_scale : %u", hrd_param->cpb_size_scale);
+  if (hrd_param->cpb_cnt > MAX_CPB_COUNT)
+  {
+    DEBUG_PRINT_LOW("ERROR: Invalid hrd_param->cpb_cnt [%u]!", hrd_param->cpb_cnt);
+    return;
+  }
   for (idx = 0; idx < hrd_param->cpb_cnt && more_bits(); idx++)
   {
     hrd_param->bit_rate_value[idx] = uev() + 1;
@@ -826,6 +831,11 @@ void h264_stream_parser::sei_buffering_period()
   if (vui_param.nal_hrd_parameters_present_flag)
   {
     hrd_param = &vui_param.nal_hrd_parameters;
+    if (hrd_param->cpb_cnt > MAX_CPB_COUNT)
+    {
+      DEBUG_PRINT_LOW("ERROR: Invalid hrd_param->cpb_cnt [%u]!", hrd_param->cpb_cnt);
+      return;
+    }
     for (idx = 0; idx < hrd_param->cpb_cnt ; idx++)
     {
       sei_buf_period.is_valid = true;
@@ -838,6 +848,11 @@ void h264_stream_parser::sei_buffering_period()
   if (vui_param.vcl_hrd_parameters_present_flag)
   {
     hrd_param = &vui_param.vcl_hrd_parameters;
+    if (hrd_param->cpb_cnt > MAX_CPB_COUNT)
+    {
+      DEBUG_PRINT_LOW("ERROR: Invalid hrd_param->cpb_cnt [%u]!", hrd_param->cpb_cnt);
+      return;
+    }
     for (idx = 0; idx < hrd_param->cpb_cnt ; idx++)
     {
       sei_buf_period.is_valid = true;
