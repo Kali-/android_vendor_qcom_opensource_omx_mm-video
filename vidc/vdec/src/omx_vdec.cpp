@@ -4234,14 +4234,15 @@ OMX_ERRORTYPE omx_vdec::free_input_buffer(OMX_BUFFERHEADERTYPE *bufferHdr)
        {
           DEBUG_PRINT_ERROR("\nVDEC_IOCTL_FREE_BUFFER returned error %d", ioctl_r);
        }
-
-       DEBUG_PRINT_LOW("\n unmap the input buffer fd=%d",
-                    drv_ctx.ptr_inputbuffer[index].pmem_fd);
-       DEBUG_PRINT_LOW("\n unmap the input buffer size=%d  address = %d",
-                    drv_ctx.ptr_inputbuffer[index].mmaped_size,
-                    drv_ctx.ptr_inputbuffer[index].bufferaddr);
-       munmap (drv_ctx.ptr_inputbuffer[index].bufferaddr,
-               drv_ctx.ptr_inputbuffer[index].mmaped_size);
+       if (!secure_mode) {
+           DEBUG_PRINT_LOW("\n unmap the input buffer fd=%d",
+                        drv_ctx.ptr_inputbuffer[index].pmem_fd);
+           DEBUG_PRINT_LOW("\n unmap the input buffer size=%d  address = %d",
+                        drv_ctx.ptr_inputbuffer[index].mmaped_size,
+                        drv_ctx.ptr_inputbuffer[index].bufferaddr);
+           munmap (drv_ctx.ptr_inputbuffer[index].bufferaddr,
+                   drv_ctx.ptr_inputbuffer[index].mmaped_size);
+       }
        close (drv_ctx.ptr_inputbuffer[index].pmem_fd);
        drv_ctx.ptr_inputbuffer[index].pmem_fd = -1;
        if (m_desc_buffer_ptr && m_desc_buffer_ptr[index].buf_addr)
@@ -4292,21 +4293,25 @@ OMX_ERRORTYPE omx_vdec::free_output_buffer(OMX_BUFFERHEADERTYPE *bufferHdr)
 #ifdef _ANDROID_
     if(m_enable_android_native_buffers) {
         if(drv_ctx.ptr_outputbuffer[index].pmem_fd > 0) {
-            munmap(drv_ctx.ptr_outputbuffer[index].bufferaddr,
-                    drv_ctx.ptr_outputbuffer[index].mmaped_size);
+            if(!secure_mode) {
+                munmap(drv_ctx.ptr_outputbuffer[index].bufferaddr,
+                        drv_ctx.ptr_outputbuffer[index].mmaped_size);
+            }
         }
         drv_ctx.ptr_outputbuffer[index].pmem_fd = -1;
     } else {
 #endif
         if (drv_ctx.ptr_outputbuffer[0].pmem_fd > 0 && !ouput_egl_buffers && !m_use_output_pmem)
         {
-            DEBUG_PRINT_LOW("\n unmap the output buffer fd = %d",
-                    drv_ctx.ptr_outputbuffer[0].pmem_fd);
-            DEBUG_PRINT_LOW("\n unmap the ouput buffer size=%d  address = %d",
-                    drv_ctx.ptr_outputbuffer[0].mmaped_size,
-                    drv_ctx.ptr_outputbuffer[0].bufferaddr);
-            munmap (drv_ctx.ptr_outputbuffer[0].bufferaddr,
-                    drv_ctx.ptr_outputbuffer[0].mmaped_size);
+            if(!secure_mode) {
+                DEBUG_PRINT_LOW("\n unmap the output buffer fd = %d",
+                        drv_ctx.ptr_outputbuffer[0].pmem_fd);
+                DEBUG_PRINT_LOW("\n unmap the ouput buffer size=%d  address = %d",
+                        drv_ctx.ptr_outputbuffer[0].mmaped_size,
+                        drv_ctx.ptr_outputbuffer[0].bufferaddr);
+                munmap (drv_ctx.ptr_outputbuffer[0].bufferaddr,
+                        drv_ctx.ptr_outputbuffer[0].mmaped_size);
+            }
 #ifdef _ANDROID_
             m_heap_ptr = NULL;
 #endif // _ANDROID_
@@ -8547,7 +8552,8 @@ void omx_vdec::vdec_dealloc_h264_mv()
     {
       if(ioctl(drv_ctx.video_driver_fd, VDEC_IOCTL_FREE_H264_MV_BUFFER,NULL) < 0)
         DEBUG_PRINT_ERROR("VDEC_IOCTL_FREE_H264_MV_BUFFER failed");
-      munmap(h264_mv_buff.buffer, h264_mv_buff.size);
+      if(!secure_mode)
+          munmap(h264_mv_buff.buffer, h264_mv_buff.size);
       close(h264_mv_buff.pmem_fd);
 #ifdef USE_ION
       free_ion_memory(&drv_ctx.h264_mv);
