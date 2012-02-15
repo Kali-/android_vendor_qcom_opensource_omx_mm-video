@@ -4184,11 +4184,15 @@ OMX_ERRORTYPE  omx_vdec::use_buffer(
 
   if (bufferHdr == NULL || bytes == 0)
   {
-      if(!secure_mode && buffer == NULL) {
-          DEBUG_PRINT_ERROR("bad param 0x%p %ld 0x%p",bufferHdr, bytes, buffer);
-          return OMX_ErrorBadParameter;
-      }
+      DEBUG_PRINT_ERROR("bad param 0x%p %ld",bufferHdr, bytes);
+      return OMX_ErrorBadParameter;
   }
+
+  if(!secure_mode && buffer == NULL) {
+      DEBUG_PRINT_ERROR("bad param 0x%p",buffer);
+      return OMX_ErrorBadParameter;
+  }
+
   if(m_state == OMX_StateInvalid)
   {
     DEBUG_PRINT_ERROR("Use Buffer in Invalid State\n");

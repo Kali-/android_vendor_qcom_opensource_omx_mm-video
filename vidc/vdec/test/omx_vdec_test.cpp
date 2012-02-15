@@ -1,5 +1,5 @@
 /*--------------------------------------------------------------------------
-Copyright (c) 2010-2011, Code Aurora Forum. All rights reserved.
+Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -235,6 +235,7 @@ static struct fb_fix_screeninfo finfo;
 static struct mdp_overlay overlay, *overlayp;
 static struct msmfb_overlay_data ov_front;
 static int vid_buf_front_id;
+static char tempbuf[16];
 int overlay_fb(struct OMX_BUFFERHEADERTYPE *pBufHdr);
 void overlay_set();
 void overlay_unset();
@@ -1151,7 +1152,8 @@ int main(int argc, char **argv)
       printf(" 5--> DivX\n");
       printf(" 6--> MPEG2\n");
       fflush(stdin);
-      scanf("%d", &codec_format_option);
+      fgets(tempbuf,sizeof(tempbuf),stdin);
+      sscanf(tempbuf,"%d",&codec_format_option);
       fflush(stdin);
       if (codec_format_option > CODEC_FORMAT_MAX)
       {
@@ -1189,12 +1191,14 @@ int main(int argc, char **argv)
       }
 
       fflush(stdin);
-      scanf("%d", &file_type_option);
+      fgets(tempbuf,sizeof(tempbuf),stdin);
+      sscanf(tempbuf,"%d",&file_type_option);
       fflush(stdin);
       if (codec_format_option == CODEC_FORMAT_H264 && file_type_option == 3)
       {
         printf(" Enter Nal length size [2 or 4] \n");
-        scanf("%d", &nalSize);
+        fgets(tempbuf,sizeof(tempbuf),stdin);
+        sscanf(tempbuf,"%d",&nalSize);
         if (nalSize != 2 && nalSize != 4)
         {
           printf("Error - Can't pass NAL length size = %d\n", nalSize);
@@ -1210,7 +1214,8 @@ int main(int argc, char **argv)
       printf(" 2 --> Take YUV log\n");
       printf(" 3 --> Display YUV and take YUV log\n");
       fflush(stdin);
-      scanf("%d", &outputOption);
+      fgets(tempbuf,sizeof(tempbuf),stdin);
+      sscanf(tempbuf,"%d",&outputOption);
       fflush(stdin);
 
       printf(" *********************************************\n");
@@ -1220,7 +1225,8 @@ int main(int argc, char **argv)
       printf(" 2 --> Run compliance test. Do NOT expect any display for most option. \n");
       printf("       Please only see \"TEST SUCCESSFULL\" to indicate test pass\n");
       fflush(stdin);
-      scanf("%d", &test_option);
+      fgets(tempbuf,sizeof(tempbuf),stdin);
+      sscanf(tempbuf,"%d",&test_option);
       fflush(stdin);
 
       if (outputOption == 1 || outputOption == 3)
@@ -1235,7 +1241,8 @@ int main(int argc, char **argv)
           printf(" 4 --> 1/4 th of the screen starting from middle to bottom right \n");
           printf("       Please only see \"TEST SUCCESSFULL\" to indidcate test pass\n");
           fflush(stdin);
-          scanf("%d", &displayWindow);
+          fgets(tempbuf,sizeof(tempbuf),stdin);
+          sscanf(tempbuf,"%d",&displayWindow);
           fflush(stdin);
           if(displayWindow > 0)
           {
@@ -1253,7 +1260,8 @@ int main(int argc, char **argv)
           printf("          For Arbitrary bytes option, Real time display is not recommended\n");
           printf(" *********************************************\n");
           fflush(stdin);
-          scanf("%d", &realtime_display);
+          fgets(tempbuf,sizeof(tempbuf),stdin);
+          sscanf(tempbuf,"%d",&realtime_display);
           fflush(stdin);
       }
 
@@ -1265,7 +1273,8 @@ int main(int argc, char **argv)
           printf(" Exception: Timestamp extracted from clips will be used.\n");
           printf(" *********************************************\n");
           fflush(stdin);
-          scanf("%d", &fps);
+          fgets(tempbuf,sizeof(tempbuf),stdin);
+          sscanf(tempbuf,"%d",&fps);
           fflush(stdin);
           timestampInterval = 1000000/fps;
       }
@@ -1275,7 +1284,8 @@ int main(int argc, char **argv)
       printf(" 0 --> Semiplanar \n 1 --> Tile Mode\n");
       printf(" *********************************************\n");
       fflush(stdin);
-      scanf("%d", &color_fmt_type);
+      fgets(tempbuf,sizeof(tempbuf),stdin);
+      sscanf(tempbuf,"%d",&color_fmt_type);
       fflush(stdin);
 
       printf(" *********************************************\n");
@@ -1283,7 +1293,8 @@ int main(int argc, char **argv)
       printf(" *********************************************\n");
       printf(" 0 --> Display order\n 1 --> Decode order\n");
       fflush(stdin);
-      scanf("%d", &pic_order);
+      fgets(tempbuf,sizeof(tempbuf),stdin);
+      sscanf(tempbuf,"%d",&pic_order);
       fflush(stdin);
     }
     if (file_type_option >= FILE_TYPE_COMMON_CODEC_MAX)
@@ -1352,7 +1363,8 @@ int main(int argc, char **argv)
       printf(" 3 --> Call Free Handle at the OMX_StateExecuting\n");
       printf(" 4 --> Call Free Handle at the OMX_StatePause\n");
       fflush(stdin);
-      scanf("%d", &freeHandle_option);
+      fgets(tempbuf,sizeof(tempbuf),stdin);
+      sscanf(tempbuf,"%d",&freeHandle_option);
       fflush(stdin);
     }
     else
