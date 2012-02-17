@@ -1,5 +1,5 @@
 /*--------------------------------------------------------------------------
-Copyright (c) 2010-2011, Code Aurora Forum. All rights reserved.
+Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -856,6 +856,18 @@ bool venc_dev::venc_set_param(void *paramData,OMX_INDEXTYPE index )
       }
       break;
     }
+  case OMX_ExtraDataVideoEncoderSliceInfo:
+    {
+      DEBUG_PRINT_LOW("venc_set_param: OMX_ExtraDataVideoEncoderSliceInfo");
+      OMX_U32 extra_data = *(OMX_U32 *)paramData;
+      if(venc_set_extradata(extra_data) == false)
+      {
+         DEBUG_PRINT_ERROR("ERROR: Setting "
+            "OMX_QcomIndexParamIndexExtraDataType failed");
+         return false;
+      }
+      break;
+    }
   case OMX_IndexParamVideoSliceFMO:
   default:
 	  DEBUG_PRINT_ERROR("\nERROR: Unsupported parameter in venc_set_param: %u",
@@ -1508,6 +1520,21 @@ bool venc_dev::venc_fill_buf(void *buffer, void *pmem_data_buf)
   if(ioctl (m_nDriver_fd,VEN_IOCTL_CMD_FILL_OUTPUT_BUFFER,&ioctl_msg) < 0)
   {
     DEBUG_PRINT_ERROR("\nERROR: ioctl VEN_IOCTL_CMD_FILL_OUTPUT_BUFFER failed");
+    return false;
+  }
+
+  return true;
+}
+
+bool venc_dev::venc_set_extradata(OMX_U32 extra_data)
+{
+  venc_ioctl_msg ioctl_msg = {NULL,NULL};
+  DEBUG_PRINT_HIGH("venc_set_extradata:: %x", extra_data);
+  ioctl_msg.in = (void*)&extra_data;
+  ioctl_msg.out = NULL;
+  if(ioctl (m_nDriver_fd, VEN_IOCTL_SET_EXTRADATA, (void*)&ioctl_msg) < 0)
+  {
+    DEBUG_PRINT_ERROR("ERROR: Request for setting extradata failed");
     return false;
   }
 

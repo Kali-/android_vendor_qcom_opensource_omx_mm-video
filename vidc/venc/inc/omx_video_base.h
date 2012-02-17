@@ -504,6 +504,8 @@ public:
   QOMX_VIDEO_INTRAPERIODTYPE m_sIntraperiod;
   OMX_VIDEO_PARAM_ERRORCORRECTIONTYPE m_sErrorCorrection;
   OMX_VIDEO_PARAM_INTRAREFRESHTYPE m_sIntraRefresh;
+  OMX_U32 m_sExtraData;
+  OMX_U32 m_sDebugSliceinfo;
 
   // fill this buffer queue
   omx_cmd_queue         m_ftb_q;

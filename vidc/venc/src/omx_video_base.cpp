@@ -1684,6 +1684,35 @@ OMX_ERRORTYPE  omx_video::get_parameter(OMX_IN OMX_HANDLETYPE     hComp,
         DEBUG_PRINT_LOW("Supporting capability index in encoder node");
         break;
    }
+#ifndef MAX_RES_720P
+  case OMX_QcomIndexParamIndexExtraDataType:
+    {
+      DEBUG_PRINT_LOW("get_parameter: OMX_QcomIndexParamIndexExtraDataType");
+      QOMX_INDEXEXTRADATATYPE *pParam = (QOMX_INDEXEXTRADATATYPE *)paramData;
+      if (pParam->nIndex == (OMX_INDEXTYPE)OMX_ExtraDataVideoEncoderSliceInfo)
+      {
+        if (pParam->nPortIndex == PORT_INDEX_OUT)
+        {
+          pParam->bEnabled =
+             (OMX_BOOL)((m_sExtraData & VEN_EXTRADATA_SLICEINFO) ? 1 : 0);
+          DEBUG_PRINT_HIGH("Slice Info extradata %d", pParam->bEnabled);
+        }
+        else
+        {
+          DEBUG_PRINT_ERROR("get_parameter: slice information is "
+              "valid for output port only");
+          eRet =OMX_ErrorUnsupportedIndex;
+        }
+      }
+      else
+      {
+        DEBUG_PRINT_ERROR("get_parameter: unsupported index (%x), "
+            "only slice information extradata is supported", pParam->nIndex);
+        eRet =OMX_ErrorUnsupportedIndex;
+      }
+      break;
+    }
+#endif
   case OMX_IndexParamVideoSliceFMO:
   default:
     {
@@ -2779,7 +2808,7 @@ OMX_ERRORTYPE  omx_video::allocate_buffer(OMX_IN OMX_HANDLETYPE                h
 
   OMX_ERRORTYPE eRet = OMX_ErrorNone; // OMX return type
 
-  DEBUG_PRINT_LOW("\n Allocate buffer on port %d \n", (int)port);
+  DEBUG_PRINT_LOW("\n Allocate buffer of size = %d on port %d \n", bytes, (int)port);
   if(m_state == OMX_StateInvalid)
   {
     DEBUG_PRINT_ERROR("ERROR: Allocate Buf in Invalid State\n");
@@ -3760,6 +3789,12 @@ OMX_ERRORTYPE omx_video::fill_buffer_done(OMX_HANDLETYPE hComp,
 
   extra_data_handle.create_extra_data(buffer);
 
+  if (m_sDebugSliceinfo) {
+    if(buffer->nFlags & OMX_BUFFERFLAG_EXTRADATA) {
+       DEBUG_PRINT_HIGH("parsing extradata");
+       extra_data_handle.parse_extra_data(buffer);
+    }
+  }
   /* For use buffer we need to copy the data */
   if(m_pCallbacks.FillBufferDone)
   {

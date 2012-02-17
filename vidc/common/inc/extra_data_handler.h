@@ -1,5 +1,5 @@
 /*--------------------------------------------------------------------------
-Copyright (c) 2010-2011, Code Aurora Forum. All rights reserved.
+Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -35,6 +35,8 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <stdlib.h>
 #include "OMX_QCOMExtns.h"
 #include<linux/msm_vidc_dec.h>
+#include<linux/msm_vidc_enc.h>
+
 
 #ifdef _ANDROID_
 extern "C"{
@@ -94,6 +96,8 @@ private:
   OMX_U32 create_frame_pack();
   OMX_S32 create_rbsp(OMX_U8 *buf, OMX_U32 nalu_type);
   OMX_U32 create_sei(OMX_U8 *buffer);
+  OMX_S32 parse_sliceinfo(OMX_BUFFERHEADERTYPE *pBufHdr,
+     OMX_OTHER_EXTRADATATYPE *pExtra);
 };
   
 #endif  

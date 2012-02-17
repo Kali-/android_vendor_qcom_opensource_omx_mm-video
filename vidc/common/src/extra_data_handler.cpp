@@ -1,5 +1,5 @@
 /*--------------------------------------------------------------------------
-Copyright (c) 2010-2011, Code Aurora Forum. All rights reserved.
+Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -216,6 +216,55 @@ OMX_S32 extra_data_handler::parse_sei(OMX_U8 *buffer, OMX_U32 buffer_length)
     payload_size, byte_ptr);
   return 1;
 }
+/*======================================================================
+  Slice Information will be available as below (each line is of 4 bytes)
+  | number of slices |
+  | 1st slice offset |
+  | 1st slice size   |
+  | ..               |
+  | Nth slice offset |
+  | Nth slice size   |
+======================================================================*/
+OMX_S32 extra_data_handler::parse_sliceinfo(
+  OMX_BUFFERHEADERTYPE *pBufHdr, OMX_OTHER_EXTRADATATYPE *pExtra)
+{
+  OMX_U32 slice_offset = 0, slice_size = 0, total_size = 0;
+  OMX_U8 *pBuffer = (OMX_U8 *)pBufHdr->pBuffer;
+  OMX_U32 *data = (OMX_U32 *)pExtra->data;
+  OMX_U32 num_slices = *data;
+  DEBUG_PRINT_HIGH("number of slices = %d", num_slices);
+  if ((4 + num_slices * 8) != (OMX_U32)pExtra->nDataSize) {
+    DEBUG_PRINT_ERROR("unknown error in slice info extradata");
+    return -1;
+  }
+  for (int i = 0; i < num_slices; i++) {
+    slice_offset = (OMX_U32)(*(data + (i*2 + 1)));
+    if ((*(pBuffer + slice_offset + 0) != 0x00) ||
+        (*(pBuffer + slice_offset + 1) != 0x00) ||
+        (*(pBuffer + slice_offset + 2) != 0x00) ||
+        (*(pBuffer + slice_offset + 3) != H264_START_CODE)) {
+      DEBUG_PRINT_ERROR("found 0x%x instead of start code at offset[%d] "
+        "for slice[%d]", (OMX_U32)(*(OMX_U32 *)(pBuffer + slice_offset)),
+        slice_offset, i);
+      return -1;
+    }
+    if (slice_offset != total_size) {
+      DEBUG_PRINT_ERROR("offset of slice number %d is not correct "
+          "or previous slice size is not correct", i);
+      return -1;
+    }
+    slice_size = (OMX_U32)(*(data + (i*2 + 2)));
+    total_size += slice_size;
+    DEBUG_PRINT_HIGH("slice number %d offset/size = %d/%d",
+        i, slice_offset, slice_size);
+  }
+  if (pBufHdr->nFilledLen != total_size) {
+    DEBUG_PRINT_ERROR("frame_size[%d] is not equal to "
+       "total slices size[%d]", pBufHdr->nFilledLen, total_size);
+    return -1;
+  }
+  return 0;
+}
 
 OMX_U32 extra_data_handler::parse_extra_data(OMX_BUFFERHEADERTYPE *buf_hdr)
 {
@@ -232,6 +281,15 @@ OMX_U32 extra_data_handler::parse_extra_data(OMX_BUFFERHEADERTYPE *buf_hdr)
         extra_data->eType, extra_data->nDataSize);
       if (extra_data->eType == VDEC_EXTRADATA_SEI) {
          parse_sei(extra_data->data, extra_data->nDataSize);
+      }
+      else if (extra_data->eType == VEN_EXTRADATA_QCOMFILLER) {
+         DEBUG_PRINT_HIGH("Extradata Qcom Filler found, skip %d bytes",
+            extra_data->nSize);
+      }
+      else if (extra_data->eType == VEN_EXTRADATA_SLICEINFO) {
+         DEBUG_PRINT_HIGH("Extradata SliceInfo of size %d found, "
+            "parsing it", extra_data->nDataSize);
+         parse_sliceinfo(buf_hdr, extra_data);
       }
       extra_data = (OMX_OTHER_EXTRADATATYPE *) (((OMX_U8 *) extra_data) +
         extra_data->nSize);
