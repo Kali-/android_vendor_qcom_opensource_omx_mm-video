@@ -151,6 +151,7 @@ protected:
   bool meta_mode_enable;
   encoder_media_buffer_type meta_buffers[MAX_NUM_INPUT_BUFFERS];
   OMX_BUFFERHEADERTYPE meta_buffer_hdr[MAX_NUM_INPUT_BUFFERS];
+  bool mUseProxyColorFormat;
 #endif
 public:
   omx_video();  // constructor

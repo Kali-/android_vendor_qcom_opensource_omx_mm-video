@@ -1450,6 +1450,10 @@ OMX_ERRORTYPE  omx_video::get_parameter(OMX_IN OMX_HANDLETYPE     hComp,
         {
           portDefn->nBufferSize = sizeof(encoder_media_buffer_type);
         }
+
+        if (mUseProxyColorFormat) {
+            portDefn->format.video.eColorFormat = (OMX_COLOR_FORMATTYPE)QOMX_COLOR_FormatAndroidOpaque;
+        }
 #endif
       }
       else if(portDefn->nPortIndex == (OMX_U32) PORT_INDEX_OUT)
@@ -1482,7 +1486,19 @@ OMX_ERRORTYPE  omx_video::get_parameter(OMX_IN OMX_HANDLETYPE     hComp,
 
       if(portFmt->nPortIndex == (OMX_U32) PORT_INDEX_IN)
       {
-        memcpy(portFmt, &m_sInPortFormat, sizeof(m_sInPortFormat));
+          int index = portFmt->nIndex;
+          memcpy(portFmt, &m_sInPortFormat, sizeof(m_sInPortFormat));
+
+#ifdef _ANDROID_ICS_
+          if (index == 1) {
+              //we support two formats
+              //index 0 - YUV420SP
+              //index 1 - opaque which internally maps to YUV420SP.
+              //this can be extended in the future
+              portFmt->nIndex = index; //restore index set from client
+              portFmt->eColorFormat = (OMX_COLOR_FORMATTYPE)QOMX_COLOR_FormatAndroidOpaque;
+          }
+#endif
       }
       else if(portFmt->nPortIndex == (OMX_U32) PORT_INDEX_OUT)
       {
