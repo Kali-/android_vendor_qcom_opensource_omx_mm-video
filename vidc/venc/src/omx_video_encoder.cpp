@@ -1,5 +1,5 @@
 /*--------------------------------------------------------------------------
-Copyright (c) 2010-2011, Code Aurora Forum. All rights reserved.
+Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -59,6 +59,7 @@ omx_venc::omx_venc()
   meta_mode_enable = false;
   memset(meta_buffer_hdr,0,sizeof(meta_buffer_hdr));
   memset(meta_buffers,0,sizeof(meta_buffers));
+  mUseProxyColorFormat = false;
 #endif
 }
 
@@ -493,6 +494,13 @@ OMX_ERRORTYPE  omx_venc::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
         DEBUG_PRINT_LOW("\n i/p previous min cnt = %d\n", m_sInPortDef.nBufferCountMin);
         memcpy(&m_sInPortDef, portDefn,sizeof(OMX_PARAM_PORTDEFINITIONTYPE));
 
+#ifdef _ANDROID_ICS_
+        if (portDefn->format.video.eColorFormat == (OMX_COLOR_FORMATTYPE)QOMX_COLOR_FormatAndroidOpaque) {
+            m_sInPortDef.format.video.eColorFormat =
+                OMX_COLOR_FormatYUV420SemiPlanar;
+            mUseProxyColorFormat = true;
+        } //else case not needed as color format is already updated in the memcpy above
+#endif
         /*Query Input Buffer Requirements*/
         dev_get_buf_req   (&m_sInPortDef.nBufferCountMin,
                            &m_sInPortDef.nBufferCountActual,
@@ -552,7 +560,18 @@ OMX_ERRORTYPE  omx_venc::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
         DEBUG_PRINT_LOW("set_parameter: OMX_IndexParamVideoPortFormat %d\n",
             portFmt->eColorFormat);
         update_profile_level(); //framerate
-        m_sInPortFormat.eColorFormat = portFmt->eColorFormat;
+
+#ifdef _ANDROID_ICS_
+        if (portFmt->eColorFormat ==
+            (OMX_COLOR_FORMATTYPE)QOMX_COLOR_FormatAndroidOpaque) {
+            m_sInPortFormat.eColorFormat = OMX_COLOR_FormatYUV420SemiPlanar;
+            mUseProxyColorFormat = true;
+        }
+        else
+#endif
+        {
+            m_sInPortFormat.eColorFormat = portFmt->eColorFormat;
+        }
         m_sInPortFormat.xFramerate = portFmt->xFramerate;
       }
       //TODO if no use case for O/P port,delet m_sOutPortFormat
