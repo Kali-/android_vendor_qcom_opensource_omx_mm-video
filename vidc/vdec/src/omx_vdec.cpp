@@ -94,7 +94,9 @@ char ouputextradatafilename [] = "/data/extradata";
 #endif
 
 #define DEFAULT_FPS 30
-#define MAX_INPUT_ERROR DEFAULT_FPS
+#define MAX_NUM_SPS 32
+#define MAX_NUM_PPS 256
+#define MAX_INPUT_ERROR (MAX_NUM_SPS + MAX_NUM_PPS)
 #define MAX_SUPPORTED_FPS 120
 
 #define VC1_SP_MP_START_CODE        0xC5000000
@@ -761,7 +763,7 @@ void omx_vdec::process_event_cb(void *ctxt, unsigned char id)
                DEBUG_PRINT_ERROR("\n empty_buffer_done failure");
                pThis->omx_report_error ();
             }
-            if(!pThis->arbitrary_bytes && pThis->m_inp_err_count >= MAX_INPUT_ERROR)
+            if(!pThis->arbitrary_bytes && pThis->m_inp_err_count > MAX_INPUT_ERROR)
             {
                DEBUG_PRINT_ERROR("\n Input bitstream error for consecutive %d frames.", MAX_INPUT_ERROR);
                pThis->omx_report_error ();
