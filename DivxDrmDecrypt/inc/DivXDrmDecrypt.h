@@ -1,5 +1,5 @@
 /*--------------------------------------------------------------------------
-Copyright (c) 2010-2011, Code Aurora Forum. All rights reserved.
+Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -35,7 +35,7 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 class DivXDrmDecrypt
 {
 public:
-    static DivXDrmDecrypt* Create( OMX_PTR drmHandle );
+    static DivXDrmDecrypt* Create();
     virtual OMX_ERRORTYPE Init() = 0;
     virtual OMX_ERRORTYPE Decrypt(OMX_BUFFERHEADERTYPE* buffer) = 0;
     inline virtual ~DivXDrmDecrypt() {}
@@ -44,6 +44,6 @@ public:
 //.so file should provide a function with the name createDivXDrmDecrypt with
 //prototype of DivXDrmDecryptFactory.
 static const char* MEDIA_CREATE_DIVX_DRM_DECRYPT = "createDivXDrmDecrypt";
-typedef DivXDrmDecrypt* (*DivXDrmDecryptFactory)( OMX_PTR drmHandle );
+typedef DivXDrmDecrypt* (*DivXDrmDecryptFactory)();
 
 #endif //__DIVXDRMDECRYPT_H__

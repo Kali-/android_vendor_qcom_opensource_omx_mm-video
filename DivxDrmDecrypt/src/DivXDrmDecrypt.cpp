@@ -1,5 +1,5 @@
 /*--------------------------------------------------------------------------
-Copyright (c) 2010-2011, Code Aurora Forum. All rights reserved.
+Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -29,56 +29,62 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "DivXDrmDecrypt.h"
 #include <dlfcn.h>  // for dlopen/dlclose
 
-#define LOG_NDEBUG 0
+//#define LOG_NDEBUG 0
 #define LOG_TAG "DivXDrmDecrypt"
 #include <utils/Log.h>
 
-static const char* MM_PARSER_LIB = "libmmparser.so";
+static const char* DIVX_DRM_SHIM_LIB = "libSHIMDivxDrm.so";
 
-void* MmParserLib() {
-    static void* mmParserLib = NULL;
+void* getDecryptHandle() {
+    static void* decryptLib = NULL;
+    static bool  decryptLibOpened = false;
 
-    if( mmParserLib != NULL ) {
-        return mmParserLib;
+    if(decryptLibOpened) {
+        return decryptLib;
     }
 
-    mmParserLib = ::dlopen(MM_PARSER_LIB, RTLD_NOW);
+    decryptLib = ::dlopen(DIVX_DRM_SHIM_LIB, RTLD_NOW);
+    decryptLibOpened = true;
 
-    if (mmParserLib == NULL) {
-        LOGE("Failed to open MM_PARSER_LIB \n");
+    if (decryptLib == NULL) {
+        LOGE("Failed to open DIVX_DRM_SHIM_LIB \n");
     }
 
-    return mmParserLib;
+    return decryptLib;
 }
 
 DivXDrmDecryptFactory DrmDecryptFactoryFunction() {
     static DivXDrmDecryptFactory drmDecryptFactoryFunction = NULL;
+    static bool alreadyTriedToFindFactoryFunction = false;
 
-    if( drmDecryptFactoryFunction != NULL ) {
+    if(alreadyTriedToFindFactoryFunction) {
         return drmDecryptFactoryFunction;
     }
 
-    void *mmParserLib = MmParserLib();
-    if (mmParserLib == NULL) {
+    void *pDecryptLib = getDecryptHandle();
+    if (pDecryptLib == NULL) {
         return NULL;
     }
 
-    drmDecryptFactoryFunction = (DivXDrmDecryptFactory) dlsym(mmParserLib, MEDIA_CREATE_DIVX_DRM_DECRYPT);
+    drmDecryptFactoryFunction = (DivXDrmDecryptFactory) dlsym(pDecryptLib, MEDIA_CREATE_DIVX_DRM_DECRYPT);
+    alreadyTriedToFindFactoryFunction = true;
 
-    if( drmDecryptFactoryFunction == NULL ) {
-        LOGE(" dlsym for DrmDecrypt factory function failed  \n");
+    if(!drmDecryptFactoryFunction) {
+        LOGE(" dlsym for DrmDecrypt factory function failed \n");
     }
 
     return drmDecryptFactoryFunction;
 }
 
-DivXDrmDecrypt* DivXDrmDecrypt::Create( OMX_PTR drmHandle ) {
+
+
+DivXDrmDecrypt* DivXDrmDecrypt::Create() {
     DivXDrmDecryptFactory drmCreateFunc = DrmDecryptFactoryFunction();
     if( drmCreateFunc == NULL ) {
         return NULL;
     }
 
-    DivXDrmDecrypt* decrypt = drmCreateFunc( drmHandle );
+    DivXDrmDecrypt* decrypt = drmCreateFunc();
     if( decrypt == NULL ) {
         LOGE(" failed to instantiate DrmDecoder \n");
     }

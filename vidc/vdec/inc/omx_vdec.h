@@ -634,7 +634,7 @@ private:
         }
     }
 #ifdef _ANDROID_
-    OMX_ERRORTYPE createDivxDrmContext( OMX_PTR drmHandle );
+    OMX_ERRORTYPE createDivxDrmContext();
 #endif //_ANDROID_
 #if defined (_ANDROID_HONEYCOMB_) || defined (_ANDROID_ICS_)
     OMX_ERRORTYPE use_android_native_buffer(OMX_IN OMX_HANDLETYPE hComp, OMX_PTR data);
