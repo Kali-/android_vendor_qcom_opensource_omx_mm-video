@@ -705,7 +705,12 @@ private:
 
 #ifdef _ANDROID_
     // Heap pointer to frame buffers
-    sp<MemoryHeapBase>    m_heap_ptr;
+    struct vidc_heap
+    {
+        sp<MemoryHeapBase>    video_heap_ptr;
+    };
+    struct vidc_heap *m_heap_ptr;
+    unsigned int m_heap_count;
 #endif //_ANDROID_
     // store I/P PORT state
     OMX_BOOL m_inp_bEnabled;

@@ -458,6 +458,7 @@ omx_vdec::omx_vdec(): m_state(OMX_StateInvalid),
                       m_inp_err_count(0),
 #ifdef _ANDROID_
                       m_heap_ptr(NULL),
+                      m_heap_count(0),
                       m_enable_android_native_buffers(OMX_FALSE),
                       m_use_android_native_buffers(OMX_FALSE),
 #endif
@@ -521,7 +522,6 @@ omx_vdec::omx_vdec(): m_state(OMX_StateInvalid),
   m_debug_extradata = atoi(extradata_value);
   DEBUG_PRINT_HIGH("vidc.dec.debug.extradata value is %d",m_debug_extradata);
 #endif
-
 }
 
 
@@ -4266,6 +4266,7 @@ OMX_ERRORTYPE omx_vdec::free_output_buffer(OMX_BUFFERHEADERTYPE *bufferHdr)
 
   if (bufferHdr == NULL || m_out_mem_ptr == NULL)
   {
+    DEBUG_PRINT_ERROR("\nfree_output_buffer ERROR");
     return OMX_ErrorBadParameter;
   }
 
@@ -4301,28 +4302,34 @@ OMX_ERRORTYPE omx_vdec::free_output_buffer(OMX_BUFFERHEADERTYPE *bufferHdr)
         drv_ctx.ptr_outputbuffer[index].pmem_fd = -1;
     } else {
 #endif
-        if (drv_ctx.ptr_outputbuffer[0].pmem_fd > 0 && !ouput_egl_buffers && !m_use_output_pmem)
-        {
-            if(!secure_mode) {
-                DEBUG_PRINT_LOW("\n unmap the output buffer fd = %d",
-                        drv_ctx.ptr_outputbuffer[0].pmem_fd);
-                DEBUG_PRINT_LOW("\n unmap the ouput buffer size=%d  address = %d",
-                        drv_ctx.ptr_outputbuffer[0].mmaped_size,
-                        drv_ctx.ptr_outputbuffer[0].bufferaddr);
-                munmap (drv_ctx.ptr_outputbuffer[0].bufferaddr,
-                        drv_ctx.ptr_outputbuffer[0].mmaped_size);
-            }
+            if (drv_ctx.ptr_outputbuffer[index].pmem_fd > 0 && !ouput_egl_buffers && !m_use_output_pmem)
+            {
+               if(!secure_mode) {
+                    DEBUG_PRINT_LOW("\n unmap the output buffer fd = %d",
+                            drv_ctx.ptr_outputbuffer[index].pmem_fd);
+                    DEBUG_PRINT_LOW("\n unmap the ouput buffer size=%d  address = %d",
+                            drv_ctx.ptr_outputbuffer[index].mmaped_size,
+                            drv_ctx.ptr_outputbuffer[index].bufferaddr);
+                    munmap (drv_ctx.ptr_outputbuffer[index].bufferaddr,
+                            drv_ctx.ptr_outputbuffer[index].mmaped_size);
+               }
 #ifdef _ANDROID_
-            m_heap_ptr = NULL;
+                m_heap_ptr[index].video_heap_ptr = NULL;
+                m_heap_count = m_heap_count - 1;
+                if (m_heap_count == 0)
+                {
+                    free(m_heap_ptr);
+                    m_heap_ptr = NULL;
+                }
 #endif // _ANDROID_
-          close (drv_ctx.ptr_outputbuffer[0].pmem_fd);
-          drv_ctx.ptr_outputbuffer[0].pmem_fd = -1;
+                close (drv_ctx.ptr_outputbuffer[index].pmem_fd);
+                drv_ctx.ptr_outputbuffer[index].pmem_fd = -1;
 #ifdef USE_ION
-       free_ion_memory(&drv_ctx.op_buf_ion_info[0]);
+                free_ion_memory(&drv_ctx.op_buf_ion_info[index]);
 #endif
-        }
+          }
 #ifdef _ANDROID_
-    }
+       }
 #endif
   }
 #ifdef MAX_RES_1080P
@@ -4331,6 +4338,7 @@ OMX_ERRORTYPE omx_vdec::free_output_buffer(OMX_BUFFERHEADERTYPE *bufferHdr)
     vdec_dealloc_h264_mv();
   }
 #endif
+
   return OMX_ErrorNone;
 
 }
@@ -4642,24 +4650,26 @@ OMX_ERRORTYPE  omx_vdec::allocate_output_buffer(
   struct ion_fd_data fd_ion_data;
 #endif
 
-  if(!m_out_mem_ptr)
+  int nBufHdrSize        = 0;
+  int nPlatformEntrySize = 0;
+  int nPlatformListSize  = 0;
+  int nPMEMInfoSize = 0;
+  int pmem_fd = -1;
+  unsigned char *pmem_baseaddress = NULL;
+
+  OMX_QCOM_PLATFORM_PRIVATE_LIST      *pPlatformList;
+  OMX_QCOM_PLATFORM_PRIVATE_ENTRY     *pPlatformEntry;
+  OMX_QCOM_PLATFORM_PRIVATE_PMEM_INFO *pPMEMInfo;
+
+  if (!m_out_mem_ptr)
   {
     DEBUG_PRINT_HIGH("\n Allocate o/p buffer Header: Cnt(%d) Sz(%d)",
       drv_ctx.op_buf.actualcount,
       drv_ctx.op_buf.buffer_size);
-    int nBufHdrSize        = 0;
-    int nPlatformEntrySize = 0;
-    int nPlatformListSize  = 0;
-    int nPMEMInfoSize = 0;
-    int pmem_fd = -1;
-    unsigned char *pmem_baseaddress = NULL;
-
-    OMX_QCOM_PLATFORM_PRIVATE_LIST      *pPlatformList;
-    OMX_QCOM_PLATFORM_PRIVATE_ENTRY     *pPlatformEntry;
-    OMX_QCOM_PLATFORM_PRIVATE_PMEM_INFO *pPMEMInfo;
 
     DEBUG_PRINT_LOW("Allocating First Output Buffer(%d)\n",
       drv_ctx.op_buf.actualcount);
+
     nBufHdrSize        = drv_ctx.op_buf.actualcount *
                          sizeof(OMX_BUFFERHEADERTYPE);
 
@@ -4677,78 +4687,6 @@ OMX_ERRORTYPE  omx_vdec::allocate_output_buffer(
     DEBUG_PRINT_LOW("PE %d OutputBuffer Count %d \n",nPlatformEntrySize,
                          drv_ctx.op_buf.actualcount);
 
-#ifdef USE_ION
- ion_device_fd = alloc_map_ion_memory(
-                    drv_ctx.op_buf.buffer_size * drv_ctx.op_buf.actualcount,
-                    drv_ctx.op_buf.alignment,
-                    &ion_alloc_data, &fd_ion_data);
-    if (ion_device_fd < 0) {
-        return OMX_ErrorInsufficientResources;
-    }
-    pmem_fd = fd_ion_data.fd;
-#else
-    pmem_fd = open (MEM_DEVICE,O_RDWR);
-
-    if (pmem_fd < 0)
-    {
-      DEBUG_PRINT_ERROR("\nERROR:pmem fd for output buffer %d",
-        drv_ctx.op_buf.buffer_size);
-      return OMX_ErrorInsufficientResources;
-    }
-
-    if(pmem_fd == 0)
-    {
-      pmem_fd = open (MEM_DEVICE,O_RDWR);
-
-      if (pmem_fd < 0)
-      {
-        DEBUG_PRINT_ERROR("\nERROR:pmem fd for output buffer %d",
-          drv_ctx.op_buf.buffer_size);
-        return OMX_ErrorInsufficientResources;
-      }
-    }
-
-    if(!align_pmem_buffers(pmem_fd, drv_ctx.op_buf.buffer_size *
-      drv_ctx.op_buf.actualcount,
-      drv_ctx.op_buf.alignment))
-    {
-      DEBUG_PRINT_ERROR("\n align_pmem_buffers() failed");
-      close(pmem_fd);
-      return OMX_ErrorInsufficientResources;
-    }
-#endif
-   if (!secure_mode) {
-        pmem_baseaddress = (unsigned char *)mmap(NULL,
-                           (drv_ctx.op_buf.buffer_size *
-                            drv_ctx.op_buf.actualcount),
-                            PROT_READ|PROT_WRITE,MAP_SHARED,pmem_fd,0);
-        if (pmem_baseaddress == MAP_FAILED)
-        {
-          DEBUG_PRINT_ERROR("\n MMAP failed for Size %d",
-          drv_ctx.op_buf.buffer_size);
-          close(pmem_fd);
-#ifdef USE_ION
-          free_ion_memory(&drv_ctx.op_buf_ion_info[i]);
-#endif
-          return OMX_ErrorInsufficientResources;
-        }
-    }
-#ifdef _ANDROID_
-#ifdef USE_ION
-    m_heap_ptr = new VideoHeap (pmem_fd,
-                                drv_ctx.op_buf.buffer_size *
-                                drv_ctx.op_buf.actualcount,
-                                pmem_baseaddress,
-                                ion_alloc_data.handle,
-                                pmem_fd);
-#else
-    m_heap_ptr = new VideoHeap (pmem_fd,
-                                drv_ctx.op_buf.buffer_size *
-                                drv_ctx.op_buf.actualcount,
-                                pmem_baseaddress);
-
-#endif
-#endif
     m_out_mem_ptr = (OMX_BUFFERHEADERTYPE  *)calloc(nBufHdrSize,1);
     // Alloc mem for platform specific info
     char *pPtr=NULL;
@@ -4765,9 +4703,14 @@ OMX_ERRORTYPE  omx_vdec::allocate_output_buffer(
       calloc (sizeof(struct vdec_ion),
       drv_ctx.op_buf.actualcount);
 #endif
+#ifdef _ANDROID_
+    m_heap_ptr = (struct vidc_heap *)\
+       calloc (sizeof(struct vidc_heap),
+      drv_ctx.op_buf.actualcount);
+#endif
 
     if(m_out_mem_ptr && pPtr && drv_ctx.ptr_outputbuffer
-       && drv_ctx.ptr_respbuffer)
+       && drv_ctx.ptr_respbuffer && m_heap_ptr)
     {
       drv_ctx.ptr_outputbuffer[0].mmaped_size =
         (drv_ctx.op_buf.buffer_size *
@@ -4792,9 +4735,9 @@ OMX_ERRORTYPE  omx_vdec::allocate_output_buffer(
         bufHdr->nSize              = sizeof(OMX_BUFFERHEADERTYPE);
         bufHdr->nVersion.nVersion  = OMX_SPEC_VERSION;
         // Set the values when we determine the right HxW param
-        bufHdr->nAllocLen          = bytes;
+        bufHdr->nAllocLen          = 0;
         bufHdr->nFilledLen         = 0;
-        bufHdr->pAppPrivate        = appData;
+        bufHdr->pAppPrivate        = NULL;
         bufHdr->nOutputPortIndex   = OMX_CORE_OUTPUT_PORT_INDEX;
         // Platform specific PMEM Information
         // Initialize the Platform Entry
@@ -4806,30 +4749,21 @@ OMX_ERRORTYPE  omx_vdec::allocate_output_buffer(
         pPlatformList->entryList   = pPlatformEntry;
         // Keep pBuffer NULL till vdec is opened
         bufHdr->pBuffer            = NULL;
-        bufHdr->nOffset            = 0;
 
-        pPMEMInfo->offset          =  drv_ctx.op_buf.buffer_size*i;
+        pPMEMInfo->offset          =  0;
         pPMEMInfo->pmem_fd = 0;
         bufHdr->pPlatformPrivate = pPlatformList;
-
-        drv_ctx.ptr_outputbuffer[i].pmem_fd = pmem_fd;
+        drv_ctx.ptr_outputbuffer[i].pmem_fd = -1;
 #ifdef USE_ION
-        drv_ctx.op_buf_ion_info[i].ion_device_fd = ion_device_fd;
-        drv_ctx.op_buf_ion_info[i].ion_alloc_data = ion_alloc_data;
-        drv_ctx.op_buf_ion_info[i].fd_ion_data = fd_ion_data;
+        drv_ctx.op_buf_ion_info[i].ion_device_fd =-1;
 #endif
-
         /*Create a mapping between buffers*/
         bufHdr->pOutputPortPrivate = &drv_ctx.ptr_respbuffer[i];
         drv_ctx.ptr_respbuffer[i].client_data = (void *)\
                                             &drv_ctx.ptr_outputbuffer[i];
-        drv_ctx.ptr_outputbuffer[i].offset = drv_ctx.op_buf.buffer_size*i;
-        drv_ctx.ptr_outputbuffer[i].bufferaddr =
-          pmem_baseaddress + (drv_ctx.op_buf.buffer_size*i);
-
-        DEBUG_PRINT_LOW("\n pmem_fd = %d offset = %d address = %p",
-          pmem_fd, drv_ctx.ptr_outputbuffer[i].offset,
-          drv_ctx.ptr_outputbuffer[i].bufferaddr);
+#ifdef _ANDROID_
+        m_heap_ptr[i].video_heap_ptr = NULL;
+#endif
         // Move the buffer and buffer header pointers
         bufHdr++;
         pPMEMInfo++;
@@ -4883,62 +4817,133 @@ OMX_ERRORTYPE  omx_vdec::allocate_output_buffer(
     }
   }
 
-  for(i=0; i< drv_ctx.op_buf.actualcount; i++)
+  for (i=0; i< drv_ctx.op_buf.actualcount; i++)
   {
     if(BITMASK_ABSENT(&m_out_bm_count,i))
     {
-      DEBUG_PRINT_LOW("\n Found a Free Output Buffer %d",i);
+      DEBUG_PRINT_LOW("\n Found a Free Output Buffer Index %d",i);
       break;
     }
   }
 
-  if (eRet == OMX_ErrorNone)
+  if (i < drv_ctx.op_buf.actualcount)
   {
-    if(i < drv_ctx.op_buf.actualcount)
+    DEBUG_PRINT_LOW("\n Allocate Output Buffer");
+
+#ifdef USE_ION
+    drv_ctx.op_buf_ion_info[i].ion_device_fd = alloc_map_ion_memory(
+                    drv_ctx.op_buf.buffer_size,drv_ctx.op_buf.alignment,
+                    &drv_ctx.op_buf_ion_info[i].ion_alloc_data,
+                    &drv_ctx.op_buf_ion_info[i].fd_ion_data);
+    if (drv_ctx.op_buf_ion_info[i].ion_device_fd < 0) {
+        return OMX_ErrorInsufficientResources;
+     }
+    pmem_fd = drv_ctx.op_buf_ion_info[i].fd_ion_data.fd;
+#else
+    pmem_fd = open (MEM_DEVICE,O_RDWR);
+
+    if (pmem_fd < 0)
     {
-      m_pmem_info[i].offset = drv_ctx.ptr_outputbuffer[i].offset;
+      DEBUG_PRINT_ERROR("\nERROR:pmem fd for output buffer %d",
+        drv_ctx.op_buf.buffer_size);
+      return OMX_ErrorInsufficientResources;
+    }
+
+    if (pmem_fd == 0)
+    {
+      pmem_fd = open (MEM_DEVICE,O_RDWR);
+
+      if (pmem_fd < 0)
+      {
+         DEBUG_PRINT_ERROR("\nERROR:pmem fd for output buffer %d",
+           drv_ctx.op_buf.buffer_size);
+         return OMX_ErrorInsufficientResources;
+      }
+    }
+
+    if (!align_pmem_buffers(pmem_fd, drv_ctx.op_buf.buffer_size,
+      drv_ctx.op_buf.alignment))
+    {
+      DEBUG_PRINT_ERROR("\n align_pmem_buffers() failed");
+      close(pmem_fd);
+      return OMX_ErrorInsufficientResources;
+    }
+#endif
+    if (!secure_mode) {
+        pmem_baseaddress = (unsigned char *)mmap(NULL,
+                           drv_ctx.op_buf.buffer_size,
+                           PROT_READ|PROT_WRITE,MAP_SHARED,pmem_fd,0);
+
+        if (pmem_baseaddress == MAP_FAILED)
+        {
+          DEBUG_PRINT_ERROR("\n MMAP failed for Size %d",
+          drv_ctx.op_buf.buffer_size);
+          close(pmem_fd);
+#ifdef USE_ION
+          free_ion_memory(&drv_ctx.op_buf_ion_info[i]);
+#endif
+          return OMX_ErrorInsufficientResources;
+        }
+    }
+
+    *bufferHdr = (m_out_mem_ptr + i);
+    if (secure_mode)
+        drv_ctx.ptr_outputbuffer [i].bufferaddr = *bufferHdr;
+    else
+        drv_ctx.ptr_outputbuffer [i].bufferaddr = pmem_baseaddress;
+
+    drv_ctx.ptr_outputbuffer [i].pmem_fd = pmem_fd;
+    drv_ctx.ptr_outputbuffer [i].buffer_len = drv_ctx.op_buf.buffer_size;
+    drv_ctx.ptr_outputbuffer [i].mmaped_size = drv_ctx.op_buf.buffer_size;
+    drv_ctx.ptr_outputbuffer [i].offset = 0;
 
 #ifdef _ANDROID_
-      m_pmem_info[i].pmem_fd = (OMX_U32) m_heap_ptr.get ();
+#ifdef USE_ION
+    m_heap_ptr[i].video_heap_ptr = new VideoHeap (pmem_fd,
+                                drv_ctx.op_buf.buffer_size,
+                                pmem_baseaddress,
+                                ion_alloc_data.handle,
+                                pmem_fd);
+    m_heap_count = m_heap_count + 1;
 #else
-      m_pmem_info[i].pmem_fd = drv_ctx.ptr_outputbuffer[i].pmem_fd ;
+    m_heap_ptr[i].video_heap_ptr = new VideoHeap (pmem_fd,
+                                drv_ctx.op_buf.buffer_size,
+                                pmem_baseaddress);
+#endif
 #endif
 
-      drv_ctx.ptr_outputbuffer[i].buffer_len =
-        drv_ctx.op_buf.buffer_size;
+    m_pmem_info[i].offset = drv_ctx.ptr_outputbuffer[i].offset;
+#ifdef _ANDROID_
+    m_pmem_info[i].pmem_fd = (OMX_U32) m_heap_ptr[i].video_heap_ptr.get ();
+#else
+    m_pmem_info[i].pmem_fd = drv_ctx.ptr_outputbuffer[i].pmem_fd ;
+#endif
+    setbuffers.buffer_type = VDEC_BUFFER_TYPE_OUTPUT;
+    memcpy (&setbuffers.buffer,&drv_ctx.ptr_outputbuffer [i],
+            sizeof (vdec_bufferpayload));
+    ioctl_msg.in  = &setbuffers;
+    ioctl_msg.out = NULL;
 
-    *bufferHdr = (m_out_mem_ptr + i );
-    if (secure_mode) {
-       drv_ctx.ptr_outputbuffer[i].bufferaddr = *bufferHdr;
-    }
-   //drv_ctx.ptr_outputbuffer[i].mmaped_size = drv_ctx.op_buf.buffer_size;
-     setbuffers.buffer_type = VDEC_BUFFER_TYPE_OUTPUT;
-     memcpy (&setbuffers.buffer,&drv_ctx.ptr_outputbuffer[i],
-             sizeof (vdec_bufferpayload));
-
-     ioctl_msg.in  = &setbuffers;
-     ioctl_msg.out = NULL;
-
-     DEBUG_PRINT_LOW("\n Set the Output Buffer Idx: %d Addr: %x", i, drv_ctx.ptr_outputbuffer[i]);
-     if (ioctl (drv_ctx.video_driver_fd,VDEC_IOCTL_SET_BUFFER,
-          &ioctl_msg) < 0)
-     {
-       DEBUG_PRINT_ERROR("\n Set output buffer failed");
-       return OMX_ErrorInsufficientResources;
-     }
-
-      // found an empty buffer at i
-      (*bufferHdr)->pBuffer = (OMX_U8*)drv_ctx.ptr_outputbuffer[i].bufferaddr;
-      (*bufferHdr)->pAppPrivate = appData;
-      BITMASK_SET(&m_out_bm_count,i);
-    }
-    else
+    DEBUG_PRINT_LOW("\n Set the Output Buffer Idx: %d Addr: %x", i, drv_ctx.ptr_outputbuffer[i]); 
+    if (ioctl (drv_ctx.video_driver_fd,VDEC_IOCTL_SET_BUFFER,
+         &ioctl_msg) < 0)
     {
-      DEBUG_PRINT_ERROR("All the Output Buffers have been Allocated ; Returning Insufficient \n");
-      eRet = OMX_ErrorInsufficientResources;
+      DEBUG_PRINT_ERROR("\n Set output buffer failed");
+      return OMX_ErrorInsufficientResources;
     }
-  }
 
+    // found an empty buffer at i
+    (*bufferHdr)->nAllocLen = drv_ctx.op_buf.buffer_size;
+    (*bufferHdr)->pBuffer = (OMX_U8*)drv_ctx.ptr_outputbuffer[i].bufferaddr;
+    (*bufferHdr)->pAppPrivate = appData;
+    BITMASK_SET(&m_out_bm_count,i);
+
+  }
+  else
+  {
+    DEBUG_PRINT_ERROR("\nERROR:Output Buffer Index not found");
+    eRet = OMX_ErrorInsufficientResources;
+  }
   return eRet;
 }
 
@@ -5727,7 +5732,6 @@ OMX_ERRORTYPE  omx_vdec::component_deinit(OMX_IN OMX_HANDLETYPE hComp)
         iDivXDrmDecrypt=NULL;
     }
 #endif //_ANDROID_
-
     int i = 0;
     if (OMX_StateLoaded != m_state)
     {
@@ -5827,11 +5831,16 @@ OMX_ERRORTYPE  omx_vdec::component_deinit(OMX_IN OMX_HANDLETYPE hComp)
     * for us to know when surface flinger reduces its cound, so we wait
     * here in a infinite loop till the count is zero
     */
-     m_heap_ptr = NULL;
+     if (m_heap_ptr)
+     {
+         for (int indx = 0; indx < drv_ctx.op_buf.actualcount; indx++)
+              m_heap_ptr[indx].video_heap_ptr = NULL;
+         free(m_heap_ptr);
+         m_heap_ptr = NULL;
+         m_heap_count = 0;
+     }
 #endif // _ANDROID_
-
     close(drv_ctx.video_driver_fd);
-
 #ifdef INPUT_BUFFER_LOG
     fclose (inputBufferFile1);
 #endif
