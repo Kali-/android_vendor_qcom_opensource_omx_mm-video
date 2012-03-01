@@ -1,5 +1,5 @@
 /*--------------------------------------------------------------------------
-Copyright (c) 2010-2011, Code Aurora Forum. All rights reserved.
+Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -67,6 +67,11 @@ private:
   bool dev_get_buf_req(OMX_U32 *,OMX_U32 *,OMX_U32 *,OMX_U32);
   bool dev_set_buf_req(OMX_U32 *,OMX_U32 *,OMX_U32 *,OMX_U32);
   bool update_profile_level();
+  bool dev_get_seq_hdr(void *, unsigned, unsigned *);
+  bool dev_loaded_start(void);
+  bool dev_loaded_stop(void);
+  bool dev_loaded_start_done(void);
+  bool dev_loaded_stop_done(void);
 };
 
 #endif //__OMX_VENC__H

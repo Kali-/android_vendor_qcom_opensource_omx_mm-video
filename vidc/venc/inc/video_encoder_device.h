@@ -34,6 +34,7 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "qc_omx_component.h"
 #include "omx_video_common.h"
 #include <linux/msm_vidc_enc.h>
+#include <pthread.h>
 
 #define MAX_RECON_BUFFERS 4
 
@@ -68,9 +69,17 @@ public:
   bool venc_set_config(void *configData, OMX_INDEXTYPE index);
   bool venc_get_profile_level(OMX_U32 *eProfile,OMX_U32 *eLevel);
   bool venc_max_allowed_bitrate_check(OMX_U32 nTargetBitrate);
+  bool venc_get_seq_hdr(void *, unsigned, unsigned *);
+  bool venc_loaded_start(void);
+  bool venc_loaded_stop(void);
+  bool venc_loaded_start_done(void);
+  bool venc_loaded_stop_done(void);
   OMX_U32 m_nDriver_fd;
   bool m_profile_set;
   bool m_level_set;
+  pthread_mutex_t loaded_start_stop_mlock;
+  pthread_cond_t loaded_start_stop_cond;
+
   struct recon_buffer {
 	  unsigned char* virtual_address;
 	  int pmem_fd;
@@ -108,6 +117,7 @@ private:
   struct venc_intrarefresh        intra_refresh;
   struct venc_headerextension     hec;
   struct venc_voptimingcfg        voptimecfg;
+  struct venc_seqheader           seqhdr;
 
   bool venc_set_profile_level(OMX_U32 eProfile,OMX_U32 eLevel);
   bool venc_set_intra_period(OMX_U32 nPFrames, OMX_U32 nBFrames);

@@ -147,11 +147,16 @@ venc_dev::venc_dev()
   m_max_allowed_bitrate_check = false;
   m_eLevel = 0;
   m_eProfile = 0;
+  pthread_mutex_init(&loaded_start_stop_mlock, NULL);
+  pthread_cond_init (&loaded_start_stop_cond, NULL);
+  DEBUG_PRINT_LOW("venc_dev constructor");
 }
 
 venc_dev::~venc_dev()
 {
-  //nothing to do
+  pthread_cond_destroy(&loaded_start_stop_cond);
+  pthread_mutex_destroy(&loaded_start_stop_mlock);
+  DEBUG_PRINT_LOW("venc_dev distructor");
 }
 
 void* async_venc_message_thread (void *input)
@@ -370,6 +375,125 @@ bool venc_dev::venc_set_buf_req(unsigned long *min_buff_count,
 
   return true;
 
+}
+
+bool venc_dev::venc_loaded_start()
+{
+  struct timespec ts;
+  int status = 0;
+  if(ioctl (m_nDriver_fd,VEN_IOCTL_CMD_START, NULL) < 0)
+  {
+    DEBUG_PRINT_ERROR("ERROR: VEN_IOCTL_CMD_START failed");
+    return false;
+  }
+  if (clock_gettime(CLOCK_REALTIME, &ts) < 0)
+  {
+    DEBUG_PRINT_ERROR("%s: clock_gettime failed", __func__);
+    return false;
+  }
+  ts.tv_sec += 1;
+  pthread_mutex_lock(&loaded_start_stop_mlock);
+  DEBUG_PRINT_LOW("%s: wait on start done", __func__);
+  status = pthread_cond_timedwait(&loaded_start_stop_cond,
+                &loaded_start_stop_mlock, &ts);
+  if (status != 0)
+  {
+    DEBUG_PRINT_ERROR("%s: error status = %d, %s", __func__,
+        status, strerror(status));
+    pthread_mutex_unlock(&loaded_start_stop_mlock);
+    return false;
+  }
+  DEBUG_PRINT_LOW("%s: wait over on start done", __func__);
+  pthread_mutex_unlock(&loaded_start_stop_mlock);
+  DEBUG_PRINT_LOW("%s: venc_loaded_start success", __func__);
+  return true;
+}
+
+bool venc_dev::venc_loaded_stop()
+{
+  struct timespec ts;
+  int status = 0;
+  if(ioctl (m_nDriver_fd,VEN_IOCTL_CMD_STOP, NULL) < 0)
+  {
+    DEBUG_PRINT_ERROR("ERROR: VEN_IOCTL_CMD_STOP failed");
+    return false;
+  }
+  if (clock_gettime(CLOCK_REALTIME, &ts) < 0)
+  {
+    DEBUG_PRINT_ERROR("%s: clock_gettime failed", __func__);
+    return false;
+  }
+  ts.tv_sec += 1;
+  pthread_mutex_lock(&loaded_start_stop_mlock);
+  DEBUG_PRINT_LOW("%s: wait on stop done", __func__);
+  status = pthread_cond_timedwait(&loaded_start_stop_cond,
+                &loaded_start_stop_mlock, &ts);
+  if (status != 0)
+  {
+    DEBUG_PRINT_ERROR("%s: error status = %d, %s", __func__,
+        status, strerror(status));
+    pthread_mutex_unlock(&loaded_start_stop_mlock);
+    return false;
+  }
+  DEBUG_PRINT_LOW("%s: wait over on stop done", __func__);
+  pthread_mutex_unlock(&loaded_start_stop_mlock);
+  DEBUG_PRINT_LOW("%s: venc_loaded_stop success", __func__);
+  return true;
+}
+
+bool venc_dev::venc_loaded_start_done()
+{
+  pthread_mutex_lock(&loaded_start_stop_mlock);
+  DEBUG_PRINT_LOW("%s: signal start done", __func__);
+  pthread_cond_signal(&loaded_start_stop_cond);
+  pthread_mutex_unlock(&loaded_start_stop_mlock);
+  return true;
+}
+
+bool venc_dev::venc_loaded_stop_done()
+{
+  pthread_mutex_lock(&loaded_start_stop_mlock);
+  DEBUG_PRINT_LOW("%s: signal stop done", __func__);
+  pthread_cond_signal(&loaded_start_stop_cond);
+  pthread_mutex_unlock(&loaded_start_stop_mlock);
+  return true;
+}
+
+bool venc_dev::venc_get_seq_hdr(void *buffer,
+    unsigned buffer_size, unsigned *header_len)
+{
+  struct venc_ioctl_msg ioctl_msg = {NULL,NULL};
+  int i = 0;
+  DEBUG_PRINT_HIGH("venc_dev::venc_get_seq_hdr");
+  venc_seqheader seq_in, seq_out;
+  seq_in.hdrlen = 0;
+  seq_in.bufsize = buffer_size;
+  seq_in.hdrbufptr = (unsigned char*)buffer;
+  if (seq_in.hdrbufptr == NULL) {
+    DEBUG_PRINT_ERROR("ERROR: malloc for sequence header failed");
+    return false;
+  }
+  DEBUG_PRINT_LOW("seq_in: buf=%x, sz=%d, hdrlen=%d", seq_in.hdrbufptr,
+    seq_in.bufsize, seq_in.hdrlen);
+
+  ioctl_msg.in = (void*)&seq_in;
+  ioctl_msg.out = (void*)&seq_out;
+  if(ioctl (m_nDriver_fd,VEN_IOCTL_GET_SEQUENCE_HDR,(void*)&ioctl_msg) < 0)
+  {
+    DEBUG_PRINT_ERROR("ERROR: Request for getting sequence header failed");
+    return false;
+  }
+  if (seq_out.hdrlen == 0) {
+    DEBUG_PRINT_ERROR("ERROR: Seq header returned zero length header");
+    DEBUG_PRINT_ERROR("seq_out: buf=%x, sz=%d, hdrlen=%d", seq_out.hdrbufptr,
+      seq_out.bufsize, seq_out.hdrlen);
+    return false;
+  }
+  *header_len = seq_out.hdrlen;
+  DEBUG_PRINT_LOW("seq_out: buf=%x, sz=%d, hdrlen=%d", seq_out.hdrbufptr,
+    seq_out.bufsize, seq_out.hdrlen);
+
+  return true;
 }
 
 bool venc_dev::venc_get_buf_req(unsigned long *min_buff_count,

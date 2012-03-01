@@ -1441,6 +1441,30 @@ bool omx_venc::dev_fill_buf(void *buffer, void *pmem_data_buf)
   return handle->venc_fill_buf(buffer, pmem_data_buf);
 }
 
+bool omx_venc::dev_get_seq_hdr(void *buffer, unsigned size, unsigned *hdrlen)
+{
+  return handle->venc_get_seq_hdr(buffer, size, hdrlen);
+}
+
+bool omx_venc::dev_loaded_start()
+{
+  return handle->venc_loaded_start();
+}
+
+bool omx_venc::dev_loaded_stop()
+{
+  return handle->venc_loaded_stop();
+}
+
+bool omx_venc::dev_loaded_start_done()
+{
+  return handle->venc_loaded_start_done();
+}
+
+bool omx_venc::dev_loaded_stop_done()
+{
+  return handle->venc_loaded_stop_done();
+}
 
 bool omx_venc::dev_get_buf_req(OMX_U32 *min_buff_count,
                                OMX_U32 *actual_buff_count,
