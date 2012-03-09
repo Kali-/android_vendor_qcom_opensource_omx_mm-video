@@ -1603,16 +1603,33 @@ bool venc_dev::venc_empty_buf(void *buffer, void *pmem_data_buf)
 
   int y_size = 0;
   int c_offset = 0;
+  unsigned char *buf_addr = NULL;
 
   y_size = m_sVenc_cfg.input_width * m_sVenc_cfg.input_height;
   //chroma offset is y_size aligned to the 2k boundary
   c_offset= (y_size + 2047) & (~(2047));
 
+  if(pmem_data_buf)
+  {
+    DEBUG_PRINT_LOW("\n Internal PMEM addr for i/p Heap UseBuf: %p", pmem_data_buf);
+    buf_addr = (OMX_U8 *)pmem_data_buf;
+  }
+  else
+  {
+    DEBUG_PRINT_LOW("\n Shared PMEM addr for i/p PMEM UseBuf/AllocateBuf: %p", bufhdr->pBuffer);
+    buf_addr = (unsigned char *)mmap(NULL,
+          ((encoder_media_buffer_type *)bufhdr->pBuffer)->meta_handle->data[2],
+          PROT_READ|PROT_WRITE, MAP_SHARED,
+          ((encoder_media_buffer_type *)bufhdr->pBuffer)->meta_handle->data[0], 0);
+  }
+
   if(inputBufferFile1)
   {
-    fwrite((const char *)frameinfo.ptrbuffer, y_size, 1,inputBufferFile1);
-    fwrite((const char *)(frameinfo.ptrbuffer + c_offset), (y_size>>1), 1,inputBufferFile1);
+    fwrite((const char *)buf_addr, y_size, 1,inputBufferFile1);
+    fwrite((const char *)(buf_addr + c_offset), (y_size>>1), 1,inputBufferFile1);
   }
+
+  munmap (buf_addr, ((encoder_media_buffer_type *)bufhdr->pBuffer)->meta_handle->data[2]);
 #else
   if(inputBufferFile1)
   {
@@ -1621,7 +1638,6 @@ bool venc_dev::venc_empty_buf(void *buffer, void *pmem_data_buf)
 #endif
 
 #endif
-
   return true;
 }
 bool venc_dev::venc_fill_buf(void *buffer, void *pmem_data_buf)
