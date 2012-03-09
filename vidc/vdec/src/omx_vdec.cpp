@@ -7935,7 +7935,7 @@ void omx_vdec::handle_extradata(OMX_BUFFERHEADERTYPE *p_buf_hdr)
                           p_extra->nSize, p_extra->nDataSize);
         p_extra = (OMX_OTHER_EXTRADATATYPE *) (((OMX_U8 *) p_extra) + p_extra->nSize);
         if ((OMX_U8*)p_extra > (p_buf_hdr->pBuffer + p_buf_hdr->nAllocLen) ||
-            p_extra->nDataSize == 0)
+            p_extra->nDataSize == 0 || p_extra->nSize == 0)
           p_extra = NULL;
           continue;
       }
@@ -7971,7 +7971,7 @@ void omx_vdec::handle_extradata(OMX_BUFFERHEADERTYPE *p_buf_hdr)
       print_debug_extradata(p_extra);
       p_extra = (OMX_OTHER_EXTRADATATYPE *) (((OMX_U8 *) p_extra) + p_extra->nSize);
       if ((OMX_U8*)p_extra > (p_buf_hdr->pBuffer + p_buf_hdr->nAllocLen) ||
-          p_extra->nDataSize == 0)
+          p_extra->nDataSize == 0 || p_extra->nSize == 0)
         p_extra = NULL;
     }
     if (!(client_extradata & VDEC_EXTRADATA_MB_ERROR_MAP))
