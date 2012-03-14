@@ -1022,6 +1022,25 @@ OMX_ERRORTYPE  omx_venc::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
       break;
     }
 #endif
+  case OMX_QcomIndexParamVideoMaxAllowedBitrateCheck:
+    {
+      QOMX_EXTNINDEX_PARAMTYPE* pParam =
+         (QOMX_EXTNINDEX_PARAMTYPE*)paramData;
+      if(pParam->nPortIndex == PORT_INDEX_OUT)
+      {
+        handle->m_max_allowed_bitrate_check =
+           ((pParam->bEnable == OMX_TRUE) ? true : false);
+        DEBUG_PRINT_HIGH("set_parameter: max allowed bitrate check %s",
+           ((pParam->bEnable == OMX_TRUE) ? "enabled" : "disabled"));
+      }
+      else
+      {
+        DEBUG_PRINT_ERROR("ERROR: OMX_QcomIndexParamVideoMaxAllowedBitrateCheck "
+           " called on wrong port(%d)", pParam->nPortIndex);
+        return OMX_ErrorBadPortIndex;
+      }
+      break;
+    }
   case OMX_IndexParamVideoSliceFMO:
   default:
     {
