@@ -92,6 +92,8 @@ extern "C" {
 #define VC1_START_CODE  0x00000100
 #define VC1_FRAME_START_CODE  0x0000010D
 #define VC1_FRAME_FIELD_CODE  0x0000010C
+#define VC1_SEQUENCE_START_CODE 0x0000010F
+#define VC1_ENTRY_POINT_START_CODE 0x0000010E
 #define NUMBER_OF_ARBITRARYBYTES_READ  (4 * 1024)
 #define VC1_SEQ_LAYER_SIZE_WITHOUT_STRUCTC 32
 #define VC1_SEQ_LAYER_SIZE_V1_WITHOUT_STRUCTC 16
@@ -291,6 +293,9 @@ static unsigned use_buf_virt_addr[32];
 OMX_QCOM_PLATFORM_PRIVATE_LIST      *pPlatformList = NULL;
 OMX_QCOM_PLATFORM_PRIVATE_ENTRY     *pPlatformEntry = NULL;
 OMX_QCOM_PLATFORM_PRIVATE_PMEM_INFO *pPMEMInfo = NULL;
+
+
+static int bHdrflag = 0;
 
 /* Performance related variable*/
 //QPERF_INIT(render_fb);
@@ -2094,7 +2099,9 @@ int Play_Decoder()
       }
       else if(file_type_option == FILE_TYPE_VC1)
       {
+          bHdrflag = 1;
           pInputBufHdrs[0]->nFilledLen = Read_Buffer(pInputBufHdrs[0]);
+          bHdrflag = 0;
           DEBUG_PRINT_ERROR("After 1st Read_Buffer for VC1, "
               "pInputBufHdrs[0]->nFilledLen %d\n", pInputBufHdrs[0]->nFilledLen);
       }
@@ -2936,6 +2943,14 @@ static int Read_Buffer_From_VC1_File(OMX_BUFFERHEADERTYPE  *pBufHdr)
     unsigned int readOffset = 0;
     int bytes_read = 0;
     unsigned int code = 0, total_bytes = 0;
+    int startCode_cnt = 0;
+    int bSEQflag = 0;
+    int bEntryflag = 0;
+    unsigned int SEQbytes = 0;
+    int numStartcodes = 0;
+
+    numStartcodes = bHdrflag?1:2;
+
     do
     {
       if (total_bytes == pBufHdr->nAllocLen)
@@ -2954,8 +2969,22 @@ static int Read_Buffer_From_VC1_File(OMX_BUFFERHEADERTYPE  *pBufHdr)
       total_bytes++;
       code <<= 8;
       code |= (0x000000FF & pBufHdr->pBuffer[readOffset]);
+
+     if(!bSEQflag && (code == VC1_SEQUENCE_START_CODE)) {
+        if(startCode_cnt) bSEQflag = 1;
+      }
+
+      if(!bEntryflag && ( code == VC1_ENTRY_POINT_START_CODE)) {
+         if(startCode_cnt) bEntryflag = 1;
+      }
+
+      if(code == VC1_FRAME_START_CODE || code == VC1_FRAME_FIELD_CODE)
+      {
+         startCode_cnt++ ;
+      }
+
       //VOP start code comparision
-      if (readOffset>3)
+      if(startCode_cnt == numStartcodes)
       {
         if (VC1_FRAME_START_CODE == (code & 0xFFFFFFFF) ||
             VC1_FRAME_FIELD_CODE == (code & 0xFFFFFFFF))
@@ -2965,9 +2994,16 @@ static int Read_Buffer_From_VC1_File(OMX_BUFFERHEADERTYPE  *pBufHdr)
           {
               previous_vc1_au = 1;
           }
-          //Seek backwards by 4
-          lseek64(inputBufferFileFd, -4, SEEK_CUR);
-          readOffset-=3;
+
+          if(!bHdrflag && (bSEQflag || bEntryflag)) {
+             lseek(inputBufferFileFd,-(SEQbytes+4),SEEK_CUR);
+             readOffset -= (SEQbytes+3);
+          }
+          else {
+            //Seek backwards by 4
+            lseek64(inputBufferFileFd, -4, SEEK_CUR);
+            readOffset-=3;
+          }
 
           while(pBufHdr->pBuffer[readOffset-1] == 0)
             readOffset--;
@@ -2976,6 +3012,9 @@ static int Read_Buffer_From_VC1_File(OMX_BUFFERHEADERTYPE  *pBufHdr)
         }
       }
       readOffset++;
+      if(bSEQflag || bEntryflag) {
+        SEQbytes++;
+      }
     }while (1);
 
     pBufHdr->nTimeStamp = timeStampLfile;
