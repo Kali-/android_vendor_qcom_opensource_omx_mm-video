@@ -4668,11 +4668,6 @@ OMX_ERRORTYPE  omx_vdec::allocate_output_buffer(
   unsigned                         i= 0; // Temporary counter
   struct vdec_ioctl_msg ioctl_msg = {NULL,NULL};
   struct vdec_setbuffer_cmd setbuffers;
-#ifdef USE_ION
-  int ion_device_fd =-1;
-  struct ion_allocation_data ion_alloc_data;
-  struct ion_fd_data fd_ion_data;
-#endif
 
   int nBufHdrSize        = 0;
   int nPlatformEntrySize = 0;
@@ -4831,13 +4826,13 @@ OMX_ERRORTYPE  omx_vdec::allocate_output_buffer(
         drv_ctx.ptr_respbuffer = NULL;
       }
 #ifdef USE_ION
-    if (drv_ctx.op_buf_ion_info) {
+      if (drv_ctx.op_buf_ion_info) {
         DEBUG_PRINT_LOW("\n Free o/p ion context");
 	free(drv_ctx.op_buf_ion_info);
         drv_ctx.op_buf_ion_info = NULL;
-    }
+      }
 #endif
-      eRet =  OMX_ErrorInsufficientResources;
+      return OMX_ErrorInsufficientResources;
     }
   }
 
@@ -4924,10 +4919,10 @@ OMX_ERRORTYPE  omx_vdec::allocate_output_buffer(
 #ifdef _ANDROID_
 #ifdef USE_ION
     m_heap_ptr[i].video_heap_ptr = new VideoHeap (pmem_fd,
-                                drv_ctx.op_buf.buffer_size,
-                                pmem_baseaddress,
-                                ion_alloc_data.handle,
-                                pmem_fd);
+                               drv_ctx.op_buf.buffer_size,
+                               pmem_baseaddress,
+                               drv_ctx.op_buf_ion_info[i].ion_alloc_data.handle,
+                               pmem_fd);
     m_heap_count = m_heap_count + 1;
 #else
     m_heap_ptr[i].video_heap_ptr = new VideoHeap (pmem_fd,
