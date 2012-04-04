@@ -4028,12 +4028,19 @@ OMX_ERRORTYPE  omx_vdec::use_output_buffer(
      else {
 
        DEBUG_PRINT_LOW("Use_op_buf: out_pmem=%d",m_use_output_pmem);
-        if (!appData || !bytes ) {
-          if(!secure_mode && !buffer) {
-              DEBUG_PRINT_ERROR("\n Bad parameters for use buffer in EGL image case");
-              return OMX_ErrorBadParameter;
-          }
-        }
+
+       if (!appData || !bytes )
+       {
+         DEBUG_PRINT_ERROR("\n Invalid appData or bytes");
+         return OMX_ErrorBadParameter;
+       }
+
+       if(!secure_mode && !buffer)
+       {
+         DEBUG_PRINT_ERROR("\n Bad parameters for use buffer in EGL image case");
+         return OMX_ErrorBadParameter;
+       }
+
 
         OMX_QCOM_PLATFORM_PRIVATE_LIST *pmem_list;
         OMX_QCOM_PLATFORM_PRIVATE_PMEM_INFO *pmem_info;
