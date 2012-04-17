@@ -1116,9 +1116,17 @@ int main(int argc, char **argv)
       }
       idx = 0;
       file_type_option = (file_type)param[idx++];
+      if (codec_format_option == CODEC_FORMAT_H264 && file_type_option == 3)
+      {
+        nalSize = param[idx++];
+        if (nalSize != 2 && nalSize != 4)
+        {
+          printf("Error - Can't pass NAL length size = %d\n", nalSize);
+          return -1;
+        }
+      }
       outputOption = param[idx++];
       test_option = param[idx++];
-      nalSize = param[idx++];
       displayWindow = param[idx++];
       if (displayWindow > 0)
         printf("Only entire display window supported! Ignoring value\n");
