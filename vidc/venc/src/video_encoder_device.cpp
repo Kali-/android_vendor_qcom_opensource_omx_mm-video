@@ -1227,7 +1227,7 @@ OMX_U32 venc_dev::pmem_allocate(OMX_U32 size, OMX_U32 alignment, OMX_U32 count)
   int rc = 0;
 
 #ifdef USE_ION
-  recon_buff[count].ion_device_fd = open (MEM_DEVICE,O_RDONLY|O_DSYNC);
+  recon_buff[count].ion_device_fd = open (MEM_DEVICE,O_RDONLY);
   if(recon_buff[count].ion_device_fd < 0)
   {
       DEBUG_PRINT_ERROR("\nERROR: ION Device open() Failed");
@@ -1235,7 +1235,8 @@ OMX_U32 venc_dev::pmem_allocate(OMX_U32 size, OMX_U32 alignment, OMX_U32 count)
   }
 
   recon_buff[count].alloc_data.len = size;
-  recon_buff[count].alloc_data.flags = 0x1 << MEM_HEAP_ID;
+  recon_buff[count].alloc_data.flags = (ION_HEAP(MEM_HEAP_ID) |
+                                        ION_HEAP(ION_IOMMU_HEAP_ID));
   recon_buff[count].alloc_data.align = clip2(alignment);
   if (recon_buff[count].alloc_data.align != 8192)
     recon_buff[count].alloc_data.align = 8192;

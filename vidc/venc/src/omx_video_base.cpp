@@ -4155,7 +4155,8 @@ int omx_video::alloc_map_ion_memory(int size,struct ion_allocation_data *alloc_d
         }
         alloc_data->len = size;
         alloc_data->align = 4096;
-        alloc_data->flags = 0x1 << MEM_HEAP_ID;
+        alloc_data->flags = (ION_HEAP(MEM_HEAP_ID) |
+                              ION_HEAP(ION_IOMMU_HEAP_ID));
         rc = ioctl(ion_device_fd,ION_IOC_ALLOC,alloc_data);
         if(rc || !alloc_data->handle) {
            DEBUG_PRINT_ERROR("\n ION ALLOC memory failed ");
