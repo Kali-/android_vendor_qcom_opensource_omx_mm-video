@@ -1,5 +1,5 @@
 /*--------------------------------------------------------------------------
-Copyright (c) 2010-2011, Code Aurora Forum. All rights reserved.
+Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -69,7 +69,7 @@ static uint8 *find_code
       }
    }
 
-   DEBUG_PRINT_HIGH("Unable to find code\n");
+   DEBUG_PRINT_LOW("Unable to find code 0x%x\n", referenceCode);
    return NULL;
 }
 bool MP4_Utils::parseHeader(mp4StreamType * psBits) {
@@ -83,6 +83,15 @@ bool MP4_Utils::parseHeader(mp4StreamType * psBits) {
 
    m_posInfo.bytePtr = find_code(m_posInfo.bytePtr,4,
                                  MASK(32),VOP_START_CODE);
+   if(m_posInfo.bytePtr) {
+      return false;
+   }
+
+   m_posInfo.bitPos = 0;
+   m_posInfo.bytePtr = psBits->data;
+   m_dataBeginPtr = psBits->data;
+   m_posInfo.bytePtr = find_code(m_posInfo.bytePtr,4,
+                                 MASK(32),GOV_START_CODE);
    if(m_posInfo.bytePtr) {
       return false;
    }
