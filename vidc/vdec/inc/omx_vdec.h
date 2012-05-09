@@ -793,6 +793,8 @@ private:
     omx_time_stamp_reorder time_stamp_dts;
     desc_buffer_hdr *m_desc_buffer_ptr;
     bool secure_mode;
+    OMX_QCOM_EXTRADATA_FRAMEINFO *m_extradata;
+    bool codec_config_flag;
 };
 
 #endif // __OMX_VDEC_H__
