@@ -4067,7 +4067,7 @@ int omx_video::alloc_map_ion_memory(int size,struct ion_allocation_data *alloc_d
 		DEBUG_PRINT_ERROR("\nInvalid input to alloc_map_ion_memory");
 		return -EINVAL;
 	}
-        ion_device_fd = open (MEM_DEVICE,O_RDONLY|O_DSYNC);
+        ion_device_fd = open (MEM_DEVICE,O_RDONLY|O_SYNC);
         if(ion_device_fd < 0)
         {
           DEBUG_PRINT_ERROR("\nERROR: ION Device open() Failed");
