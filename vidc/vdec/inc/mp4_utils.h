@@ -167,4 +167,14 @@ public:
    static uint32 read_bit_field(posInfoType * posPtr, uint32 size);
    bool is_notcodec_vop(unsigned char *pbuffer, unsigned int len);
 };
+
+#ifdef ENABLE_TURBO_CLK_FOR_HIGH_MPEG4_SLICES
+int mpeg4_parse_bitstream(char* mp4bits, unsigned long bufsize,unsigned int *slice_cnt);
+extern bool parse_bitstream_for_slices;
+extern bool high_slices_present;
+extern unsigned int numFramesParsed;
+extern unsigned int num_slices_threshold;
+extern unsigned int num_frames_to_check_for_turbo;
+#endif
+
 #endif

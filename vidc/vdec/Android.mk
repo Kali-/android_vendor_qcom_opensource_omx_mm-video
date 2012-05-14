@@ -43,7 +43,7 @@ libOmxVdec-def += -D_ANDROID_ICS_
 ifeq ($(TARGET_USES_ION),true)
 libOmxVdec-def += -DUSE_ION
 endif
-
+libOmxVdec-def += -UENABLE_TURBO_CLK_FOR_HIGH_MPEG4_SLICES
 # ---------------------------------------------------------------------------------
 # 			Make the Shared library (libOmxVdec)
 # ---------------------------------------------------------------------------------

@@ -647,6 +647,10 @@ private:
     nativebuffer native_buffer[MAX_NUM_INPUT_OUTPUT_BUFFERS];
 #endif
 
+#ifdef ENABLE_TURBO_CLK_FOR_HIGH_MPEG4_SLICES
+    unsigned int kickstart_turbo_mode();
+    void raise_clk_for_high_slices(struct vdec_bufferpayload *input_buffer);
+#endif
 
     //*************************************************************
     //*******************MEMBER VARIABLES *************************

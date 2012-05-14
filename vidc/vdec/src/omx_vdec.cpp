@@ -523,8 +523,17 @@ omx_vdec::omx_vdec(): m_state(OMX_StateInvalid),
   m_debug_extradata = atoi(extradata_value);
   DEBUG_PRINT_HIGH("vidc.dec.debug.extradata value is %d",m_debug_extradata);
 #endif
-}
 
+#ifdef ENABLE_TURBO_CLK_FOR_HIGH_MPEG4_SLICES
+ numFramesParsed = 0;
+ parse_bitstream_for_slices = true;
+ high_slices_present = false;
+ property_get("vidc.dec.debug.slices.threshold", property_value, "50");
+ num_slices_threshold = atoi(property_value);
+ property_get("vidc.dec.debug.numframes.turbo", property_value, "50");
+ num_frames_to_check_for_turbo = atoi(property_value);
+#endif
+}
 
 /* ======================================================================
 FUNCTION
@@ -5539,6 +5548,10 @@ OMX_ERRORTYPE  omx_vdec::empty_this_buffer_proxy(OMX_IN OMX_HANDLETYPE         h
   }
 #endif
 
+#ifdef ENABLE_TURBO_CLK_FOR_HIGH_MPEG4_SLICES
+   raise_clk_for_high_slices(temp_buffer);
+#endif
+
 #ifdef INPUT_BUFFER_LOG
   if (inputBufferFile1)
   {
@@ -8659,3 +8672,46 @@ OMX_ERRORTYPE omx_vdec::createDivxDrmContext()
 }
 #endif //_ANDROID_
 
+#ifdef ENABLE_TURBO_CLK_FOR_HIGH_MPEG4_SLICES
+unsigned int omx_vdec::kickstart_turbo_mode()
+{
+  struct vdec_ioctl_msg ioctl_msg;
+
+  DEBUG_PRINT_HIGH("kickstart_turbo_mode: Set clocks to turbo mode");
+
+  if (ioctl(drv_ctx.video_driver_fd,VDEC_IOCTL_SET_PERF_CLK,
+            &ioctl_msg) < 0) {
+   DEBUG_PRINT_ERROR("ioctl VDEC_IOCTL_SET_PERF_CLK failed");
+    return 1;
+  }
+  return 0;
+}
+
+void omx_vdec::raise_clk_for_high_slices(struct vdec_bufferpayload *input_buffer)
+{
+  if(parse_bitstream_for_slices &&
+     !secure_mode &&
+     (drv_ctx.decoder_format == VDEC_CODECTYPE_MPEG4) &&
+     (drv_ctx.video_resolution.frame_height >= 1080))
+  {
+    unsigned int slice_cnt=0;
+    int ret;
+    ret = mpeg4_parse_bitstream((char *)input_buffer->bufferaddr,input_buffer->buffer_len,&slice_cnt);
+    if(ret < 0) {
+      parse_bitstream_for_slices =  false;
+    } else {
+      numFramesParsed++;
+      if(slice_cnt > num_slices_threshold){
+        high_slices_present = true;
+      }
+      if(high_slices_present==true) {
+        kickstart_turbo_mode();
+        parse_bitstream_for_slices = false;
+      }
+      else if (numFramesParsed >= num_frames_to_check_for_turbo) {
+        parse_bitstream_for_slices = false;
+      }
+    }
+  }
+}
+#endif
