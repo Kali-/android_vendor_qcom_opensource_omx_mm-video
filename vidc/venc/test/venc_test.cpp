@@ -67,6 +67,9 @@ REFERENCES
 #include "fb_test.h"
 #include "venc_util.h"
 #include "extra_data_handler.h"
+#ifdef USE_ION
+#include <linux/ion.h>
+#endif
 
 //////////////////////////
 // MACROS
@@ -284,6 +287,16 @@ struct DynamicConfig
    OMX_INDEXTYPE config_param;
    union DynamicConfigData config_data;
 };
+
+#ifdef USE_ION
+struct enc_ion
+{
+   int ion_device_fd;
+   struct ion_allocation_data alloc_data;
+   struct ion_fd_data ion_alloc_fd;
+};
+#endif
+
 //////////////////////////
 // MODULE VARS
 //////////////////////////
@@ -317,7 +330,9 @@ static struct DynamicConfig dynamic_config;
 static long long tot_bufsize = 0;
 int ebd_cnt=0, fbd_cnt=0;
 
-#ifdef MAX_RES_720P
+#ifdef USE_ION
+static const char* PMEM_DEVICE = "/dev/ion";
+#elif MAX_RES_720P
 static const char* PMEM_DEVICE = "/dev/pmem_adsp";
 #elif MAX_RES_1080P_EBI
 static const char* PMEM_DEVICE  = "/dev/pmem_adsp";
@@ -327,6 +342,9 @@ static const char* PMEM_DEVICE = "/dev/pmem_smipool";
 #error PMEM_DEVICE cannot be determined.
 #endif
 
+#ifdef USE_ION
+struct enc_ion ion_data;
+#endif
 //////////////////////////
 // MODULE FUNCTIONS
 //////////////////////////
@@ -334,14 +352,45 @@ static const char* PMEM_DEVICE = "/dev/pmem_smipool";
 void* PmemMalloc(OMX_QCOM_PLATFORM_PRIVATE_PMEM_INFO* pMem, int nSize)
 {
    void *pvirt = NULL;
+   int rc = 0;
 
    if (!pMem)
       return NULL;
 
+#ifdef USE_ION
+  ion_data.ion_device_fd = open (PMEM_DEVICE,O_RDONLY|O_DSYNC);
+  if(ion_data.ion_device_fd < 0)
+  {
+      E("\nERROR: ION Device open() Failed");
+      return NULL;
+  }
+  nSize = (nSize + 4095) & (~4095);
+  ion_data.alloc_data.len = nSize;
+  ion_data.alloc_data.flags = 0x1 << ION_CP_MM_HEAP_ID;
+  ion_data.alloc_data.align = 4096;
+
+  rc = ioctl(ion_data.ion_device_fd,ION_IOC_ALLOC,&ion_data.alloc_data);
+  if(rc || !ion_data.alloc_data.handle) {
+         E("\n ION ALLOC memory failed ");
+         ion_data.alloc_data.handle=NULL;
+         return NULL;
+  }
+
+  ion_data.ion_alloc_fd.handle = ion_data.alloc_data.handle;
+  rc = ioctl(ion_data.ion_device_fd,ION_IOC_MAP,&ion_data.ion_alloc_fd);
+  if(rc) {
+        E("\n ION MAP failed ");
+        ion_data.ion_alloc_fd.fd =-1;
+        ion_data.ion_alloc_fd.fd =-1;
+        return NULL;
+  }
+  pMem->pmem_fd = ion_data.ion_alloc_fd.fd;
+#else
    pMem->pmem_fd = open(PMEM_DEVICE, O_RDWR);
    if ((int)(pMem->pmem_fd) < 0)
       return NULL;
    nSize = (nSize + 4095) & (~4095);
+#endif
    pMem->offset = 0;
    pvirt = mmap(NULL, nSize,
                 PROT_READ | PROT_WRITE,
@@ -349,8 +398,18 @@ void* PmemMalloc(OMX_QCOM_PLATFORM_PRIVATE_PMEM_INFO* pMem, int nSize)
    if (pvirt == (void*) MAP_FAILED)
    {
       close(pMem->pmem_fd);
-	  pMem->pmem_fd = -1;
-	  return NULL;
+      pMem->pmem_fd = -1;
+#ifdef USE_ION
+    if(ioctl(ion_data.ion_device_fd,ION_IOC_FREE,
+       &ion_data.alloc_data.handle)) {
+      E("ion recon buffer free failed");
+    }
+    ion_data.alloc_data.handle = NULL;
+    ion_data.ion_alloc_fd.fd =-1;
+    close(ion_data.ion_device_fd);
+    ion_data.ion_device_fd =-1;
+#endif
+      return NULL;
    }
    D("allocated pMem->fd = %d pvirt=0x%x, pMem->phys=0x%x, size = %d", pMem->pmem_fd,
        pvirt, pMem->offset, nSize);
@@ -366,6 +425,16 @@ int PmemFree(OMX_QCOM_PLATFORM_PRIVATE_PMEM_INFO* pMem, void* pvirt, int nSize)
    munmap(pvirt, nSize);
    close(pMem->pmem_fd);
    pMem->pmem_fd = -1;
+#ifdef USE_ION
+   if(ioctl(ion_data.ion_device_fd,ION_IOC_FREE,
+         &ion_data.alloc_data.handle)) {
+        E("ion recon buffer free failed");
+   }
+   ion_data.alloc_data.handle = NULL;
+   ion_data.ion_alloc_fd.fd =-1;
+   close(ion_data.ion_device_fd);
+   ion_data.ion_device_fd =-1;
+#endif
    return 0;
 }
 void PrintFramePackArrangement(OMX_QCOM_FRAME_PACK_ARRANGEMENT framePackingArrangement)
@@ -1908,6 +1977,7 @@ int main(int argc, char** argv)
       {
          E("could not open input file");
          CHK(1);
+
       }
       D("going to idle state");
       //SetState(OMX_StateIdle);

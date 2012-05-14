@@ -1,5 +1,5 @@
 /*--------------------------------------------------------------------------
-Copyright (c) 2010-2011, Code Aurora Forum. All rights reserved.
+Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -92,6 +92,8 @@ extern "C" {
 #define VC1_START_CODE  0x00000100
 #define VC1_FRAME_START_CODE  0x0000010D
 #define VC1_FRAME_FIELD_CODE  0x0000010C
+#define VC1_SEQUENCE_START_CODE 0x0000010F
+#define VC1_ENTRY_POINT_START_CODE 0x0000010E
 #define NUMBER_OF_ARBITRARYBYTES_READ  (4 * 1024)
 #define VC1_SEQ_LAYER_SIZE_WITHOUT_STRUCTC 32
 #define VC1_SEQ_LAYER_SIZE_V1_WITHOUT_STRUCTC 16
@@ -233,6 +235,7 @@ static struct fb_fix_screeninfo finfo;
 static struct mdp_overlay overlay, *overlayp;
 static struct msmfb_overlay_data ov_front;
 static int vid_buf_front_id;
+static char tempbuf[16];
 int overlay_fb(struct OMX_BUFFERHEADERTYPE *pBufHdr);
 void overlay_set();
 void overlay_unset();
@@ -291,6 +294,9 @@ static unsigned use_buf_virt_addr[32];
 OMX_QCOM_PLATFORM_PRIVATE_LIST      *pPlatformList = NULL;
 OMX_QCOM_PLATFORM_PRIVATE_ENTRY     *pPlatformEntry = NULL;
 OMX_QCOM_PLATFORM_PRIVATE_PMEM_INFO *pPMEMInfo = NULL;
+
+
+static int bHdrflag = 0;
 
 /* Performance related variable*/
 //QPERF_INIT(render_fb);
@@ -1110,9 +1116,17 @@ int main(int argc, char **argv)
       }
       idx = 0;
       file_type_option = (file_type)param[idx++];
+      if (codec_format_option == CODEC_FORMAT_H264 && file_type_option == 3)
+      {
+        nalSize = param[idx++];
+        if (nalSize != 2 && nalSize != 4)
+        {
+          printf("Error - Can't pass NAL length size = %d\n", nalSize);
+          return -1;
+        }
+      }
       outputOption = param[idx++];
       test_option = param[idx++];
-      nalSize = param[idx++];
       displayWindow = param[idx++];
       if (displayWindow > 0)
         printf("Only entire display window supported! Ignoring value\n");
@@ -1146,7 +1160,8 @@ int main(int argc, char **argv)
       printf(" 5--> DivX\n");
       printf(" 6--> MPEG2\n");
       fflush(stdin);
-      scanf("%d", &codec_format_option);
+      fgets(tempbuf,sizeof(tempbuf),stdin);
+      sscanf(tempbuf,"%d",&codec_format_option);
       fflush(stdin);
       if (codec_format_option > CODEC_FORMAT_MAX)
       {
@@ -1184,12 +1199,14 @@ int main(int argc, char **argv)
       }
 
       fflush(stdin);
-      scanf("%d", &file_type_option);
+      fgets(tempbuf,sizeof(tempbuf),stdin);
+      sscanf(tempbuf,"%d",&file_type_option);
       fflush(stdin);
       if (codec_format_option == CODEC_FORMAT_H264 && file_type_option == 3)
       {
         printf(" Enter Nal length size [2 or 4] \n");
-        scanf("%d", &nalSize);
+        fgets(tempbuf,sizeof(tempbuf),stdin);
+        sscanf(tempbuf,"%d",&nalSize);
         if (nalSize != 2 && nalSize != 4)
         {
           printf("Error - Can't pass NAL length size = %d\n", nalSize);
@@ -1205,7 +1222,8 @@ int main(int argc, char **argv)
       printf(" 2 --> Take YUV log\n");
       printf(" 3 --> Display YUV and take YUV log\n");
       fflush(stdin);
-      scanf("%d", &outputOption);
+      fgets(tempbuf,sizeof(tempbuf),stdin);
+      sscanf(tempbuf,"%d",&outputOption);
       fflush(stdin);
 
       printf(" *********************************************\n");
@@ -1215,7 +1233,8 @@ int main(int argc, char **argv)
       printf(" 2 --> Run compliance test. Do NOT expect any display for most option. \n");
       printf("       Please only see \"TEST SUCCESSFULL\" to indicate test pass\n");
       fflush(stdin);
-      scanf("%d", &test_option);
+      fgets(tempbuf,sizeof(tempbuf),stdin);
+      sscanf(tempbuf,"%d",&test_option);
       fflush(stdin);
 
       if (outputOption == 1 || outputOption == 3)
@@ -1230,7 +1249,8 @@ int main(int argc, char **argv)
           printf(" 4 --> 1/4 th of the screen starting from middle to bottom right \n");
           printf("       Please only see \"TEST SUCCESSFULL\" to indidcate test pass\n");
           fflush(stdin);
-          scanf("%d", &displayWindow);
+          fgets(tempbuf,sizeof(tempbuf),stdin);
+          sscanf(tempbuf,"%d",&displayWindow);
           fflush(stdin);
           if(displayWindow > 0)
           {
@@ -1248,7 +1268,8 @@ int main(int argc, char **argv)
           printf("          For Arbitrary bytes option, Real time display is not recommended\n");
           printf(" *********************************************\n");
           fflush(stdin);
-          scanf("%d", &realtime_display);
+          fgets(tempbuf,sizeof(tempbuf),stdin);
+          sscanf(tempbuf,"%d",&realtime_display);
           fflush(stdin);
       }
 
@@ -1260,7 +1281,8 @@ int main(int argc, char **argv)
           printf(" Exception: Timestamp extracted from clips will be used.\n");
           printf(" *********************************************\n");
           fflush(stdin);
-          scanf("%d", &fps);
+          fgets(tempbuf,sizeof(tempbuf),stdin);
+          sscanf(tempbuf,"%d",&fps);
           fflush(stdin);
           timestampInterval = 1000000/fps;
       }
@@ -1270,7 +1292,8 @@ int main(int argc, char **argv)
       printf(" 0 --> Semiplanar \n 1 --> Tile Mode\n");
       printf(" *********************************************\n");
       fflush(stdin);
-      scanf("%d", &color_fmt_type);
+      fgets(tempbuf,sizeof(tempbuf),stdin);
+      sscanf(tempbuf,"%d",&color_fmt_type);
       fflush(stdin);
 
       printf(" *********************************************\n");
@@ -1278,7 +1301,8 @@ int main(int argc, char **argv)
       printf(" *********************************************\n");
       printf(" 0 --> Display order\n 1 --> Decode order\n");
       fflush(stdin);
-      scanf("%d", &pic_order);
+      fgets(tempbuf,sizeof(tempbuf),stdin);
+      sscanf(tempbuf,"%d",&pic_order);
       fflush(stdin);
     }
     if (file_type_option >= FILE_TYPE_COMMON_CODEC_MAX)
@@ -1347,7 +1371,8 @@ int main(int argc, char **argv)
       printf(" 3 --> Call Free Handle at the OMX_StateExecuting\n");
       printf(" 4 --> Call Free Handle at the OMX_StatePause\n");
       fflush(stdin);
-      scanf("%d", &freeHandle_option);
+      fgets(tempbuf,sizeof(tempbuf),stdin);
+      sscanf(tempbuf,"%d",&freeHandle_option);
       fflush(stdin);
     }
     else
@@ -2094,7 +2119,9 @@ int Play_Decoder()
       }
       else if(file_type_option == FILE_TYPE_VC1)
       {
+          bHdrflag = 1;
           pInputBufHdrs[0]->nFilledLen = Read_Buffer(pInputBufHdrs[0]);
+          bHdrflag = 0;
           DEBUG_PRINT_ERROR("After 1st Read_Buffer for VC1, "
               "pInputBufHdrs[0]->nFilledLen %d\n", pInputBufHdrs[0]->nFilledLen);
       }
@@ -2936,6 +2963,14 @@ static int Read_Buffer_From_VC1_File(OMX_BUFFERHEADERTYPE  *pBufHdr)
     unsigned int readOffset = 0;
     int bytes_read = 0;
     unsigned int code = 0, total_bytes = 0;
+    int startCode_cnt = 0;
+    int bSEQflag = 0;
+    int bEntryflag = 0;
+    unsigned int SEQbytes = 0;
+    int numStartcodes = 0;
+
+    numStartcodes = bHdrflag?1:2;
+
     do
     {
       if (total_bytes == pBufHdr->nAllocLen)
@@ -2954,8 +2989,22 @@ static int Read_Buffer_From_VC1_File(OMX_BUFFERHEADERTYPE  *pBufHdr)
       total_bytes++;
       code <<= 8;
       code |= (0x000000FF & pBufHdr->pBuffer[readOffset]);
+
+     if(!bSEQflag && (code == VC1_SEQUENCE_START_CODE)) {
+        if(startCode_cnt) bSEQflag = 1;
+      }
+
+      if(!bEntryflag && ( code == VC1_ENTRY_POINT_START_CODE)) {
+         if(startCode_cnt) bEntryflag = 1;
+      }
+
+      if(code == VC1_FRAME_START_CODE || code == VC1_FRAME_FIELD_CODE)
+      {
+         startCode_cnt++ ;
+      }
+
       //VOP start code comparision
-      if (readOffset>3)
+      if(startCode_cnt == numStartcodes)
       {
         if (VC1_FRAME_START_CODE == (code & 0xFFFFFFFF) ||
             VC1_FRAME_FIELD_CODE == (code & 0xFFFFFFFF))
@@ -2965,9 +3014,16 @@ static int Read_Buffer_From_VC1_File(OMX_BUFFERHEADERTYPE  *pBufHdr)
           {
               previous_vc1_au = 1;
           }
-          //Seek backwards by 4
-          lseek64(inputBufferFileFd, -4, SEEK_CUR);
-          readOffset-=3;
+
+          if(!bHdrflag && (bSEQflag || bEntryflag)) {
+             lseek(inputBufferFileFd,-(SEQbytes+4),SEEK_CUR);
+             readOffset -= (SEQbytes+3);
+          }
+          else {
+            //Seek backwards by 4
+            lseek64(inputBufferFileFd, -4, SEEK_CUR);
+            readOffset-=3;
+          }
 
           while(pBufHdr->pBuffer[readOffset-1] == 0)
             readOffset--;
@@ -2976,6 +3032,9 @@ static int Read_Buffer_From_VC1_File(OMX_BUFFERHEADERTYPE  *pBufHdr)
         }
       }
       readOffset++;
+      if(bSEQflag || bEntryflag) {
+        SEQbytes++;
+      }
     }while (1);
 
     pBufHdr->nTimeStamp = timeStampLfile;

@@ -144,8 +144,9 @@ char outputfilename [] = "/data/output-bitstream.\0\0\0\0";
 //constructor
 venc_dev::venc_dev()
 {
-//nothing to do
-
+  m_max_allowed_bitrate_check = false;
+  m_eLevel = 0;
+  m_eProfile = 0;
 }
 
 venc_dev::~venc_dev()
@@ -890,6 +891,12 @@ bool venc_dev::venc_set_config(void *configData, OMX_INDEXTYPE index)
     {
       OMX_VIDEO_CONFIG_BITRATETYPE *bit_rate = (OMX_VIDEO_CONFIG_BITRATETYPE *)
         configData;
+      if(m_max_allowed_bitrate_check &&
+         !venc_max_allowed_bitrate_check(bit_rate->nEncodeBitrate))
+      {
+        DEBUG_PRINT_ERROR("Max Allowed Bitrate Check failed");
+        return false;
+      }
       DEBUG_PRINT_LOW("\n venc_set_config: OMX_IndexConfigVideoBitrate");
       if(bit_rate->nPortIndex == (OMX_U32)PORT_INDEX_OUT)
       {
@@ -1017,6 +1024,14 @@ unsigned venc_dev::venc_start(void)
     DEBUG_PRINT_HIGH("\n %s(): Driver Profile[%lu]/Level[%lu] successfully SET",
       __func__, codec_profile.profile, profile_level.level);
   }
+
+  if(m_max_allowed_bitrate_check &&
+     !venc_max_allowed_bitrate_check(bitrate.target_bitrate))
+  {
+    DEBUG_PRINT_ERROR("Maximum Allowed Bitrate Check failed");
+    return -1;
+  }
+
   venc_config_print();
 
 #ifdef MAX_RES_1080P
@@ -1580,6 +1595,14 @@ bool venc_dev::venc_set_profile_level(OMX_U32 eProfile,OMX_U32 eLevel)
   {
     DEBUG_PRINT_LOW("\n Profile/Level setting complete before venc_start");
     return true;
+  }
+
+  if(eProfile && eLevel)
+  {
+    /* non-zero values will be set by user, saving the same*/
+    m_eProfile = eProfile;
+    m_eLevel = eLevel;
+    DEBUG_PRINT_HIGH("Profile/Level set equal to %d/%d",m_eProfile, m_eLevel);
   }
 
   DEBUG_PRINT_LOW("\n Validating Profile/Level from table");
@@ -2626,6 +2649,82 @@ bool venc_dev::venc_validate_profile_level(OMX_U32 *eProfile, OMX_U32 *eLevel)
 
   return true;
 }
+
+bool venc_dev::venc_max_allowed_bitrate_check(OMX_U32 nTargetBitrate)
+{
+  unsigned const int *profile_tbl = NULL;
+
+  switch(m_sVenc_cfg.codectype)
+  {
+    case VEN_CODEC_MPEG4:
+      if(m_eProfile == OMX_VIDEO_MPEG4ProfileSimple)
+      {
+        profile_tbl = (unsigned int const *)mpeg4_profile_level_table;
+      }
+      else if(m_eProfile == OMX_VIDEO_MPEG4ProfileAdvancedSimple)
+      {
+        profile_tbl = (unsigned int const *)
+          (&mpeg4_profile_level_table[MPEG4_ASP_START]);
+      }
+      else
+      {
+        DEBUG_PRINT_ERROR("Unsupported MPEG4 profile type %lu", m_eProfile);
+        return false;
+      }
+      break;
+    case VEN_CODEC_H264:
+      if(m_eProfile == OMX_VIDEO_AVCProfileBaseline)
+      {
+        profile_tbl = (unsigned int const *)h264_profile_level_table;
+      }
+      else if(m_eProfile == OMX_VIDEO_AVCProfileHigh)
+      {
+        profile_tbl = (unsigned int const *)
+          (&h264_profile_level_table[H264_HP_START]);
+      }
+      else if(m_eProfile == OMX_VIDEO_AVCProfileMain)
+      {
+        profile_tbl = (unsigned int const *)
+          (&h264_profile_level_table[H264_MP_START]);
+      }
+      else
+      {
+        DEBUG_PRINT_ERROR("Unsupported AVC profile type %lu", m_eProfile);
+        return false;
+      }
+
+      break;
+    case VEN_CODEC_H263:
+      if(m_eProfile == OMX_VIDEO_H263ProfileBaseline)
+      {
+        profile_tbl = (unsigned int const *)h263_profile_level_table;
+      }
+      else
+      {
+        DEBUG_PRINT_ERROR("Unsupported H.263 profile type %lu", m_eProfile);
+        return false;
+      }
+      break;
+    default:
+      DEBUG_PRINT_ERROR("%s: unknown codec type", __func__);
+      return false;
+  }
+  while(profile_tbl[0] != 0)
+  {
+    if(profile_tbl[3] == m_eLevel)
+    {
+      if(nTargetBitrate > profile_tbl[2])
+      {
+         DEBUG_PRINT_ERROR("Max. supported bitrate for Profile[%d] & Level[%d]"
+            " is %u", m_eProfile, m_eLevel, profile_tbl[2]);
+        return false;
+      }
+    }
+    profile_tbl += 5;
+  }
+  return true;
+}
+
 #ifdef _ANDROID_ICS_
 bool venc_dev::venc_set_meta_mode(bool mode)
 {

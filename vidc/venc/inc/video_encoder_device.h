@@ -67,6 +67,7 @@ public:
   bool venc_set_param(void *,OMX_INDEXTYPE);
   bool venc_set_config(void *configData, OMX_INDEXTYPE index);
   bool venc_get_profile_level(OMX_U32 *eProfile,OMX_U32 *eLevel);
+  bool venc_max_allowed_bitrate_check(OMX_U32 nTargetBitrate);
   OMX_U32 m_nDriver_fd;
   bool m_profile_set;
   bool m_level_set;
@@ -85,6 +86,9 @@ public:
 
   recon_buffer recon_buff[MAX_RECON_BUFFERS];
   int recon_buffers_count;
+  bool m_max_allowed_bitrate_check;
+  int m_eProfile;
+  int m_eLevel;
 
 private:
   struct venc_basecfg             m_sVenc_cfg;
