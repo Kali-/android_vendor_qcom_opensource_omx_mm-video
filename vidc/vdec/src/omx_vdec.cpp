@@ -4367,6 +4367,11 @@ OMX_ERRORTYPE omx_vdec::free_output_buffer(OMX_BUFFERHEADERTYPE *bufferHdr)
                     munmap (drv_ctx.ptr_outputbuffer[index].bufferaddr,
                             drv_ctx.ptr_outputbuffer[index].mmaped_size);
                }
+#ifdef USE_ION
+                free_ion_memory(&drv_ctx.op_buf_ion_info[index]);
+#endif
+                close (drv_ctx.ptr_outputbuffer[index].pmem_fd);
+                drv_ctx.ptr_outputbuffer[index].pmem_fd = -1;
 #ifdef _ANDROID_
                 m_heap_ptr[index].video_heap_ptr = NULL;
                 m_heap_count = m_heap_count - 1;
@@ -4376,11 +4381,6 @@ OMX_ERRORTYPE omx_vdec::free_output_buffer(OMX_BUFFERHEADERTYPE *bufferHdr)
                     m_heap_ptr = NULL;
                 }
 #endif // _ANDROID_
-                close (drv_ctx.ptr_outputbuffer[index].pmem_fd);
-                drv_ctx.ptr_outputbuffer[index].pmem_fd = -1;
-#ifdef USE_ION
-                free_ion_memory(&drv_ctx.op_buf_ion_info[index]);
-#endif
           }
 #ifdef _ANDROID_
        }
